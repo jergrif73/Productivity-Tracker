@@ -1,0 +1,407 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, doc, getDoc, setDoc, onSnapshot, query, writeBatch, getDocs, addDoc, deleteDoc, updateDoc, documentId, where } from 'firebase/firestore';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { Star, PlusCircle, XCircle, ChevronLeft, ChevronRight, Calendar, Users, Briefcase, Settings, Trash2, FilePenLine, BarChartHorizontal, UserSquare } from 'lucide-react';
+
+// --- Hardcoded Initial Data from User's Files ---
+const initialDetailersData = [
+    { name: "Arne Knutsen", employeeId: "-502530" }, { name: "Bailee Risley", employeeId: "-107888" }, { name: "David Hisaw", employeeId: "-500038" }, { name: "Devon Beaudry", employeeId: "-505369" }, { name: "Jacob Gowey", employeeId: "-100989" }, { name: "Jade Abrams", employeeId: "-530498" }, { name: "Jeremiah Griffith", employeeId: "-500193" }, { name: "Melissa Cannon", employeeId: "-530634" }, { name: "Michael McIntyre", employeeId: "-507259" }, { name: "Philip Kronberg", employeeId: "-506614" }, { name: "Rick Peterson", employeeId: "-500132" }, { name: "Robert Mitchell", employeeId: "-113404" }, { name: "Shawn Schneirla", employeeId: "-503701" }, { name: "Shawn Simleness", employeeId: "-503506" }, { name: "Travis Michalowski", employeeId: "-505404" }, { name: "Joshua Testerman", employeeId: "-504750" }, { name: "Tyler Stoker", employeeId: "-113923" }, { name: "Nickolas Marshall", employeeId: "-520118" }, { name: "Jeremy Splattstoesser", employeeId: "-507221" }, { name: "Pavel Makarenko", employeeId: "-500793" }
+].map(d => ({ ...d, skills: { modelKnowledge: 0, bimKnowledge: 0, leadership: 0, mechanical: 0, teamwork: 0 }, disciplines: [] }));
+
+
+const initialProjectsData = [
+    { name: "Brandt Interco", projectId: "5800005" }, { name: "PRECON / Estimating 2022", projectId: "5818022" }, { name: "RLSB 7th Floor Buildout", projectId: "5820526" }, { name: "PRN 1 Modernization", projectId: "5820533" }, { name: "OHEP IPA", projectId: "5820574" }, { name: "Vantage WA 13", projectId: "5820577" }, { name: "Microsoft Service Project", projectId: "5820580" }, { name: "PSU VSC", projectId: "5820608" }, { name: "Albina Library", projectId: "5820637" }, { name: "KND1-2 Type F", projectId: "5820643" }, { name: "Vantage WA 13 - Tenant Office Fit up", projectId: "5820648" }, { name: "UCO Type F", projectId: "5820653" }, { name: "DLS BD CL02 BATCH TANK RE", projectId: "5820654" }, { name: "Old Trapper Warehouse Expansion", projectId: "5820661" }, { name: "Legacy Emanuel Cath Lab", projectId: "5820663" }, { name: "PRN Wellhouse", projectId: "5820664" }, { name: "Sunriver Public Safety Building", projectId: "5820668" }, { name: "Meta MOFE MTR Racks - UCO", projectId: "5820669" }, { name: "Meta MOFE MTR Racks - KND", projectId: "5820670" }, { name: "Providence POP 1 Womens Health", projectId: "5820682" }, { name: "Microsoft EAT04", projectId: "5820690" }, { name: "Legacy LEW Infrastructure Package 1", projectId: "5820705" }, { name: "T5CS - Portland IV - Phase-III", projectId: "5820707" }, { name: "Vantage WA13 Phase 4 & 5", projectId: "5820709" }, { name: "Meta MOFE MTR Racks - RIN", projectId: "5820717" }, { name: "Meta MOFE MTR Racks - RMN", projectId: "5820718" }, { name: "Hitt Project Avalon Engineering", projectId: "5820723" }, { name: "Genentech - Acid CIP 200 Tank Replacement", projectId: "5820738" }, { name: "Apple - PRZ.05 PreCon", projectId: "5820754" }, { name: "Meta DCF v2.0 MOFE Design Support", projectId: "5820777" }, { name: "WA13 Level 2 Office TI", projectId: "5820779" }, { name: "Meta MOFE MTRs - Project Cable - LVN", projectId: "5820788" }, { name: "NTT H13", projectId: "5820800" }, { name: "MSFT PHX 73", projectId: "52.60." }, { name: "Overhead", projectId: "58.30." }, { name: "Pipe/Plumbing", projectId: "58.40." }, { name: "Detailing OH", projectId: "58.60." }, { name: "UCSF Benioff MRI Replacement", projectId: "5622373" }
+];
+
+const skillsList = { modelKnowledge: "Model Knowledge", bimKnowledge: "BIM Knowledge", leadership: "Leadership Skills", mechanical: "Mechanical Abilities", teamwork: "Teamwork Ability" };
+const disciplineOptions = ["Duct", "Plumbing", "Piping", "Coordination", "BIM", "Structural", "GIS/GPS"];
+const subDisciplineOptions = ["Modeling", "Coordination", "Spooling", "Deliverables", "Miscellaneous"];
+
+// --- Helper Functions ---
+const getStartOfWeek = (date) => { const d = new Date(date); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)); };
+const formatDate = (date) => date.toISOString().split('T')[0];
+const isDateBetween = (date, start, end) => {
+    const d = new Date(date); d.setHours(0,0,0,0);
+    const s = new Date(start); s.setHours(0,0,0,0);
+    const e = new Date(end); e.setHours(0,0,0,0);
+    return d >= s && d <= e;
+};
+
+// --- Firebase Configuration ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-productivity-tracker';
+const ASSIGNMENTS_COLLECTION = 'assignments_v2';
+
+// --- React Components ---
+const SkillsModal = ({ detailer, projects, assignments, onClose, onSaveSkills }) => {
+    const [skills, setSkills] = useState(detailer.skills || {});
+    const handleBubbleClick = (skill, rating) => setSkills(prev => ({ ...prev, [skill]: rating }));
+    const handleSave = () => { onSaveSkills(detailer.id, skills); onClose(); };
+    const detailerAssignments = assignments.filter(a => a.employeeId === detailer.employeeId);
+    
+    return ( <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4"><div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"><div className="flex justify-between items-center mb-4"><div><h2 className="text-2xl font-bold text-gray-800 dark:text-white">{detailer.name}</h2><p className="text-sm text-gray-500 dark:text-gray-400">Employee ID: {detailer.employeeId}</p></div><button onClick={onClose} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"><XCircle size={24} /></button></div><div className="space-y-4"><div><h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Skills Assessment</h3>{Object.entries(skillsList).map(([key, name]) => (<div key={key} className="mb-3"><label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{name}</label><div className="flex flex-wrap gap-2">{[...Array(10).keys()].map(i => i + 1).map(value => (<div key={value} className="flex flex-col items-center"><span className="text-xs text-gray-500 dark:text-gray-400">{value}</span><button type="button" onClick={() => handleBubbleClick(key, value)} className={`w-6 h-6 rounded-full border-2 transition-colors ${value <= (skills[key] || 0) ? 'bg-indigo-500 border-indigo-700' : 'bg-gray-200 border-gray-400 hover:bg-indigo-200'}`}></button></div>))}</div></div>))}</div><div><h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Discipline Skillset</h3>{(detailer.disciplines && detailer.disciplines.length > 0) ? (<div className="flex flex-wrap gap-2">{detailer.disciplines.map((discipline, index) => (<span key={index} className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm font-medium rounded-full">{discipline}</span>))}</div>) : (<p className="text-sm text-gray-500 dark:text-gray-400">No disciplines assigned.</p>)}</div><div><h3 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Current Projects</h3>{detailerAssignments.length > 0 ? (<ul className="space-y-2">{detailerAssignments.map((assign, index) => {const project = projects.find(p => p.projectId === assign.projectId); return (<li key={index} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-2 rounded-md"><span className="text-sm font-medium text-gray-800 dark:text-gray-200">{project ? `${project.name} (${project.projectId})` : 'Unknown Project'}</span><span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">{assign.percentage}%</span></li>);})}</ul>) : (<p className="text-sm text-gray-500 dark:text-gray-400">No projects assigned.</p>)}</div></div><div className="mt-6 flex justify-end space-x-3"><button onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition-colors">Cancel</button><button onClick={handleSave} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">Save Skills</button></div></div></div>);
+};
+
+const AllocationRow = ({ detailer, projects, assignments, onAssignmentChange, onAddAssignment, onRemoveAssignment, onShowSkills, onAddTrade, onRemoveTrade, onTradeChange }) => {
+    const detailerAssignments = useMemo(() => assignments.filter(a => a.employeeId === detailer.employeeId), [assignments, detailer.employeeId]);
+    const totalAllocation = useMemo(() => detailerAssignments.reduce((sum, p) => sum + (p.trades || []).reduce((tradeSum, t) => tradeSum + Number(t.percentage || 0), 0), 0), [detailerAssignments]);
+
+    return ( 
+        <tr className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+            <td className="px-6 py-4 align-top"><div className="font-semibold text-gray-900 dark:text-white">{detailer.name}</div><div className="text-sm text-gray-500 dark:text-gray-400">ID: {detailer.employeeId}</div><button onClick={() => onShowSkills(detailer)} className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">View Skills</button></td>
+            <td className="px-6 py-4"><div className="space-y-3">{detailerAssignments.map((assign) => { 
+                const availableProjects = projects.filter(p => !detailerAssignments.some(a => a.projectId === p.projectId && a.id !== assign.id));
+                const currentProject = projects.find(p => p.projectId === assign.projectId);
+                return (
+                    <div key={assign.id} className="p-2 border rounded-lg dark:border-gray-600 space-y-2">
+                        <div className="flex justify-between items-center">
+                            <select value={assign.projectId} onChange={(e) => onAssignmentChange(assign.id, 'projectId', e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white"><option value={assign.projectId}>{currentProject ? `${currentProject.name} (${currentProject.projectId})` : 'Select Project'}</option>{availableProjects.sort((a, b) => String(a.projectId).localeCompare(String(b.projectId), undefined, { numeric: true })).map(p => (<option key={p.id} value={p.projectId}>{`${p.name} (${p.projectId})`}</option>))}</select>
+                            <button onClick={() => onRemoveAssignment(assign.id)} className="ml-2 text-red-500 hover:text-red-700"><Trash2 size={20} /></button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                           <input type="date" value={assign.startDate} onChange={(e) => onAssignmentChange(assign.id, 'startDate', e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                           <input type="date" value={assign.endDate} onChange={(e) => onAssignmentChange(assign.id, 'endDate', e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        </div>
+                         <div className="space-y-2 pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
+                           {(assign.trades || []).map((trade) => (
+                               <div key={trade.id} className="p-2 border rounded-md dark:border-gray-500 space-y-2">
+                                   <div className="grid grid-cols-2 gap-2">
+                                     <select value={trade.discipline || ''} onChange={(e) => onTradeChange(assign.id, trade.id, 'discipline', e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        <option value="">Select Trade</option>
+                                        {(detailer.disciplines || []).map(d => (<option key={d} value={d}>{d}</option>))}
+                                     </select>
+                                     <select value={trade.subDiscipline || ''} onChange={(e) => onTradeChange(assign.id, trade.id, 'subDiscipline', e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" disabled={!trade.discipline}>
+                                        <option value="">Sub-Trade</option>
+                                        {subDisciplineOptions.map(sd => (<option key={sd} value={sd}>{sd}</option>))}
+                                     </select>
+                                   </div>
+                                    <div className="flex items-center gap-2">
+                                     <input type="number" value={trade.percentage} onChange={(e) => onTradeChange(assign.id, trade.id, 'percentage', e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="%" />
+                                     <button onClick={() => onRemoveTrade(assign.id, trade.id)} className="text-red-500 hover:text-red-700"><XCircle size={18}/></button>
+                                   </div>
+                               </div>
+                           ))}
+                           <button onClick={() => onAddTrade(assign.id)} className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center gap-1"><PlusCircle size={14}/> Add Trade</button>
+                         </div>
+                    </div>
+                )})
+            }{detailerAssignments.length < 4 && (<button onClick={() => onAddAssignment(detailer.employeeId)} className="mt-2 flex items-center space-x-1 text-sm text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"><PlusCircle size={16} /><span>Add Project</span></button>)}</div></td>
+            <td className="px-6 py-4 align-top text-center"><div className={`font-bold text-lg ${totalAllocation > 100 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>{totalAllocation}%</div></td>
+        </tr>
+    );
+};
+
+const ProjectView = ({ projects, detailers, assignments, currentDate, formatDate, isDateBetween }) => {
+    const projectAllocations = useMemo(() => {
+        const byProject = {};
+        const today = new Date(formatDate(currentDate));
+
+        assignments.forEach(assign => {
+            const startDate = new Date(assign.startDate);
+            const endDate = new Date(assign.endDate);
+
+            if (isDateBetween(today, startDate, endDate)) {
+                const detailer = detailers.find(d => d.employeeId === assign.employeeId);
+                if (!detailer) return;
+                
+                (assign.trades || []).forEach(trade => {
+                     if (!byProject[assign.projectId]) {
+                        const projectInfo = projects.find(p => p.projectId === assign.projectId);
+                        byProject[assign.projectId] = { name: projectInfo ? projectInfo.name : 'Unknown Project', detailers: [] };
+                    }
+                    byProject[assign.projectId].detailers.push({ name: detailer.name, percentage: Number(trade.percentage) || 0 });
+                });
+            }
+        });
+        return Object.entries(byProject).sort(([,a],[,b]) => a.name.localeCompare(b.name));
+    }, [projects, detailers, assignments, currentDate, formatDate, isDateBetween]);
+
+    if(projectAllocations.length === 0){ return <div className="text-center py-10 text-gray-500 dark:text-gray-400">No projects have allocations for this week.</div> }
+
+    return (<div className="space-y-4">{projectAllocations.map(([projectId, projectData]) => (<div key={projectId} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"><div className="p-4 bg-gray-50 dark:bg-gray-700/50"><h3 className="font-bold text-lg text-gray-900 dark:text-white">{projectData.name}</h3><p className="text-sm text-gray-500 dark:text-gray-400">Project ID: {projectId}</p></div><ul className="divide-y divide-gray-200 dark:divide-gray-700">{projectData.detailers.sort((a,b) => a.name.localeCompare(b.name)).map((detailer, index) => (<li key={index} className="px-4 py-3 flex justify-between items-center"><span className="text-gray-700 dark:text-gray-300">{detailer.name}</span><span className="font-medium text-gray-800 dark:text-gray-200">{detailer.percentage}%</span></li>))}</ul></div>))}</div>);
+};
+
+const ManagementView = ({ detailers, projects, onAddDetailer, onRemoveDetailer, onAddProject, onRemoveProject }) => {
+    const [newDetailerName, setNewDetailerName] = useState(''); const [newDetailerId, setNewDetailerId] = useState(''); const [newProjectName, setNewProjectName] = useState(''); const [newProjectId, setNewProjectId] = useState('');
+    const handleAddDetailerSubmit = (e) => { e.preventDefault(); if(newDetailerName.trim() && newDetailerId.trim()){ onAddDetailer(newDetailerName.trim(), newDetailerId.trim()); setNewDetailerName(''); setNewDetailerId(''); } };
+    const handleAddProjectSubmit = (e) => { e.preventDefault(); if(newProjectName.trim() && newProjectId.trim()){ onAddProject(newProjectName.trim(), newProjectId.trim()); setNewProjectName(''); setNewProjectId(''); } };
+
+    return (<div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Manage Detailers</h3><form onSubmit={handleAddDetailerSubmit} className="space-y-4 mb-6"><input type="text" value={newDetailerName} onChange={e => setNewDetailerName(e.target.value)} placeholder="Detailer Name" className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" /><input type="text" value={newDetailerId} onChange={e => setNewDetailerId(e.target.value)} placeholder="Employee ID" className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" /><button type="submit" className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"><PlusCircle size={18} className="mr-2" /> Add Detailer</button></form><ul className="space-y-2 max-h-96 overflow-y-auto">{detailers.sort((a,b) => a.name.localeCompare(b.name)).map(d => (<li key={d.id} className="flex justify-between items-center p-2 rounded-md bg-gray-50 dark:bg-gray-700/50"><span className="text-gray-800 dark:text-gray-200">{d.name} <span className="text-xs text-gray-500 dark:text-gray-400">({d.employeeId})</span></span><button onClick={() => onRemoveDetailer(d.id)} className="text-red-500 hover:text-red-700"><Trash2 size={18}/></button></li>))}</ul></div><div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Manage Projects</h3><form onSubmit={handleAddProjectSubmit} className="space-y-4 mb-6"><input type="text" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="Project Name" className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" /><input type="text" value={newProjectId} onChange={e => setNewProjectId(e.target.value)} placeholder="Project ID" className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" /><button type="submit" className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"><PlusCircle size={18} className="mr-2" /> Add Project</button></form><ul className="space-y-2 max-h-96 overflow-y-auto">{projects.sort((a,b) => String(a.projectId).localeCompare(String(b.projectId), undefined, { numeric: true })).map(p => (<li key={p.id} className="flex justify-between items-center p-2 rounded-md bg-gray-50 dark:bg-gray-700/50"><span className="text-gray-800 dark:text-gray-200">{p.name} <span className="text-xs text-gray-500 dark:text-gray-400">({p.projectId})</span></span><button onClick={() => onRemoveProject(p.id)} className="text-red-500 hover:text-red-700"><Trash2 size={18}/></button></li>))}</ul></div></div>);
+};
+
+const EditEmployeeView = ({ detailers, onUpdateDetailer }) => {
+    const [selectedId, setSelectedId] = useState('');
+    const [formData, setFormData] = useState(null);
+    const [message, setMessage] = useState('');
+    const [disciplineToAdd, setDisciplineToAdd] = useState('');
+
+    useEffect(() => {
+        if (selectedId) {
+            const detailer = detailers.find(d => d.id === selectedId);
+            setFormData(detailer ? { ...detailer, disciplines: detailer.disciplines || [] } : null);
+            setDisciplineToAdd('');
+        } else {
+            setFormData(null);
+        }
+        setMessage('');
+    }, [selectedId, detailers]);
+
+    const handleFormChange = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+    const handleSkillChange = (skill, rating) => setFormData(prev => ({ ...prev, skills: { ...(prev.skills || {}), [skill]: rating } }));
+    const addDiscipline = () => { if (disciplineToAdd && (formData.disciplines || []).length < 4 && !formData.disciplines.includes(disciplineToAdd)) { handleFormChange('disciplines', [...(formData.disciplines || []), disciplineToAdd]); setDisciplineToAdd(''); } };
+    const removeDiscipline = (index) => { const newDisciplines = (formData.disciplines || []).filter((_, i) => i !== index); handleFormChange('disciplines', newDisciplines); };
+    const handleSubmit = (e) => { e.preventDefault(); if (formData) { const { id, ...dataToUpdate } = formData; onUpdateDetailer(id, dataToUpdate); setMessage('Changes saved successfully!'); setTimeout(() => setMessage(''), 3000); } };
+    const availableDisciplines = useMemo(() => { if (!formData) return []; return disciplineOptions.filter(opt => !(formData.disciplines || []).includes(opt)); }, [formData]);
+    
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">Edit Employee Details</h3>
+            <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="w-full mb-6 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="">-- Select an Employee --</option>
+                {detailers.sort((a, b) => a.name.localeCompare(b.name)).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            {formData && (
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                        <h4 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Basic Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input type="text" value={formData.name} onChange={e => handleFormChange('name', e.target.value)} placeholder="Full Name" className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                            <input type="text" value={formData.employeeId} onChange={e => handleFormChange('employeeId', e.target.value)} placeholder="Employee ID" className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                        </div>
+                    </div>
+                    <div>
+                        <h4 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Revit Skills</h4>
+                        <div className="space-y-3">{Object.entries(skillsList).map(([key, name]) => (<div key={key}><label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{name}</label><div className="flex flex-wrap gap-2">{[...Array(10).keys()].map(i => i + 1).map(value => (<div key={value} className="flex flex-col items-center"><span className="text-xs text-gray-500 dark:text-gray-400">{value}</span><button type="button" onClick={() => handleSkillChange(key, value)} className={`w-6 h-6 rounded-full border-2 transition-colors ${value <= ((formData.skills && formData.skills[key]) || 0) ? 'bg-indigo-500 border-indigo-700' : 'bg-gray-200 border-gray-400 hover:bg-indigo-200'}`}></button></div>))}</div></div>))}</div>
+                    </div>
+                    <div>
+                        <h4 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-300">Discipline Skillset</h4>
+                        <div className="space-y-2 mb-4">
+                            {(formData.disciplines || []).map((discipline, index) => (
+                                <div key={index} className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 rounded-md">
+                                    <span className="text-gray-800 dark:text-gray-200">{discipline}</span>
+                                    <button type="button" onClick={() => removeDiscipline(index)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                </div>
+                            ))}
+                        </div>
+                        {(formData.disciplines || []).length < 4 && (
+                            <div className="flex items-center gap-2">
+                                <select value={disciplineToAdd} onChange={e => setDisciplineToAdd(e.target.value)} className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="">-- Select a Discipline --</option>
+                                    {availableDisciplines.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                                <button type="button" onClick={addDiscipline} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition-colors shrink-0">Add</button>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Save Changes</button>
+                        {message && <span className="text-green-500 text-sm">{message}</span>}
+                    </div>
+                </form>
+            )}
+        </div>
+    );
+};
+
+const WorkloaderView = ({ projects, detailers, assignments, currentDate, getStartOfWeek, isDateBetween, formatDate }) => {
+    const disciplineColors = { Piping: 'bg-green-400', Duct: 'bg-yellow-400', Plumbing: 'bg-amber-700', Coordination: 'bg-fuchsia-400', BIM: 'bg-purple-500', Structural: 'bg-slate-400', 'GIS/GPS': 'bg-orange-400' };
+
+    const workloaderData = useMemo(() => {
+        const byProject = {};
+        const today = new Date(formatDate(currentDate));
+        
+        assignments.forEach(assign => {
+            if (isDateBetween(today, new Date(assign.startDate), new Date(assign.endDate))) {
+                const detailer = detailers.find(d => d.employeeId === assign.employeeId);
+                if (detailer) {
+                    if (!byProject[assign.projectId]) {
+                        const projectInfo = projects.find(p => p.projectId === assign.projectId);
+                        if (projectInfo) {
+                            byProject[assign.projectId] = { name: `${projectInfo.name} (${projectInfo.projectId})`, detailers: {} };
+                        }
+                    }
+                    if (byProject[assign.projectId]) {
+                         if(!byProject[assign.projectId].detailers[detailer.id]) {
+                            byProject[assign.projectId].detailers[detailer.id] = { ...detailer, assignments: [] };
+                        }
+                        byProject[assign.projectId].detailers[detailer.id].assignments.push(assign);
+                    }
+                }
+            }
+        });
+        Object.values(byProject).forEach(project => {
+            project.detailers = Object.values(project.detailers).sort((a,b) => a.name.localeCompare(b.name));
+        });
+        return Object.values(byProject).sort((a, b) => a.name.localeCompare(b.name));
+    }, [projects, detailers, assignments, currentDate, formatDate, isDateBetween]);
+    
+    const timelineWeeks = useMemo(() => {
+        const centerDate = getStartOfWeek(currentDate);
+        const weeks = [];
+        for (let i = -8; i <= 8; i++) {
+            const date = new Date(centerDate);
+            date.setDate(date.getDate() + i * 7);
+            weeks.push(getStartOfWeek(date));
+        }
+        return weeks;
+    }, [currentDate, getStartOfWeek]);
+
+    const getTimelineCell = (detailer, week) => {
+        const weekStart = getStartOfWeek(week);
+        const tradeCells = detailer.assignments.flatMap(assign => 
+            (assign.trades || []).map(trade => {
+                if (!isDateBetween(weekStart, new Date(assign.startDate), new Date(assign.endDate))) return null;
+                const percentage = Number(trade.percentage) || 0;
+                if (percentage <= 0) return null;
+                const discipline = trade.discipline;
+                const subDiscipline = trade.subDiscipline;
+                const bgColor = disciplineColors[discipline] || 'bg-gray-200';
+                const textColor = ['Plumbing', 'BIM', 'Structural','GIS/GPS'].includes(discipline) ? 'text-white' : 'text-black';
+                return <div key={trade.id} title={`${discipline}: ${subDiscipline || 'N/A'} - ${percentage}%`} className={`h-full flex items-center justify-center font-medium ${bgColor} ${textColor}`} style={{width: `${percentage}%`}}><span className="text-xs px-1">{percentage > 15 ? `${percentage}%` : ""}</span></div>;
+            }).filter(Boolean)
+        );
+        if (tradeCells.length === 0) return null;
+        return <div className="h-full w-full flex overflow-hidden">{tradeCells}</div>
+    }
+
+    return (
+        <div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 p-2 mb-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                {Object.entries(disciplineColors).map(([name, className]) => (
+                    <div key={name} className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${className}`}></div>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{name}</span>
+                    </div>
+                ))}
+            </div>
+            <div className="overflow-x-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 border-collapse">
+                    <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                        <tr>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-48">Detailer</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-48">Trade</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">% Allocated</th>
+                            {timelineWeeks.map((week, index) => (
+                                <th key={index} className={`px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-48 ${formatDate(week) === formatDate(getStartOfWeek(currentDate)) ? 'bg-indigo-100 dark:bg-indigo-900/50' : ''}`}>
+                                    {week.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {workloaderData.map((project, projIndex) => (<React.Fragment key={projIndex}><tr className="bg-gray-100 dark:bg-gray-900"><td colSpan={timelineWeeks.length + 3} className="px-3 py-2 text-sm font-bold text-gray-800 dark:text-gray-100">{project.name}</td></tr>{project.detailers.map((detailer, detIndex) => (<tr key={detIndex}><td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{detailer.name}</td><td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{detailer.assignments.flatMap(a => a.trades.map(t => t.discipline)).filter(Boolean).join(', ')}</td><td className="px-3 py-2 whitespace-nowrap text-sm text-center font-semibold text-gray-800 dark:text-gray-200">{detailer.assignments.reduce((sum, a) => sum + (a.trades || []).reduce((ts, t) => ts + Number(t.percentage || 0), 0), 0)}%</td>{timelineWeeks.map((week, weekIndex) => ( <td key={weekIndex} className={`p-0 h-8 border-x border-gray-200 dark:border-gray-700`}>{getTimelineCell(detailer, week)}</td>))}</tr>))}</React.Fragment>))}</tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+export default function App() {
+    const [db, setDb] = useState(null); const [isAuthReady, setIsAuthReady] = useState(false); const [isLoading, setIsLoading] = useState(true); const [detailers, setDetailers] = useState([]); const [projects, setProjects] = useState([]); const [assignments, setAssignments] = useState([]); const [currentDate, setCurrentDate] = useState(new Date()); const [selectedDetailer, setSelectedDetailer] = useState(null); const [viewMode, setViewMode] = useState('detailer'); 
+    const [detailerSortOrder, setDetailerSortOrder] = useState('firstName');
+
+    const getStartOfWeek = (date) => { const d = new Date(date); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)); };
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    const isDateBetween = (date, start, end) => { const d = new Date(date); d.setHours(0,0,0,0); const s = new Date(start); s.setHours(0,0,0,0); const e = new Date(end); e.setHours(0,0,0,0); return d >= s && d <= e; };
+    
+    const sortedDetailers = useMemo(() => {
+        const getLastName = (name) => { const parts = name.split(' '); return parts.length > 1 ? parts[parts.length - 1] : name; };
+        const sorted = [...detailers];
+        if (detailerSortOrder === 'lastName') { sorted.sort((a, b) => getLastName(a.name).localeCompare(getLastName(b.name))); } 
+        else { sorted.sort((a, b) => a.name.localeCompare(b.name)); }
+        return sorted;
+    }, [detailers, detailerSortOrder]);
+    
+    useEffect(() => { const app = initializeApp(firebaseConfig); const firestore = getFirestore(app); const authInstance = getAuth(app); setDb(firestore); onAuthStateChanged(authInstance, user => { if (user) { setIsAuthReady(true); } else { signInAnonymously(authInstance).catch(error => console.error("Anonymous sign-in failed:", error)); } }); }, []);
+    
+    const initializeData = useCallback(async () => {
+        if (!db || !isAuthReady) return; setIsLoading(true);
+        try { const settingsDocRef = doc(db, `artifacts/${appId}/public/data/settings/main`); const settingsDoc = await getDoc(settingsDocRef); if (!settingsDoc.exists()) { const batch = writeBatch(db); console.log("First time setup: Seeding initial data."); const detailersCol = collection(db, `artifacts/${appId}/public/data/detailers`); initialDetailersData.forEach(d => batch.set(doc(detailersCol), d)); const projectsCol = collection(db, `artifacts/${appId}/public/data/projects`); initialProjectsData.forEach(p => batch.set(doc(projectsCol), p)); batch.set(settingsDocRef, { initialized: true }); await batch.commit(); }
+        } catch (error) { console.error("Error initializing data:", error); } finally { setIsLoading(false); }
+    }, [db, isAuthReady]);
+
+    useEffect(() => { initializeData(); }, [initializeData]);
+    useEffect(() => { if (isLoading || !db) return; const unsubs = ['detailers', 'projects', 'assignments'].map(name => onSnapshot(query(collection(db, `artifacts/${appId}/public/data/${name}`)), snapshot => { const setter = name === 'detailers' ? setDetailers : name === 'projects' ? setProjects : setAssignments; setter(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))); }, error => console.error(`Error fetching ${name}:`, error))); return () => unsubs.forEach(unsub => unsub()); }, [isLoading, db]);
+    
+    const handleAssignmentChange = useCallback(async (assignmentId, field, value) => { await updateDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId), { [field]: value }); }, [db]);
+    const handleAddAssignment = useCallback(async (employeeId) => { const today = new Date(); const nextWeek = new Date(); nextWeek.setDate(today.getDate() + 7); await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), { employeeId, projectId: '', trades: [], startDate: formatDate(today), endDate: formatDate(nextWeek) }); }, [db]);
+    const handleRemoveAssignment = useCallback(async (assignmentId) => { await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId)); }, [db]);
+    const handleSaveSkills = useCallback(async (detailerId, newSkills) => { await updateDoc(doc(db, `artifacts/${appId}/public/data/detailers`, detailerId), { skills: newSkills }); }, [db]);
+    const handleAddDetailer = useCallback(async (name, employeeId) => { await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { name, employeeId, skills: { modelKnowledge: 0, bimKnowledge: 0, leadership: 0, mechanical: 0, teamwork: 0 }, disciplines: [] }); }, [db]);
+    const handleRemoveDetailer = useCallback(async (detailerId) => { await deleteDoc(doc(db, `artifacts/${appId}/public/data/detailers`, detailerId)); }, [db]);
+    const handleAddProject = useCallback(async (name, projectId) => { await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), { name, projectId }); }, [db]);
+    const handleRemoveProject = useCallback(async (projectId) => { await deleteDoc(doc(db, `artifacts/${appId}/public/data/projects`, projectId)); }, [db]);
+    const handleUpdateDetailer = useCallback(async (detailerId, data) => { await updateDoc(doc(db, `artifacts/${appId}/public/data/detailers`, detailerId), data); }, [db]);
+    
+    const handleAddTrade = useCallback(async (assignmentId) => {
+        const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
+        const assignmentDoc = await getDoc(assignmentRef);
+        if (assignmentDoc.exists()) {
+            const currentTrades = assignmentDoc.data().trades || [];
+            const newTrade = { id: crypto.randomUUID(), discipline: '', subDiscipline: '', percentage: 0 };
+            await updateDoc(assignmentRef, { trades: [...currentTrades, newTrade] });
+        }
+    }, [db, appId]);
+
+    const handleRemoveTrade = useCallback(async (assignmentId, tradeId) => {
+        const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
+        const assignmentDoc = await getDoc(assignmentRef);
+        if (assignmentDoc.exists()) {
+            const currentTrades = assignmentDoc.data().trades || [];
+            const updatedTrades = currentTrades.filter(t => t.id !== tradeId);
+            await updateDoc(assignmentRef, { trades: updatedTrades });
+        }
+    }, [db, appId]);
+
+    const handleTradeChange = useCallback(async (assignmentId, tradeId, field, value) => {
+        const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
+        const assignmentDoc = await getDoc(assignmentRef);
+        if (assignmentDoc.exists()) {
+            const currentTrades = assignmentDoc.data().trades || [];
+            const updatedTrades = currentTrades.map(t => {
+                if (t.id === tradeId) {
+                    return { ...t, [field]: value };
+                }
+                return t;
+            });
+            await updateDoc(assignmentRef, { trades: updatedTrades });
+        }
+    }, [db, appId]);
+    
+    const changeWeek = (offset) => setCurrentDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + offset * 7); return d; });
+    
+    if (isLoading) { return <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900"><div className="text-center"><div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-indigo-500 mx-auto"></div><p className="mt-4 text-lg text-gray-700 dark:text-gray-300">Loading Tracker...</p></div></div>; }
+
+    return (
+        <div className="bg-gray-100 dark:bg-gray-900 min-h-screen font-sans">
+            <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+                {selectedDetailer && <SkillsModal detailer={selectedDetailer} projects={projects} assignments={assignments} onClose={() => setSelectedDetailer(null)} onSaveSkills={handleSaveSkills} />}
+                <header className="mb-6"><h1 className="text-3xl font-bold text-gray-800 dark:text-white">Productivity Tracker</h1><p className="text-gray-600 dark:text-gray-400">Manage detailer skills and project allocations.</p></header>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md mb-6 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
+                    <div className="flex items-center space-x-2">
+                        <button onClick={() => changeWeek(-1)} className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"><ChevronLeft size={20} className="text-gray-700 dark:text-gray-300"/></button>
+                        <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">Today</button>
+                        <span className="font-medium text-center text-gray-800 dark:text-gray-200 w-48">{getStartOfWeek(currentDate).toLocaleDateString()} - {new Date(new Date(getStartOfWeek(currentDate)).setDate(getStartOfWeek(currentDate).getDate() + 6)).toLocaleDateString()}</span>
+                        <button onClick={() => changeWeek(1)} className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"><ChevronRight size={20} className="text-gray-700 dark:text-gray-300"/></button>
+                    </div>
+                    <div className="flex items-center bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
+                        <button onClick={() => setViewMode('detailer')} className={`px-3 py-1 text-sm font-medium rounded-md flex items-center ${viewMode === 'detailer' ? 'bg-white dark:bg-gray-800 shadow text-indigo-600' : 'text-gray-600 dark:text-gray-300'}`}><Users size={16} className="mr-2"/>Detailer</button>
+                        <button onClick={() => setViewMode('project')} className={`px-3 py-1 text-sm font-medium rounded-md flex items-center ${viewMode === 'project' ? 'bg-white dark:bg-gray-800 shadow text-indigo-600' : 'text-gray-600 dark:text-gray-300'}`}><Briefcase size={16} className="mr-2"/>Project</button>
+                        <button onClick={() => setViewMode('workloader')} className={`px-3 py-1 text-sm font-medium rounded-md flex items-center ${viewMode === 'workloader' ? 'bg-white dark:bg-gray-800 shadow text-indigo-600' : 'text-gray-600 dark:text-gray-300'}`}><BarChartHorizontal size={16} className="mr-2"/>Workloader</button>
+                        <button onClick={() => setViewMode('edit')} className={`px-3 py-1 text-sm font-medium rounded-md flex items-center ${viewMode === 'edit' ? 'bg-white dark:bg-gray-800 shadow text-indigo-600' : 'text-gray-600 dark:text-gray-300'}`}><FilePenLine size={16} className="mr-2"/>Edit</button>
+                        <button onClick={() => setViewMode('management')} className={`px-3 py-1 text-sm font-medium rounded-md flex items-center ${viewMode === 'management' ? 'bg-white dark:bg-gray-800 shadow text-indigo-600' : 'text-gray-600 dark:text-gray-300'}`}><Settings size={16} className="mr-2"/>Manage</button>
+                    </div>
+                </div>
+
+                {viewMode === 'detailer' ? (<><div className="flex justify-end items-center mb-4"><span className="text-sm font-medium mr-2 text-gray-700 dark:text-gray-300">Sort by:</span><div className="flex items-center bg-gray-200 dark:bg-gray-700 rounded-lg p-1"><button onClick={() => setDetailerSortOrder('firstName')} className={`px-3 py-1 text-sm font-medium rounded-md ${detailerSortOrder === 'firstName' ? 'bg-white dark:bg-gray-800 shadow' : ''}`}>First Name</button><button onClick={() => setDetailerSortOrder('lastName')} className={`px-3 py-1 text-sm font-medium rounded-md ${detailerSortOrder === 'lastName' ? 'bg-white dark:bg-gray-800 shadow' : ''}`}>Last Name</button></div></div><div className="overflow-x-auto bg-white dark:bg-gray-800 shadow-lg rounded-lg"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Detailer</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/2">Project Assignments</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-1/4">Total Time</th></tr></thead><tbody className="divide-y divide-gray-200 dark:divide-gray-700">{sortedDetailers.map(detailer => (<AllocationRow key={detailer.id} detailer={detailer} projects={projects} assignments={assignments} onAssignmentChange={handleAssignmentChange} onAddAssignment={handleAddAssignment} onRemoveAssignment={handleRemoveAssignment} onShowSkills={setSelectedDetailer} onAddTrade={handleAddTrade} onRemoveTrade={handleRemoveTrade} onTradeChange={handleTradeChange} />))}</tbody></table></div></>) 
+                : viewMode === 'project' ? (<ProjectView projects={projects} detailers={detailers} assignments={assignments} currentDate={currentDate} formatDate={formatDate} isDateBetween={isDateBetween} />) 
+                : viewMode === 'management' ? (<ManagementView detailers={detailers} projects={projects} onAddDetailer={handleAddDetailer} onRemoveDetailer={handleRemoveDetailer} onAddProject={handleAddProject} onRemoveProject={handleRemoveProject} />)
+                : viewMode === 'edit' ? (<EditEmployeeView detailers={detailers} onUpdateDetailer={handleUpdateDetailer} />)
+                : (<WorkloaderView projects={projects} detailers={detailers} assignments={assignments} currentDate={currentDate} getStartOfWeek={getStartOfWeek} isDateBetween={isDateBetween} formatDate={formatDate} />)}
+
+                <footer className="text-center mt-8 text-sm text-gray-500 dark:text-gray-400"><p>Productivity Tracker App</p></footer>
+            </div>
+        </div>
+    );
+}
