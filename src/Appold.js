@@ -831,16 +831,16 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
-                            <th className="p-2 font-semibold w-[100px] min-w-[100px] border border-gray-300">DETAILER</th>
-                            <th className="p-2 font-semibold w-[60px] min-w-[60px] border border-gray-300">TRADE</th>
-                            <th className="p-2 font-semibold w-[40px] min-w-[40px] border border-gray-300">% ALLOCATED</th>
+                            <th className="p-2 font-semibold w-[126px] min-w-[126px] border border-gray-300">DETAILER</th>
+                            <th className="p-2 font-semibold w-[84px] min-w-[84px] border border-gray-300">TRADE</th>
+                            <th className="p-2 font-semibold w-[70px] min-w-[70px] border border-gray-300">% ALLOCATED</th>
                             {weekDates.map(date => {
                                 const weekStart = new Date(date);
                                 const weekEnd = new Date(weekStart);
                                 weekEnd.setDate(weekEnd.getDate() + 6);
                                 const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
                                 return (
-                                <th key={date.toISOString()} className={`p-2 font-semibold w-4 min-w-[8px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
+                                <th key={date.toISOString()} className={`p-2 font-semibold w-11 min-w-[44px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
                                     {`${date.getMonth() + 1}/${date.getDate()}`}
                                 </th>
                                 )})}
@@ -850,7 +850,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                         {groupedData.map(project => (
                             <React.Fragment key={project.id}>
                                 <tr className="bg-gray-200 sticky top-10">
-                                    <th colSpan={1 + weekDates.length} className="p-2 text-left font-bold text-gray-700 border border-gray-300">
+                                    <th colSpan={3 + weekDates.length} className="p-2 text-left font-bold text-gray-700 border border-gray-300">
                                         {project.name} ({project.projectId})
                                     </th>
                                 </tr>
