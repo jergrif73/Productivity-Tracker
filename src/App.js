@@ -5,7 +5,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 
 // --- Helper Functions & Initial Data ---
 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-prod-tracker-app';
+// Provide a default value for process.env.REACT_APP_APP_ID if it's not defined
+const appId = process.env.REACT_APP_APP_ID || 'default-prod-tracker-app';
 
 const initialDetailers = [
     { firstName: "Arne", lastName: "Knutsen", employeeId: "502530", skills: {}, disciplineSkillsets: {} },
@@ -17,8 +18,8 @@ const initialDetailers = [
     { firstName: "Jeremiah", lastName: "Griffith", employeeId: "500193", skills: {}, disciplineSkillsets: {} },
     { firstName: "Melissa", lastName: "Cannon", employeeId: "530634", skills: {}, disciplineSkillsets: {} },
     { firstName: "Michael", lastName: "McIntyre", employeeId: "507259", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Philip", lastName: "Kronberg", employeeId: "500132", skills: {}, disciplineSkillsets: {} },   
-{ firstName: "Rick", lastName: "Peterson", employeeId: "500132", skills: {}, disciplineSkillsets: {} },
+    { firstName: "Philip", lastName: "Kronberg", employeeId: "500132", skills: {}, disciplineSkillsets: {} },    
+    { firstName: "Rick", lastName: "Peterson", employeeId: "500132", skills: {}, disciplineSkillsets: {} },
     { firstName: "Robert", lastName: "Mitchell", employeeId: "113404", skills: {}, disciplineSkillsets: {} },
     { firstName: "Shawn", lastName: "Schneirla", employeeId: "503701", skills: {}, disciplineSkillsets: {} },
     { firstName: "Shawn", lastName: "Simleness", employeeId: "503506", skills: {}, disciplineSkillsets: {} },
@@ -190,8 +191,9 @@ const App = () => {
                 setIsAuthReady(true);
             } else {
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
+                    // Use environment variable REACT_APP_INITIAL_AUTH_TOKEN
+                    if (process.env.REACT_APP_INITIAL_AUTH_TOKEN) {
+                        await signInWithCustomToken(auth, process.env.REACT_APP_INITIAL_AUTH_TOKEN);
                     } else {
                         await signInAnonymously(auth);
                     }
@@ -590,8 +592,13 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
         if (!db || !editableDetailer) return;
         const detailerRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableDetailer.id);
         const { id, ...dataToSave } = editableDetailer;
-        await setDoc(detailerRef, dataToSave, { merge: true });
-        alert("Changes saved successfully!");
+        // Replaced alert with console.log for better non-blocking feedback
+        try {
+            await setDoc(detailerRef, dataToSave, { merge: true });
+            console.log("Changes saved successfully!");
+        } catch (error) {
+            console.error("Error saving changes:", error);
+        }
     };
     
     return (
@@ -671,12 +678,20 @@ const AdminConsole = ({ detailers, projects }) => {
     const handleAdd = async (type) => {
         if (!db) return;
         if (type === 'detailer') {
-            if (!newDetailer.firstName || !newDetailer.lastName || !newDetailer.employeeId) return alert('Fill all detailer fields.');
+            // Replaced alert with custom UI/console.log for better non-blocking feedback
+            if (!newDetailer.firstName || !newDetailer.lastName || !newDetailer.employeeId) {
+                console.warn('Fill all detailer fields to add a new detailer.');
+                return;
+            }
             const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
             await addDoc(detailersRef, { ...newDetailer, skills: {}, disciplineSkillsets: {} });
             setNewDetailer({ firstName: '', lastName: '', employeeId: '' });
         } else {
-            if (!newProject.name || !newProject.projectId) return alert('Fill all project fields.');
+            // Replaced alert with custom UI/console.log for better non-blocking feedback
+            if (!newProject.name || !newProject.projectId) {
+                console.warn('Fill all project fields to add a new project.');
+                return;
+            }
             const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
             await addDoc(projectsRef, newProject);
             setNewProject({ name: '', projectId: '' });
@@ -882,4 +897,4 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
     );
 };
 
-export default App;
+export default App; // Added this line to export the App component as default
