@@ -5,7 +5,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 
 // --- Helper Functions & Initial Data ---
 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-prod-tracker-app';
+// Provide a default value for process.env.REACT_APP_APP_ID if it's not defined
+const appId = process.env.REACT_APP_APP_ID || 'default-prod-tracker-app';
 
 const initialDetailers = [
     { firstName: "Arne", lastName: "Knutsen", employeeId: "502530", skills: {}, disciplineSkillsets: {} },
@@ -17,7 +18,7 @@ const initialDetailers = [
     { firstName: "Jeremiah", lastName: "Griffith", employeeId: "500193", skills: {}, disciplineSkillsets: {} },
     { firstName: "Melissa", lastName: "Cannon", employeeId: "530634", skills: {}, disciplineSkillsets: {} },
     { firstName: "Michael", lastName: "McIntyre", employeeId: "507259", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Philip", lastName: "Kronberg", employeeId: "506614", skills: {}, disciplineSkillsets: {} },
+    { firstName: "Philip", lastName: "Kronberg", employeeId: "500132", skills: {}, disciplineSkillsets: {} },    
     { firstName: "Rick", lastName: "Peterson", employeeId: "500132", skills: {}, disciplineSkillsets: {} },
     { firstName: "Robert", lastName: "Mitchell", employeeId: "113404", skills: {}, disciplineSkillsets: {} },
     { firstName: "Shawn", lastName: "Schneirla", employeeId: "503701", skills: {}, disciplineSkillsets: {} },
@@ -92,30 +93,32 @@ const legendColorMapping = {
     "GIS/GPS": 'bg-orange-500',
 };
 
+// Initialize Firebase outside of the component to prevent re-initialization on re-renders
+let firebaseApp;
+let db;
+let auth;
 
-// --- Firebase Initialization ---
-let db, auth;
 try {
     const firebaseConfig = {
-      apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
-      authDomain: "productivity-tracker-3017d.firebaseapp.com",
-      projectId: "productivity-tracker-3017d",
-      storageBucket: "productivity-tracker-3017d.firebasestorage.app",
-      messagingSenderId: "489412895343",
-      appId: "1:489412895343:web:780e7717db122a2b99639a",
-      measurementId: "G-LGTREWPTGJ"
+        apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
+        authDomain: "productivity-tracker-3017d.firebaseapp.com",
+        projectId: "productivity-tracker-3017d",
+        storageBucket: "productivity-tracker-3017d.firebasestorage.app",
+        messagingSenderId: "489412895343",
+        appId: "1:489412895343:web:780e7717db122a2b99639a",
+        measurementId: "G-LGTREWPTGJ"
     };
-    
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
 
-} catch(error) {
+    firebaseApp = initializeApp(firebaseConfig);
+    db = getFirestore(firebaseApp);
+    auth = getAuth(firebaseApp);
+} catch (error) {
     console.error("Firebase initialization failed:", error);
+    // You might want to display an error message to the user here
 }
 
 
-// --- React Components (Now at the top level) ---
+// --- React Components ---
 
 const BubbleRating = ({ score, onScoreChange }) => {
     return (
@@ -178,120 +181,107 @@ const App = () => {
     useEffect(() => {
         if (!auth) {
             console.error("Firebase Auth is not initialized.");
-            setLoading(false);
+            setIsAuthReady(true); // Allow the app to render even if auth isn't ready, with a message
             return;
-        };
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 setUserId(user.uid);
                 setIsAuthReady(true);
             } else {
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
+                    // Use environment variable REACT_APP_INITIAL_AUTH_TOKEN
+                    if (process.env.REACT_APP_INITIAL_AUTH_TOKEN) {
+                        await signInWithCustomToken(auth, process.env.REACT_APP_INITIAL_AUTH_TOKEN);
                     } else {
                         await signInAnonymously(auth);
                     }
                 } catch (error) {
                     console.error("Authentication failed:", error);
-                    setIsAuthReady(true);
+                    setIsAuthReady(true); // Still set to true to allow UI to render even on auth failure
                 }
             }
         });
         return () => unsubscribe();
     }, []);
 
+    const seedInitialData = async () => {
+        if (!db) return;
+        const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
+        const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
+        
+        const detailerSnapshot = await getDocs(query(detailersRef));
+        if (detailerSnapshot.empty) {
+            console.log("Seeding detailers...");
+            const batch = writeBatch(db);
+            initialDetailers.forEach(d => {
+                const newDocRef = doc(detailersRef);
+                batch.set(newDocRef, d);
+            });
+            await batch.commit();
+        }
+
+        const projectSnapshot = await getDocs(query(projectsRef));
+        if (projectSnapshot.empty) {
+            console.log("Seeding projects...");
+            const batch = writeBatch(db);
+            initialProjects.forEach(p => {
+                const newDocRef = doc(projectsRef);
+                batch.set(newDocRef, p);
+            });
+            await batch.commit();
+        }
+    };
+
     useEffect(() => {
         if (!isAuthReady || !db) return;
-
-        const seedInitialData = async () => {
-            if (!db) return;
-            const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
-            const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
-            
-            const detailerSnapshot = await getDocs(query(detailersRef));
-            if (detailerSnapshot.empty) {
-                console.log("Seeding detailers...");
-                const batch = writeBatch(db);
-                initialDetailers.forEach(d => {
-                    const newDocRef = doc(detailersRef);
-                    batch.set(newDocRef, d);
-                });
-                await batch.commit();
-            }
-
-            const projectSnapshot = await getDocs(query(projectsRef));
-            if (projectSnapshot.empty) {
-                console.log("Seeding projects...");
-                const batch = writeBatch(db);
-                initialProjects.forEach(p => {
-                    const newDocRef = doc(projectsRef);
-                    batch.set(newDocRef, p);
-                });
-                await batch.commit();
-            }
-        };
-        
+        setLoading(true);
         seedInitialData();
-
-        const dataLoaded = { detailers: false, projects: false, assignments: false };
-        const checkDataLoaded = () => {
-            if (dataLoaded.detailers && dataLoaded.projects && dataLoaded.assignments) {
-                setLoading(false);
-            }
-        };
 
         const unsubDetailers = onSnapshot(collection(db, `artifacts/${appId}/public/data/detailers`), snapshot => {
             setDetailers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            dataLoaded.detailers = true;
-            checkDataLoaded();
         });
         const unsubProjects = onSnapshot(collection(db, `artifacts/${appId}/public/data/projects`), snapshot => {
             setProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            dataLoaded.projects = true;
-            checkDataLoaded();
         });
         const unsubAssignments = onSnapshot(collection(db, `artifacts/${appId}/public/data/assignments`), snapshot => {
             setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            dataLoaded.assignments = true;
-            checkDataLoaded();
         });
         
+        setLoading(false);
         return () => {
             unsubDetailers();
             unsubProjects();
             unsubAssignments();
         };
-    }, [isAuthReady, db]);
+    }, [isAuthReady]);
     
     const navButtons = [
         { id: 'detailers', label: 'Detailer', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
         { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
-        { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 3a1 1 0 000 2v12a1 1 0 100 2h14a1 1 0 100-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v6a1 1 0 102 0V7zm-4 2a1 1 0 10-2 0v4a1 1 0 102 0V9zm-4 3a1 1 0 10-2 0v1a1 1 0 102 0v-1z" clipRule="evenodd" /></svg> },
         { id: 'skills', label: 'Edit', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg> },
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
     ];
 
     const renderView = () => {
-        if (!db || !auth) return <div className="text-center p-10 text-red-500">Error: Firebase not initialized. Please check your configuration.</div>;
         if (loading) return <div className="text-center p-10">Loading data...</div>;
+        if (!db || !auth) return <div className="text-center p-10 text-red-500">Error: Firebase not initialized. Please check your configuration.</div>;
 
         switch (view) {
             case 'detailers':
-                return <DetailerConsole detailers={detailers} projects={projects} assignments={assignments} setAssignments={setAssignments} />;
+                return <DetailerConsole detailers={detailers} projects={projects} assignments={assignments} />;
             case 'projects':
                 return <ProjectConsole detailers={detailers} projects={projects} assignments={assignments} />;
             case 'workloader':
                 return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} />;
-             case 'gantt':
-                return <GanttConsole projects={projects} assignments={assignments} />;
             case 'skills':
                 return <SkillsConsole detailers={detailers} />;
             case 'admin':
                 return <AdminConsole detailers={detailers} projects={projects} />;
             default:
-                return <DetailerConsole detailers={detailers} projects={projects} assignments={assignments} setAssignments={setAssignments} />;
+                return <DetailerConsole detailers={detailers} projects={projects} assignments={assignments} />;
         }
     };
 
@@ -299,7 +289,7 @@ const App = () => {
         <div style={{ fontFamily: 'Arial, sans-serif' }} className="bg-gray-100 min-h-screen p-4 sm:p-6 lg:p-8">
             <div className="max-w-screen-2xl mx-auto bg-white rounded-xl shadow-lg">
                 <header className="p-4 border-b">
-                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <h1 className="text-2xl font-bold text-gray-800">Workforce Productivity Tracker</h1>
                         <nav className="bg-gray-200 p-1 rounded-lg">
                             <div className="flex items-center space-x-1">
@@ -320,7 +310,7 @@ const App = () => {
                 <main className="p-4">
                     {isAuthReady ? renderView() : <div className="text-center p-10">Authenticating...</div>}
                 </main>
-                 <footer className="text-center p-2 text-xs text-gray-500 border-t">
+                <footer className="text-center p-2 text-xs text-gray-500 border-t">
                     User ID: {userId || 'N/A'} | App ID: {appId}
                 </footer>
             </div>
@@ -330,7 +320,7 @@ const App = () => {
 
 
 // --- Console Components ---
-const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onUpdate, onDelete, onSave, isNew = false }) => {
+const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onUpdate, onDelete }) => {
     const sortedProjects = useMemo(() => {
         return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
     }, [projects]);
@@ -341,11 +331,9 @@ const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onU
         onUpdate({ ...assignment, [field]: value });
     };
 
-    const isSavable = assignment.projectId && assignment.startDate && assignment.endDate && assignment.trade && assignment.activity && assignment.allocation;
-
     return (
         <div className="bg-gray-50 p-3 rounded-lg border space-y-3">
-             <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
                 <select 
                     value={assignment.projectId} 
                     onChange={e => handleChange('projectId', e.target.value)} 
@@ -354,23 +342,16 @@ const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onU
                     <option value="">Select a Project...</option>
                     {sortedProjects.map(p => <option key={p.id} value={p.id}>{p.projectId} - {p.name}</option>)}
                 </select>
-                {/* Show Save button for new assignments, Delete for existing ones */}
-                {isNew ? (
-                     <button onClick={onSave} disabled={!isSavable} className={`p-2 rounded-md ${isSavable ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l7-7a1 1 0 00-1.414-1.414L10 12.586l-2.293-2.293z" /></svg>
-                    </button>
-                ) : (
-                    <button onClick={onDelete} className="text-red-500 hover:text-red-700 p-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
-                    </button>
-                )}
+                <button onClick={onDelete} className="text-red-500 hover:text-red-700 p-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-                 <input type="date" value={assignment.startDate} onChange={e => handleChange('startDate', e.target.value)} className="w-full p-2 border rounded-md" />
-                 <input type="date" value={assignment.endDate} onChange={e => handleChange('endDate', e.target.value)} className="w-full p-2 border rounded-md" />
+                <input type="date" value={assignment.startDate} onChange={e => handleChange('startDate', e.target.value)} className="w-full p-2 border rounded-md" />
+                <input type="date" value={assignment.endDate} onChange={e => handleChange('endDate', e.target.value)} className="w-full p-2 border rounded-md" />
             </div>
             <div className="grid grid-cols-3 gap-2">
-                 <select value={assignment.trade} onChange={e => handleChange('trade', e.target.value)} className="w-full p-2 border rounded-md">
+                <select value={assignment.trade} onChange={e => handleChange('trade', e.target.value)} className="w-full p-2 border rounded-md">
                     <option value="">Trade...</option>
                     {availableTrades.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
@@ -384,7 +365,7 @@ const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onU
     );
 };
 
-const DetailerConsole = ({ detailers, projects, assignments, setAssignments }) => {
+const DetailerConsole = ({ detailers, projects, assignments }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [newAssignments, setNewAssignments] = useState({}); // { detailerId: [newAssignmentObj, ...] }
@@ -420,24 +401,22 @@ const DetailerConsole = ({ detailers, projects, assignments, setAssignments }) =
         }));
     };
     
-    // Only updates the local state for a new assignment
     const handleUpdateNewAssignment = (detailerId, updatedAsn) => {
         const toUpdate = (newAssignments[detailerId] || []).map(asn => asn.id === updatedAsn.id ? updatedAsn : asn);
         setNewAssignments(prev => ({ ...prev, [detailerId]: toUpdate }));
-    };
 
-    // Saves the new assignment to Firestore
-    const handleSaveNewAssignment = async (detailerId, assignmentToSave) => {
-        const { id, ...payload } = assignmentToSave;
-        const finalPayload = { ...payload, detailerId, allocation: Number(payload.allocation) };
+        // Check if ready to save
+        if(updatedAsn.projectId && updatedAsn.startDate && updatedAsn.endDate && updatedAsn.trade && updatedAsn.activity && updatedAsn.allocation) {
+            const { id, ...payload } = updatedAsn;
+            const finalPayload = { ...payload, detailerId, allocation: Number(payload.allocation) };
 
-        try {
-            await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload);
-            // On success, remove from temporary state
-            handleDeleteNewAssignment(detailerId, assignmentToSave.id);
-        } catch (e) {
-            console.error("Error saving new assignment:", e);
-            alert("Failed to save assignment. See console for details.");
+            addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload)
+                .then(() => {
+                    // remove from new assignments state
+                    const remaining = (newAssignments[detailerId] || []).filter(a => a.id !== updatedAsn.id);
+                    setNewAssignments(prev => ({ ...prev, [detailerId]: remaining }));
+                })
+                .catch(e => console.error("Error saving new assignment:", e));
         }
     };
     
@@ -446,12 +425,6 @@ const DetailerConsole = ({ detailers, projects, assignments, setAssignments }) =
         setNewAssignments(prev => ({ ...prev, [detailerId]: remaining }));
     };
 
-    // This updates the local state for an existing assignment
-    const handleUpdateLocalAssignment = (updatedAsn) => {
-        setAssignments(prev => prev.map(a => a.id === updatedAsn.id ? updatedAsn : a));
-    };
-    
-    // This saves the updated existing assignment to Firestore
     const handleUpdateExistingAssignment = async (assignment) => {
         const { id, ...payload } = assignment;
         const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, id);
@@ -466,9 +439,7 @@ const DetailerConsole = ({ detailers, projects, assignments, setAssignments }) =
     };
     
     const handleDeleteExistingAssignment = async (id) => {
-        if (window.confirm("Are you sure you want to delete this assignment?")) {
-            await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
-        }
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
     }
 
     return (
@@ -500,27 +471,10 @@ const DetailerConsole = ({ detailers, projects, assignments, setAssignments }) =
                                 </div>
                                 <div className="col-span-12 md:col-span-7 space-y-2">
                                     {detailerAssignments.map(asn => (
-                                        <div key={asn.id} onBlur={() => handleUpdateExistingAssignment(asn)}>
-                                            <InlineAssignmentEditor 
-                                                assignment={asn} 
-                                                projects={projects} 
-                                                detailerDisciplines={d.disciplineSkillsets} 
-                                                onUpdate={handleUpdateLocalAssignment} 
-                                                onDelete={() => handleDeleteExistingAssignment(asn.id)} 
-                                            />
-                                        </div>
+                                        <InlineAssignmentEditor key={asn.id} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
                                     ))}
-                                     {detailerNewAssignments.map(asn => (
-                                        <InlineAssignmentEditor 
-                                            key={asn.id} 
-                                            assignment={asn} 
-                                            projects={projects} 
-                                            detailerDisciplines={d.disciplineSkillsets} 
-                                            onUpdate={(upd) => handleUpdateNewAssignment(d.id, upd)} 
-                                            onDelete={() => handleDeleteNewAssignment(d.id, asn.id)}
-                                            onSave={() => handleSaveNewAssignment(d.id, asn)}
-                                            isNew={true}
-                                        />
+                                    {detailerNewAssignments.map(asn => (
+                                        <InlineAssignmentEditor key={asn.id} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(d.id, upd)} onDelete={() => handleDeleteNewAssignment(d.id, asn.id)} />
                                     ))}
                                     <button onClick={() => handleAddNewAssignment(d.id)} className="text-sm text-blue-600 hover:underline">+ Add Project/Trade</button>
                                 </div>
@@ -638,9 +592,13 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
         if (!db || !editableDetailer) return;
         const detailerRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableDetailer.id);
         const { id, ...dataToSave } = editableDetailer;
-        await setDoc(detailerRef, dataToSave, { merge: true });
-        console.log("Changes saved successfully!");
-        alert("Changes saved!");
+        // Replaced alert with console.log for better non-blocking feedback
+        try {
+            await setDoc(detailerRef, dataToSave, { merge: true });
+            console.log("Changes saved successfully!");
+        } catch (error) {
+            console.error("Error saving changes:", error);
+        }
     };
     
     return (
@@ -670,7 +628,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
                     
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Skill Assessment</h3>
-                         <div className="space-y-4">
+                        <div className="space-y-4">
                             {skillCategories.map(skill => (
                                 <div key={skill}>
                                     <label className="font-medium">{skill}</label>
@@ -686,7 +644,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Discipline Skillsets</h3>
                         <div className="flex items-center gap-2 mb-4 flex-wrap">
-                             <select value={newDiscipline} onChange={(e) => setNewDiscipline(e.target.value)} className="p-2 border rounded-md">
+                            <select value={newDiscipline} onChange={(e) => setNewDiscipline(e.target.value)} className="p-2 border rounded-md">
                                 <option value="">Select a discipline...</option>
                                 {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
@@ -696,8 +654,8 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
                             {Object.entries(editableDetailer.disciplineSkillsets || {}).map(([name, score]) => (
                                 <div key={name} className="p-3 bg-white rounded-md border">
                                     <div className="flex justify-between items-start">
-                                       <span className="font-medium">{name}</span>
-                                       <button onClick={() => handleRemoveDiscipline(name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                        <span className="font-medium">{name}</span>
+                                        <button onClick={() => handleRemoveDiscipline(name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                                     </div>
                                     <BubbleRating score={score} onScoreChange={(newScore) => handleDisciplineRatingChange(name, newScore)} />
                                 </div>
@@ -720,16 +678,18 @@ const AdminConsole = ({ detailers, projects }) => {
     const handleAdd = async (type) => {
         if (!db) return;
         if (type === 'detailer') {
+            // Replaced alert with custom UI/console.log for better non-blocking feedback
             if (!newDetailer.firstName || !newDetailer.lastName || !newDetailer.employeeId) {
-                alert('Please fill all detailer fields.');
+                console.warn('Fill all detailer fields to add a new detailer.');
                 return;
             }
             const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
             await addDoc(detailersRef, { ...newDetailer, skills: {}, disciplineSkillsets: {} });
             setNewDetailer({ firstName: '', lastName: '', employeeId: '' });
         } else {
+            // Replaced alert with custom UI/console.log for better non-blocking feedback
             if (!newProject.name || !newProject.projectId) {
-                alert('Please fill all project fields.');
+                console.warn('Fill all project fields to add a new project.');
                 return;
             }
             const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
@@ -740,10 +700,8 @@ const AdminConsole = ({ detailers, projects }) => {
 
     const handleDelete = async (type, id) => {
         if (!db) return;
-        if (window.confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
-            const collectionName = type === 'detailer' ? 'detailers' : 'projects';
-            await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
-        }
+        const collectionName = type === 'detailer' ? 'detailers' : 'projects';
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
     };
 
     return (
@@ -771,7 +729,7 @@ const AdminConsole = ({ detailers, projects }) => {
 
             <div>
                 <h2 className="text-xl font-bold mb-4">Manage Projects</h2>
-                 <div className="bg-gray-50 p-4 rounded-lg border">
+                <div className="bg-gray-50 p-4 rounded-lg border">
                     <h3 className="font-semibold mb-2">Add New Project</h3>
                     <div className="space-y-2 mb-4">
                         <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className="w-full p-2 border rounded-md"/>
@@ -852,47 +810,47 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
 
     return (
         <div className="space-y-4">
-             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
-                 <div className="flex items-center gap-2">
-                     <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
-                     <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
-                     <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
-                     <span className="font-semibold text-sm ml-4">{getWeekDisplay(weekDates[0])}</span>
-                 </div>
-                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                     {Object.entries(legendColorMapping).map(([trade, color]) => (
-                         <div key={trade} className="flex items-center gap-2">
-                             <div className={`w-4 h-4 rounded-sm ${color}`}></div>
-                             <span>{trade}</span>
-                         </div>
-                     ))}
-                 </div>
-             </div>
+            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
+                <div className="flex items-center gap-2">
+                    <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
+                    <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
+                    <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
+                    <span className="font-semibold text-sm ml-4">{getWeekDisplay(weekDates[0])}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                    {Object.entries(legendColorMapping).map(([trade, color]) => (
+                        <div key={trade} className="flex items-center gap-2">
+                            <div className={`w-4 h-4 rounded-sm ${color}`}></div>
+                            <span>{trade}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
             <div className="overflow-x-auto border rounded-lg">
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
-                            <th className="p-1 font-semibold w-16 min-w-[64px] border border-gray-300">DETAILER</th>
-                            <th className="p-1 font-semibold w-11 min-w-[44px] border border-gray-300">TRADE</th>
-                            <th className="p-1 font-semibold w-9 min-w-[36px] border border-gray-300">% ALLOCATED</th>
+                            <th className="p-2 font-semibold w-[100px] min-w-[100px] border border-gray-300">DETAILER</th>
+                            <th className="p-2 font-semibold w-[60px] min-w-[60px] border border-gray-300">TRADE</th>
+                            <th className="p-2 font-semibold w-[40px] min-w-[40px] border border-gray-300">% ALLOCATED</th>
                             {weekDates.map(date => {
                                 const weekStart = new Date(date);
                                 const weekEnd = new Date(weekStart);
                                 weekEnd.setDate(weekEnd.getDate() + 6);
                                 const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
                                 return (
-                                <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
+                                <th key={date.toISOString()} className={`p-2 font-semibold w-4 min-w-[8px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
                                     {`${date.getMonth() + 1}/${date.getDate()}`}
                                 </th>
-                            )})}
+                                )})}
                         </tr>
                     </thead>
                     <tbody>
                         {groupedData.map(project => (
                             <React.Fragment key={project.id}>
                                 <tr className="bg-gray-200 sticky top-10">
-                                    <th colSpan={3 + weekDates.length} className="p-1 text-left font-bold text-gray-700 border border-gray-300">
+                                    <th colSpan={3 + weekDates.length} className="p-2 text-left font-bold text-gray-700 border border-gray-300">
                                         {project.name} ({project.projectId})
                                     </th>
                                 </tr>
@@ -916,13 +874,13 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                                                 return (
                                                     <td key={weekStart.toISOString()} className="p-0 border border-gray-300">
                                                         {isAssigned ? (
-                                                          <Tooltip text={tooltipText}>
-                                                              <div className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded`}>
-                                                                  <span>
-                                                                    {assignment.allocation}%
-                                                                  </span>
-                                                              </div>
-                                                          </Tooltip>
+                                                            <Tooltip text={tooltipText}>
+                                                                <div className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded`}>
+                                                                    <span>
+                                                                        {assignment.allocation}%
+                                                                    </span>
+                                                                </div>
+                                                            </Tooltip>
                                                         ) : <div className="h-full"></div>}
                                                     </td>
                                                 )
@@ -939,134 +897,4 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
     );
 };
 
-const GanttConsole = ({ projects, assignments }) => {
-    const [startDate, setStartDate] = useState(new Date());
-
-    const getWeekDates = (from) => {
-        const sunday = new Date(from);
-        sunday.setDate(sunday.getDate() - sunday.getDay());
-        const weeks = [];
-        for (let i = 0; i < 16; i++) {
-            const weekStart = new Date(sunday);
-            weekStart.setDate(sunday.getDate() + (i * 7));
-            weeks.push(weekStart);
-        }
-        return weeks;
-    };
-    
-    const weekDates = useMemo(() => getWeekDates(startDate), [startDate]);
-
-    const projectHours = useMemo(() => {
-        const hoursByProject = {};
-
-        projects.forEach(p => {
-            hoursByProject[p.id] = {};
-            weekDates.forEach(weekStart => {
-                hoursByProject[p.id][weekStart.toISOString().split('T')[0]] = 0;
-            });
-        });
-
-        assignments.forEach(assignment => {
-            if (!hoursByProject[assignment.projectId]) return;
-            
-            const hoursPerWeek = (Number(assignment.allocation) / 100) * 40;
-            const assignStart = new Date(assignment.startDate);
-            const assignEnd = new Date(assignment.endDate);
-
-            weekDates.forEach(weekStart => {
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-                
-                if (assignStart <= weekEnd && assignEnd >= weekStart) {
-                    hoursByProject[assignment.projectId][weekStart.toISOString().split('T')[0]] += hoursPerWeek;
-                }
-            });
-        });
-        return hoursByProject;
-    }, [projects, assignments, weekDates]);
-
-    const handleDateNav = (offset) => {
-        setStartDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setDate(newDate.getDate() + offset);
-            return newDate;
-        });
-    };
-    
-    const getWeekDisplay = (start) => {
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        return `${start.getMonth()+1}/${start.getDate()}/${start.getFullYear()} - ${end.getMonth()+1}/${end.getDate()}/${end.getFullYear()}`;
-    }
-
-    const maxHours = useMemo(() => {
-       let max = 40; // Default max
-       Object.values(projectHours).forEach(proj => {
-           Object.values(proj).forEach(hours => {
-               if(hours > max) max = hours;
-           })
-       })
-        return max;
-    }, [projectHours]);
-
-    return (
-         <div className="space-y-4">
-             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
-                 <div className="flex items-center gap-2">
-                     <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
-                     <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
-                     <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
-                     <span className="font-semibold text-sm ml-4">{getWeekDisplay(weekDates[0])}</span>
-                 </div>
-             </div>
-
-            <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full text-sm text-left border-collapse">
-                    <thead className="bg-gray-100 sticky top-0 z-10">
-                        <tr>
-                            <th className="p-1 font-semibold w-48 min-w-[192px] border border-gray-300">PROJECT</th>
-                            {weekDates.map(date => {
-                                const weekStart = new Date(date);
-                                const weekEnd = new Date(weekStart);
-                                weekEnd.setDate(weekEnd.getDate() + 6);
-                                const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
-                                return (
-                                <th key={date.toISOString()} className={`p-1 font-semibold w-12 min-w-[48px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
-                                    {`${date.getMonth() + 1}/${date.getDate()}`}
-                                </th>
-                            )})}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {projects.sort((a,b) => a.name.localeCompare(b.name)).map(project => {
-                             const weeklyHours = projectHours[project.id];
-                             if(!weeklyHours || Object.values(weeklyHours).every(h => h === 0)) return null;
-
-                             return (
-                                <tr key={project.id} className="hover:bg-gray-50 h-8">
-                                    <td className="p-1 font-medium border border-gray-300">{project.name}</td>
-                                    {weekDates.map(weekStart => {
-                                        const hours = weeklyHours[weekStart.toISOString().split('T')[0]];
-                                        const barWidth = (hours / maxHours) * 100;
-                                        return (
-                                            <td key={weekStart.toISOString()} className="p-1 border border-gray-300 align-middle">
-                                                {hours > 0 && (
-                                                   <div className="relative h-full w-full bg-gray-200 rounded-sm">
-                                                       <div className="absolute top-0 left-0 h-full bg-blue-500 rounded-sm" style={{width: `${barWidth}%`}}></div>
-                                                       <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-black z-10">{Math.round(hours)}h</span>
-                                                   </div>
-                                                )}
-                                            </td>
-                                        )
-                                    })}
-                                </tr>
-                            )
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    )
-};
-
-export default App;
+export default App; // Added this line to export the App component as default
