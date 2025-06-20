@@ -1366,7 +1366,7 @@ const GanttConsole = ({ projects, assignments }) => {
                 <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8" style={{minHeight: '6rem'}}>
                     {projectData.map(p => (
                         <div key={p.projectId} className="flex flex-col items-center">
-                            <div className="w-full h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
+                            <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
                             <span className="transform -rotate-90 whitespace-nowrap mt-4">{p.projectNumber}</span>
                         </div>
                     ))}
