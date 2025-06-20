@@ -1,0 +1,28 @@
+Contact Group Name:	Detailers and Company
+
+Members:	 
+
+Adam Stone	AStone@southlandind.com
+Arne Knutsen	/o=ExchangeLabs/ou=Exchange Administrative Group 
+(FYDIBOHF23SPDLT)/cn=Recipients/cn=5ea45d44340f4e989029dce728913f59-Arne Knutse
+Bailee Risley	BRisley@southlandind.com
+David Hisaw	DHisaw@southlandind.com
+Devon Beaudry	dbeaudry@southlandind.com
+Jacob Gowey	jgowey@southlandind.com
+Jeremiah Griffith	jgriffith@southlandind.com
+Jeremy Splattstoesser	jsplattstoesser@southlandind.com
+Josh Testerman	JoTesterman@southlandind.com
+Melissa Cannon	MCannon@southlandind.com
+Michael McIntyre	mmcIntyre@southlandind.com
+Nick Marshall	nmarshall@southlandind.com
+Pavel Makarenko	PMakarenko@southlandind.com
+Phil Kronberg	pkronberg@southlandind.com
+Rick Peterson	rpeterson@southlandind.com
+Robert Mitchell	RoMitchell@southlandind.com
+Shawn Schneirla	sschneirla@southlandind.com
+Shawn Simleness	ssimleness@southlandind.com
+Travis Michalowski	TMichalowski@southlandind.com
+Tyler Stoker	Tyler.Stoker@southlandind.com
+Tyson Kafentzis	TKafentzis@southlandind.com
+
+

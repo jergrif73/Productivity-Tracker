@@ -127,17 +127,6 @@ try {
     console.error("Error initializing Firebase:", e);
 }
 
-// --- Email Simulation Function ---
-const sendEmail = (to, subject, body) => {
-    console.log("--- Sending Email (Simulation) ---");
-    console.log(`To: ${to}`);
-    console.log(`From: Jgriffith@southlandind.com`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Body: \n${body}`);
-    console.log("-----------------------------------");
-};
-
-
 // --- React Components ---
 
 const LoginInline = ({ onLogin, error }) => {
@@ -702,7 +691,6 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
     const [selectedDetailerId, setSelectedDetailerId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableDetailer, setEditableDetailer] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
-    const [saveMessage, setSaveMessage] = useState('');
 
     useEffect(() => {
         const detailer = detailers.find(d => d.id === selectedDetailerId);
@@ -755,8 +743,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
         const detailerRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableDetailer.id);
         const { id, ...dataToSave } = editableDetailer;
         await setDoc(detailerRef, dataToSave, { merge: true });
-        setSaveMessage("Changes saved successfully!");
-        setTimeout(() => setSaveMessage(''), 3000);
+        alert("Changes saved successfully!");
     };
     
     return (
@@ -829,7 +816,6 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
                     </div>
 
                     <button onClick={handleSaveChanges} className="w-full bg-green-500 text-white p-2 rounded-md hover:bg-green-600 mt-4">Save All Changes</button>
-                    {saveMessage && <p className="text-green-600 mt-2 text-center">{saveMessage}</p>}
                 </div>
             )}
         </div>
@@ -845,35 +831,31 @@ const AdminConsole = ({ detailers, projects }) => {
     const [editingDetailerData, setEditingDetailerData] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectData, setEditingProjectData] = useState(null);
-    const [message, setMessage] = useState('');
 
     const handleAdd = async (type) => {
         if (!db) return;
         if (type === 'detailer') {
             if (!newDetailer.firstName || !newDetailer.lastName || !newDetailer.employeeId) {
-                setMessage('Please fill all detailer fields.');
-                setTimeout(()=> setMessage(''), 3000);
+                alert('Please fill all detailer fields.');
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newDetailer, skills: {}, disciplineSkillsets: {} });
             setNewDetailer({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-            setMessage('Detailer added.');
         } else {
             if (!newProject.name || !newProject.projectId) {
-                setMessage('Please fill all project fields.');
-                 setTimeout(()=> setMessage(''), 3000);
+                alert('Please fill all project fields.');
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), newProject);
             setNewProject({ name: '', projectId: '' });
-            setMessage('Project added.');
         }
-        setTimeout(()=> setMessage(''), 3000);
     };
 
     const handleDelete = async (type, id) => {
-        const collectionName = type === 'detailer' ? 'detailers' : 'projects';
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
+        if (window.confirm('Are you sure you want to delete this item?')) {
+            const collectionName = type === 'detailer' ? 'detailers' : 'projects';
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
+        }
     };
     
     const handleEdit = (type, item) => {
@@ -907,8 +889,7 @@ const AdminConsole = ({ detailers, projects }) => {
             handleCancel();
         } catch (error) {
             console.error("Error updating document: ", error);
-            setMessage("Failed to update item.");
-            setTimeout(()=> setMessage(''), 3000);
+            alert("Failed to update item.");
         }
     };
     
@@ -942,7 +923,6 @@ const AdminConsole = ({ detailers, projects }) => {
                     </div>
                     <button onClick={() => handleAdd('detailer')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Detailer</button>
                 </div>
-                {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
                     {detailers.map(d => (
                         <div key={d.id} className="bg-white p-3 border rounded-md">
@@ -1376,26 +1356,23 @@ const GanttConsole = ({ projects, assignments }) => {
     );
 };
 
-const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMessage }) => {
+const TaskDetailModal = ({ task, projects, detailers, onSave, onClose }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
     const [editingSubTaskData, setEditingSubTaskData] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [newWatcherId, setNewWatcherId] = useState('');
-    const [isNewTask, setIsNewTask] = useState(true);
     
     useEffect(() => {
-        if (task && task.id) {
+        if (task) {
             setTaskData({...task, watchers: task.watchers || []});
-            setIsNewTask(false);
         } else {
             setTaskData({
                 taskName: '', projectId: '', detailerId: '', status: taskStatusOptions[0], dueDate: '',
                 entryDate: new Date().toISOString().split('T')[0],
                 subTasks: [], attachments: [], watchers: []
             });
-            setIsNewTask(true);
         }
     }, [task]);
 
@@ -1411,20 +1388,11 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     
     const handleAddSubTask = () => {
         if (!newSubTask.name) {
+            alert("Sub-task name cannot be empty.");
             return;
         }
         const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false };
         setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
-
-        const assignee = detailers.find(d => d.id === subTaskToAdd.detailerId);
-        if (assignee?.email) {
-            sendEmail(
-                assignee.email, 
-                `New Sub-Task Assigned: ${subTaskToAdd.name}`,
-                `A new sub-task "${subTaskToAdd.name}" has been assigned to you for the main task "${taskData.taskName}".\nDue Date: ${subTaskToAdd.dueDate}`
-            );
-        }
-
         setNewSubTask({ name: '', detailerId: '', dueDate: '' });
     };
 
@@ -1446,16 +1414,6 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     const handleUpdateSubTask = () => {
         const updatedSubTasks = taskData.subTasks.map(st => st.id === editingSubTaskId ? editingSubTaskData : st);
         setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
-        
-        const assignee = detailers.find(d => d.id === editingSubTaskData.detailerId);
-         if (assignee?.email) {
-            sendEmail(
-                assignee.email,
-                `Sub-Task Updated: ${editingSubTaskData.name}`,
-                `The sub-task "${editingSubTaskData.name}" for the main task "${taskData.taskName}" has been updated.`
-            );
-        }
-
         handleCancelEditSubTask();
     };
     
@@ -1489,27 +1447,22 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
-        if (!file || isNewTask) return;
-        
+        if (!file) return;
+        if (!taskData.id) {
+            alert("You must save the main task before adding attachments.");
+            e.target.value = null;
+            return;
+        };
         setIsUploading(true);
-        onSetMessage({ text: '', isError: false });
-        
         const storageRef = ref(storage, `tasks/${taskData.id}/${file.name}`);
         try {
             const snapshot = await uploadBytes(storageRef, file);
             const url = await getDownloadURL(snapshot.ref);
             const newAttachment = { id: `att_${Date.now()}`, fileName: file.name, url };
-            
-            const updatedAttachments = [...(taskData.attachments || []), newAttachment];
-            setTaskData(prev => ({...prev, attachments: updatedAttachments}));
-            
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
-            await updateDoc(taskRef, { attachments: updatedAttachments });
-
-            onSetMessage({ text: "File uploaded successfully!", isError: false });
+            setTaskData(prev => ({...prev, attachments: [...(prev.attachments || []), newAttachment]}));
         } catch(error) {
             console.error("Error uploading file:", error);
-            onSetMessage({ text: "File upload failed.", isError: true });
+            alert("File upload failed.");
         } finally {
             setIsUploading(false);
             e.target.value = null;
@@ -1517,18 +1470,15 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     };
     
     const handleDeleteAttachment = async (attachment) => {
+        if (!window.confirm(`Are you sure you want to delete ${attachment.fileName}?`)) return;
+        
         const fileRef = ref(storage, `tasks/${taskData.id}/${attachment.fileName}`);
         try {
             await deleteObject(fileRef);
-            const updatedAttachments = taskData.attachments.filter(att => att.id !== attachment.id);
-            setTaskData(prev => ({ ...prev, attachments: updatedAttachments }));
-            
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
-            await updateDoc(taskRef, { attachments: updatedAttachments });
-            
+            setTaskData(prev => ({ ...prev, attachments: prev.attachments.filter(att => att.id !== attachment.id)}));
         } catch (error) {
             console.error("Error deleting file:", error);
-            onSetMessage({ text: "Failed to delete file.", isError: true });
+            alert("Failed to delete file.");
         }
     };
 
@@ -1537,7 +1487,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     return (
         <Modal onClose={onClose}>
             <div className="space-y-6">
-                <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
+                <h2 className="text-2xl font-bold">{task?.id ? 'Edit Task' : 'Add New Task'}</h2>
                 
                 {/* --- Main Task Details --- */}
                 <div className="p-4 border rounded-lg space-y-3">
@@ -1628,9 +1578,8 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                 </div>
                 
                 {/* --- Attachments Section --- */}
-                <fieldset disabled={isNewTask} className="p-4 border rounded-lg disabled:opacity-50">
-                    <legend className="font-semibold px-1">Attachments</legend>
-                    {isNewTask && <p className='text-sm text-center text-gray-500 mb-2'>Please save the task to enable attachments.</p>}
+                <div className="p-4 border rounded-lg">
+                    <h3 className="font-semibold mb-2">Attachments</h3>
                     <div className="space-y-2 mb-4 max-h-40 overflow-y-auto">
                         {(taskData.attachments || []).map(att => (
                             <div key={att.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
@@ -1641,10 +1590,10 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                     </div>
                     <div className="border-t pt-2">
                         <label className="text-sm font-medium text-gray-700">Add Attachment:</label>
-                        <input type="file" onChange={handleFileChange} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={isUploading} />
-                        {isUploading && <p className="text-sm text-blue-600">Uploading...</p>}
+                        <input type="file" onChange={handleFileChange} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" disabled={!taskData.id || isUploading} />
+                         {isUploading && <p className="text-sm text-blue-600">Uploading...</p>}
                     </div>
-                </fieldset>
+                </div>
 
                 <div className="flex justify-end gap-4 pt-4">
                     <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
@@ -1658,12 +1607,6 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
 const TaskConsole = ({ tasks, detailers, projects }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
-    const [notification, setNotification] = useState('');
-
-    const showNotification = (message) => {
-        setNotification(message);
-        setTimeout(() => setNotification(''), 3000);
-    }
 
     const handleOpenModal = (task = null) => {
         setEditingTask(task);
@@ -1676,43 +1619,21 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
     };
 
     const handleSaveTask = async (taskData) => {
-        const isNew = !taskData.id;
-        
-        // Find assignee and watchers before saving
-        const assignee = detailers.find(d => d.id === taskData.detailerId);
-        const watchers = (taskData.watchers || []).map(watcherId => detailers.find(d => d.id === watcherId)).filter(Boolean);
-
-        if (isNew) {
-            const { id, ...data } = taskData;
-            const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-            const newTask = { id: docRef.id, ...data };
-            setEditingTask(newTask);
-            showNotification("Task created successfully! Email notifications sent.");
-            
-            // Send emails for new task
-            if(assignee?.email) sendEmail(assignee.email, `New Task: ${taskData.taskName}`, `You have been assigned a new task: "${taskData.taskName}".`);
-            watchers.forEach(w => {
-                 if(w.email) sendEmail(w.email, `New Task (Watched): ${taskData.taskName}`, `A new task you are watching has been created: "${taskData.taskName}".`);
-            });
-
-        } else {
+        if (taskData.id) {
             const { id, ...data } = taskData;
             const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
             await updateDoc(taskRef, data);
-            showNotification("Task updated successfully! Email notifications sent.");
-            handleCloseModal();
-            
-            // Send emails for updated task
-            if(assignee?.email) sendEmail(assignee.email, `Task Updated: ${taskData.taskName}`, `A task assigned to you has been updated: "${taskData.taskName}".`);
-            watchers.forEach(w => {
-                 if(w.email) sendEmail(w.email, `Task Updated (Watched): ${taskData.taskName}`, `A task you are watching has been updated: "${taskData.taskName}".`);
-            });
+        } else {
+            const { id, ...data } = taskData;
+            await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
         }
+        handleCloseModal();
     };
 
     const handleDeleteTask = async (taskId) => {
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
-        showNotification("Task deleted.");
+        if (window.confirm("Are you sure you want to delete this task? This will not delete its attachments from storage.")) {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
+        }
     };
     
     const handleStatusChange = async (taskId, newStatus) => {
@@ -1721,6 +1642,7 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
             await updateDoc(taskRef, { status: newStatus });
         } catch (error) {
             console.error("Error updating task status:", error);
+            alert("Failed to update status.");
         }
     };
     
@@ -1738,12 +1660,6 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
                 <h1 className="text-2xl font-bold">Task Console</h1>
                 <button onClick={() => handleOpenModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">+ Add Task</button>
             </div>
-
-            {notification && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
-                    <span className="block sm:inline">{notification}</span>
-                </div>
-            )}
 
             <div className="bg-white shadow rounded-lg">
                 <div className="grid grid-cols-14 gap-4 font-bold text-sm text-gray-600 px-4 py-3 border-b">
@@ -1826,7 +1742,6 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
                     projects={projects}
                     onClose={handleCloseModal}
                     onSave={handleSaveTask}
-                    onSetMessage={showNotification}
                 />
             )}
         </div>
