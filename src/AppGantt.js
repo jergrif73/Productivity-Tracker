@@ -1061,7 +1061,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
         const sunday = new Date(from);
         sunday.setDate(sunday.getDate() - sunday.getDay());
         const weeks = [];
-        for (let i = 0; i < 16; i++) {
+        for (let i = 0; i < 25; i++) {
             const weekStart = new Date(sunday);
             weekStart.setDate(sunday.getDate() + (i * 7));
             weeks.push(weekStart);
@@ -1205,7 +1205,7 @@ const GanttConsole = ({ projects, assignments }) => {
     const svgRef = useRef(null);
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects'); // 'projects' or 'totals'
-    const weekCount = 16;
+    const weekCount = 25;
     const dimensions = { width: 1100, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
