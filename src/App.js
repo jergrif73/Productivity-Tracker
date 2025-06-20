@@ -1420,25 +1420,20 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     const [editingSubTaskData, setEditingSubTaskData] = useState(null);
     const [newWatcherId, setNewWatcherId] = useState('');
     const [isNewTask, setIsNewTask] = useState(true);
-    const [newComment, setNewComment] = useState('');
-    const [newCommentInitials, setNewCommentInitials] = useState('');
-    const [newSubTaskComment, setNewSubTaskComment] = useState('');
-    const [newSubTaskCommentInitials, setNewSubTaskCommentInitials] = useState('');
-    const [commentingOnSubTaskId, setCommentingOnSubTaskId] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
+    const dragCounter = useRef(0);
+    const fileInputRef = useRef(null);
     
     useEffect(() => {
         if (task && task.id) {
-            setTaskData({...task, 
-                watchers: task.watchers || [], 
-                comments: task.comments || [],
-                subTasks: (task.subTasks || []).map(st => ({...st, comments: st.comments || []}))
-            });
+            setTaskData({...task, watchers: task.watchers || [], attachments: task.attachments || []});
             setIsNewTask(false);
         } else {
             setTaskData({
                 taskName: '', projectId: '', detailerId: '', status: taskStatusOptions[0], dueDate: '',
                 entryDate: new Date().toISOString().split('T')[0],
-                subTasks: [], watchers: [], comments: []
+                subTasks: [], attachments: [], watchers: []
             });
             setIsNewTask(true);
         }
@@ -1455,9 +1450,21 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     };
     
     const handleAddSubTask = () => {
-        if (!newSubTask.name) return;
-        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
+        if (!newSubTask.name) {
+            return;
+        }
+        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false };
         setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
+
+        const assignee = detailers.find(d => d.id === subTaskToAdd.detailerId);
+        if (assignee?.email) {
+            sendEmail(
+                assignee.email, 
+                `New Sub-Task Assigned: ${subTaskToAdd.name}`,
+                `A new sub-task "${subTaskToAdd.name}" has been assigned to you for the main task "${taskData.taskName}".\nDue Date: ${subTaskToAdd.dueDate}`
+            );
+        }
+
         setNewSubTask({ name: '', detailerId: '', dueDate: '' });
     };
 
@@ -1479,6 +1486,16 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     const handleUpdateSubTask = () => {
         const updatedSubTasks = taskData.subTasks.map(st => st.id === editingSubTaskId ? editingSubTaskData : st);
         setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
+        
+        const assignee = detailers.find(d => d.id === editingSubTaskData.detailerId);
+         if (assignee?.email) {
+            sendEmail(
+                assignee.email,
+                `Sub-Task Updated: ${editingSubTaskData.name}`,
+                `The sub-task "${editingSubTaskData.name}" for the main task "${taskData.taskName}" has been updated.`
+            );
+        }
+
         handleCancelEditSubTask();
     };
     
@@ -1510,186 +1527,239 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         }));
     };
 
-    const handleAddMainComment = () => {
-        if (!newComment.trim() || newCommentInitials.trim().length !== 3) {
-            onSetMessage({ text: 'Please enter a comment and your 3-letter initials.', isError: true });
-            return;
+    const uploadFile = async (file) => {
+        if (!file || isNewTask) return;
+        
+        setIsUploading(true);
+        onSetMessage({ text: `Uploading ${file.name}...`, isError: false });
+        
+        const storageRef = ref(storage, `tasks/${taskData.id}/${file.name}`);
+        try {
+            const snapshot = await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(snapshot.ref);
+            const newAttachment = { id: `att_${Date.now()}`, fileName: file.name, url };
+            
+            const updatedAttachments = [...(taskData.attachments || []), newAttachment];
+            
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
+            await updateDoc(taskRef, { attachments: updatedAttachments });
+            
+            setTaskData(prev => ({...prev, attachments: updatedAttachments}));
+
+            onSetMessage({ text: "File uploaded successfully!", isError: false });
+        } catch(error) {
+            console.error("Error uploading file:", error);
+            onSetMessage({ text: "File upload failed.", isError: true });
+        } finally {
+            setIsUploading(false);
         }
-        const comment = {
-            id: `comment_${Date.now()}`,
-            text: newComment,
-            authorId: auth.currentUser?.uid || 'anonymous',
-            initials: newCommentInitials.toUpperCase(),
-            timestamp: new Date().toISOString()
-        };
-        setTaskData(prev => ({...prev, comments: [...(prev.comments || []), comment]}));
-        setNewComment('');
-        setNewCommentInitials('');
-    };
-    
-    const handleAddSubTaskComment = (subTaskId) => {
-        if (!newSubTaskComment.trim() || newSubTaskCommentInitials.trim().length !== 3) {
-            onSetMessage({ text: 'Please enter a comment and your 3-letter initials.', isError: true });
-            return;
-        }
-        const comment = {
-            id: `comment_${Date.now()}`,
-            text: newSubTaskComment,
-            authorId: auth.currentUser?.uid || 'anonymous',
-            initials: newSubTaskCommentInitials.toUpperCase(),
-            timestamp: new Date().toISOString()
-        };
-    
-        const updatedSubTasks = taskData.subTasks.map(st => {
-            if (st.id === subTaskId) {
-                return { ...st, comments: [...(st.comments || []), comment] };
-            }
-            return st;
-        });
-    
-        setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
-        setNewSubTaskComment('');
-        setNewSubTaskCommentInitials('');
     };
 
-    
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            uploadFile(file);
+        }
+    };
+
+    const handleDeleteAttachment = async (attachment) => {
+        if (isUploading) return;
+        const fileRef = ref(storage, `tasks/${taskData.id}/${attachment.fileName}`);
+        try {
+            await deleteObject(fileRef);
+            const updatedAttachments = taskData.attachments.filter(att => att.id !== attachment.id);
+            
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
+            await updateDoc(taskRef, { attachments: updatedAttachments });
+            setTaskData(prev => ({ ...prev, attachments: updatedAttachments }));
+             onSetMessage({ text: "File deleted.", isError: false });
+            
+        } catch (error) {
+            console.error("Error deleting file:", error);
+            onSetMessage({ text: "Failed to delete file.", isError: true });
+        }
+    };
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current++;
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            setIsDraggingOver(true);
+        }
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current--;
+        if (dragCounter.current === 0) {
+            setIsDraggingOver(false);
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+        dragCounter.current = 0;
+        
+        if (isNewTask) return;
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            uploadFile(files[0]);
+            e.dataTransfer.clearData();
+        }
+    };
+
     if (!taskData) return null;
 
     return (
         <Modal onClose={onClose}>
-            <div className="space-y-6">
-                <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
-                
-                {/* --- Main Task Details --- */}
-                <div className="p-4 border rounded-lg space-y-3">
-                    <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className="w-full text-lg font-semibold p-2 border rounded-md" />
-                    <div className="grid grid-cols-2 gap-4">
-                        <select name="projectId" value={taskData.projectId} onChange={handleChange} className="w-full p-2 border rounded-md">
-                            <option value="">Select Project...</option>
-                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className="w-full p-2 border rounded-md">
-                            <option value="">Assign To...</option>
-                            {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
-                        </select>
-                        <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className="w-full p-2 border rounded-md"/>
-                        <p className="p-2 text-sm text-gray-500">Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
+            <div 
+                className="relative"
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
+                {isDraggingOver && !isNewTask && (
+                    <div className="absolute inset-0 bg-blue-500 bg-opacity-75 z-10 flex justify-center items-center rounded-lg pointer-events-none">
+                        <p className="text-white text-2xl font-bold">Drop to Attach File</p>
                     </div>
-                </div>
+                )}
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
+                    
+                    {/* --- Main Task Details --- */}
+                    <div className="p-4 border rounded-lg space-y-3">
+                        <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className="w-full text-lg font-semibold p-2 border rounded-md" />
+                        <div className="grid grid-cols-2 gap-4">
+                            <select name="projectId" value={taskData.projectId} onChange={handleChange} className="w-full p-2 border rounded-md">
+                                <option value="">Select Project...</option>
+                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                            <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className="w-full p-2 border rounded-md">
+                                <option value="">Assign To...</option>
+                                {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
+                            </select>
+                            <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className="w-full p-2 border rounded-md"/>
+                            <p className="p-2 text-sm text-gray-500">Entry: {taskData.entryDate}</p>
+                        </div>
+                    </div>
 
-                {/* --- Watchers Section --- */}
-                <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">Watchers</h3>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {(taskData.watchers || []).map(watcherId => {
-                            const watcher = detailers.find(d => d.id === watcherId);
-                            return (
-                                <span key={watcherId} className="bg-gray-200 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full flex items-center">
-                                    {watcher ? `${watcher.firstName} ${watcher.lastName}` : 'Unknown'}
-                                    <button onClick={() => handleRemoveWatcher(watcherId)} className="ml-2 text-gray-500 hover:text-gray-800 font-bold">&times;</button>
-                                </span>
-                            );
-                        })}
+                    {/* --- Watchers Section --- */}
+                    <div className="p-4 border rounded-lg">
+                        <h3 className="font-semibold mb-2">Watchers</h3>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {(taskData.watchers || []).map(watcherId => {
+                                const watcher = detailers.find(d => d.id === watcherId);
+                                return (
+                                    <span key={watcherId} className="bg-gray-200 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full flex items-center">
+                                        {watcher ? `${watcher.firstName} ${watcher.lastName}` : 'Unknown'}
+                                        <button onClick={() => handleRemoveWatcher(watcherId)} className="ml-2 text-gray-500 hover:text-gray-800 font-bold">&times;</button>
+                                    </span>
+                                );
+                            })}
+                        </div>
+                        <div className="flex gap-2 items-center border-t pt-4">
+                            <select
+                                value={newWatcherId}
+                                onChange={(e) => setNewWatcherId(e.target.value)}
+                                className="flex-grow p-2 border rounded-md"
+                            >
+                                <option value="">Add a watcher...</option>
+                                {detailers.map(d => (
+                                    <option key={d.id} value={d.id}>
+                                        {d.firstName} {d.lastName}
+                                    </option>
+                                ))}
+                            </select>
+                            <button onClick={handleAddWatcher} className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                                Add
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex gap-2 items-center border-t pt-4">
-                        <select
-                            value={newWatcherId}
-                            onChange={(e) => setNewWatcherId(e.target.value)}
-                            className="flex-grow p-2 border rounded-md"
-                        >
-                            <option value="">Add a watcher...</option>
-                            {detailers.map(d => (
-                                <option key={d.id} value={d.id}>
-                                    {d.firstName} {d.lastName}
-                                </option>
-                            ))}
-                        </select>
-                        <button onClick={handleAddWatcher} className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
-                            Add
-                        </button>
-                    </div>
-                </div>
 
-                {/* --- Sub-tasks Section --- */}
-                <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">Sub-tasks</h3>
-                    <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-                        {(taskData.subTasks || []).map(st => (
-                            <div key={st.id} className="bg-gray-50 rounded p-2">
-                                {editingSubTaskId === st.id ? (
-                                    <div className="flex gap-2 items-center">
-                                        <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className="flex-grow p-1 border rounded-md"/>
-                                        <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
-                                        <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"/>
-                                        <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
-                                        <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
-                                        <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
-                                        <span className="text-xs text-gray-500">{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
-                                        <span className="text-xs text-gray-500">{st.dueDate}</span>
-                                        <button onClick={() => setCommentingOnSubTaskId(commentingOnSubTaskId === st.id ? null : st.id)} className="text-xs text-gray-500 hover:text-black flex items-center gap-1">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.837 8.837 0 01-4.41-1.153l-2.324.774a.5.5 0 01-.616-.616l.774-2.324A8.966 8.966 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.415 15.085l1.625-.542a.5.5 0 01.432.037 6.975 6.975 0 003.528 1.423 7.003 7.003 0 007-7c0-3.309-2.91-6-6.5-6S3.5 6.691 3.5 10a7.94 7.94 0 001.066 3.844.5.5 0 01.037.432l-.542 1.625z" clipRule="evenodd" /></svg>
-                                            {(st.comments || []).length}
-                                        </button>
-                                        <button onClick={() => handleStartEditSubTask(st)} className="text-xs text-blue-600 hover:underline" disabled={editingSubTaskId}>Edit</button>
-                                        <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
-                                    </div>
-                                )}
-                                {commentingOnSubTaskId === st.id && (
-                                    <div className="mt-2 pt-2 pl-6 border-t">
-                                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                                            {(st.comments || []).map(comment => (
-                                                <div key={comment.id} className="text-xs bg-white p-2 rounded">
-                                                    <p>{comment.text}</p>
-                                                    <p className="text-gray-400 text-right"> - {comment.initials} on {new Date(comment.timestamp).toLocaleDateString()}</p>
-                                                </div>
-                                            ))}
+                    {/* --- Sub-tasks Section --- */}
+                    <div className="p-4 border rounded-lg">
+                        <h3 className="font-semibold mb-2">Sub-tasks</h3>
+                        <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                            {(taskData.subTasks || []).map(st => (
+                                <div key={st.id}>
+                                    {editingSubTaskId === st.id ? (
+                                        <div className="flex gap-2 items-center p-2 bg-blue-50 rounded">
+                                            <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className="flex-grow p-1 border rounded-md"/>
+                                            <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
+                                            <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"/>
+                                            <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
+                                            <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
                                         </div>
-                                        <div className="flex gap-2 mt-2">
-                                            <input value={newSubTaskComment} onChange={e => setNewSubTaskComment(e.target.value)} placeholder="Add a comment..." className="w-full p-1 border rounded-md text-sm"/>
-                                            <input value={newSubTaskCommentInitials} onChange={e => setNewSubTaskCommentInitials(e.target.value)} placeholder="ABC" maxLength="3" className="w-16 p-1 border rounded-md text-sm text-center"/>
-                                            <button onClick={() => handleAddSubTaskComment(st.id)} className="px-3 py-1 bg-gray-200 text-black rounded-md text-sm hover:bg-gray-300">Add</button>
+                                    ) : (
+                                        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                                            <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
+                                            <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
+                                            <span className="text-xs text-gray-500">{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
+                                            <span className="text-xs text-gray-500">{st.dueDate}</span>
+                                            <button onClick={() => handleStartEditSubTask(st)} className="text-xs text-blue-600 hover:underline" disabled={editingSubTaskId}>Edit</button>
+                                            <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                    <div className="flex gap-2 items-center p-2 border-t">
-                        <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className="flex-grow p-1 border rounded-md" />
-                        <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm">
-                            <option value="">Assignee...</option>
-                            {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
-                        </select>
-                        <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm" />
-                        <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
-                    </div>
-                </div>
-
-                {/* --- Comments Section --- */}
-                <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">Comments</h3>
-                    <div className="space-y-2 max-h-40 overflow-y-auto mb-2">
-                        {(taskData.comments || []).map(comment => (
-                                <div key={comment.id} className="bg-gray-100 p-2 rounded-lg">
-                                    <p className="text-sm">{comment.text}</p>
-                                    <p className="text-xs text-gray-500 text-right">- {comment.initials} on {new Date(comment.timestamp).toLocaleDateString()}</p>
+                                    )}
                                 </div>
-                        ))}
+                            ))}
+                        </div>
+                        <div className="flex gap-2 items-center p-2 border-t">
+                            <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className="flex-grow p-1 border rounded-md" />
+                            <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm">
+                                <option value="">Assignee...</option>
+                                {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
+                            </select>
+                            <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm" />
+                            <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
+                        </div>
                     </div>
-                    <div className="flex gap-2 border-t pt-2">
-                        <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md text-sm"/>
-                        <input value={newCommentInitials} onChange={e => setNewCommentInitials(e.target.value)} placeholder="ABC" maxLength="3" className="w-16 p-2 border rounded-md text-sm text-center"/>
-                        <button onClick={handleAddMainComment} className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600">Comment</button>
-                    </div>
-                </div>
+                    
+                    {/* --- Attachments Section --- */}
+                     <fieldset disabled={isNewTask} className="p-4 border rounded-lg disabled:opacity-50">
+                        <legend className="font-semibold px-1">Attachments</legend>
+                        {isNewTask && <p className='text-sm text-center text-gray-500 mb-2'>Please save the task first to enable attachments.</p>}
+                        
+                        <div 
+                            className={`p-4 border-2 border-dashed rounded-lg text-center ${isNewTask ? 'bg-gray-100' : 'bg-gray-50 hover:bg-gray-100 cursor-pointer'}`}
+                            onClick={() => !isNewTask && fileInputRef.current.click()}
+                        >
+                            <p className="text-gray-500">Drag & drop a file here, or click to select a file.</p>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                disabled={isUploading || isNewTask}
+                            />
+                            {isUploading && <p className="text-sm text-blue-600 mt-2">Uploading...</p>}
+                        </div>
 
-                <div className="flex justify-end gap-4 pt-4">
-                    <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                    <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
+                        <div className="space-y-2 mt-4 max-h-40 overflow-y-auto">
+                            {(taskData?.attachments || []).map(att => (
+                                <div key={att.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate pr-2">{att.fileName}</a>
+                                    <button onClick={() => handleDeleteAttachment(att)} className="text-red-400 hover:text-red-600 text-xl flex-shrink-0">&times;</button>
+                                </div>
+                            ))}
+                        </div>
+                    </fieldset>
+
+
+                    <div className="flex justify-end gap-4 pt-4">
+                        <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
+                        <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
+                    </div>
                 </div>
             </div>
         </Modal>
@@ -1702,7 +1772,6 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
     const subTasks = task.subTasks || [];
     const completedSubTasks = subTasks.filter(st => st.isCompleted).length;
     const assignee = detailers.find(d => d.id === task.detailerId);
-    const totalComments = (task.comments?.length || 0) + (task.subTasks || []).reduce((acc, st) => acc + (st.comments?.length || 0), 0);
 
     return (
         <div
@@ -1720,12 +1789,6 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
                     {task.dueDate || 'No due date'}
                 </span>
                 <div className="flex items-center gap-2">
-                     {totalComments > 0 && (
-                        <span className="flex items-center gap-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.837 8.837 0 01-4.41-1.153l-2.324.774a.5.5 0 01-.616-.616l.774-2.324A8.966 8.966 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.415 15.085l1.625-.542a.5.5 0 01.432.037 6.975 6.975 0 003.528 1.423 7.003 7.003 0 007-7c0-3.309-2.91-6-6.5-6S3.5 6.691 3.5 10a7.94 7.94 0 001.066 3.844.5.5 0 01.037.432l-.542 1.625z" clipRule="evenodd" /></svg>
-                          {totalComments}
-                        </span>
-                    )}
                     {subTasks.length > 0 && (
                         <span className="flex items-center gap-1">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

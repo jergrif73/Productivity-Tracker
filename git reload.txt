@@ -1,5 +1,5 @@
 git add .
-git commit -m "Reformatted Tasks Layout"
+git commit -m "Added comments to tasks and sub-tasks"
 git push origin main
 
 
