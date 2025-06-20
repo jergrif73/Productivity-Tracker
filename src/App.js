@@ -1824,14 +1824,18 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
 const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
-    const [notification, setNotification] = useState('');
+    const [notification, setNotification] = useState(null);
     const [editingLaneId, setEditingLaneId] = useState(null);
     const [editingLaneName, setEditingLaneName] = useState('');
     const [deletingLane, setDeletingLane] = useState(null); // {id, name}
 
     const showNotification = (message) => {
-        setNotification(message);
-        setTimeout(() => setNotification(''), 3000);
+        if (typeof message === 'string') {
+            setNotification({ text: message, isError: false });
+        } else {
+            setNotification(message);
+        }
+        setTimeout(() => setNotification(null), 3000);
     };
 
     const handleOpenModal = (task = null) => {
@@ -1852,7 +1856,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
         if (isNew) {
             const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
             if (!newRequestsLane) {
-                showNotification("Error: 'New Requests' lane not found.");
+                showNotification({ text: "Error: 'New Requests' lane not found.", isError: true });
                 return;
             }
             const { id, ...data } = taskData;
@@ -1928,7 +1932,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     const handleDeleteLane = (lane) => {
         const tasksInLane = tasks.filter(t => t.laneId === lane.id);
         if (tasksInLane.length > 0) {
-            showNotification("Cannot delete a lane that contains tasks.");
+            showNotification({ text: "Cannot delete a lane that contains tasks.", isError: true });
             return;
         }
         setDeletingLane(lane);
@@ -1937,8 +1941,8 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     return (
         <div className="flex flex-col h-full">
              {notification && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative m-4" role="alert">
-                    <span className="block sm:inline">{notification}</span>
+                <div className={`${notification.isError ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700'} px-4 py-2 rounded relative m-4`} role="alert">
+                    <span className="block sm:inline">{notification.text}</span>
                 </div>
             )}
              <div className="flex-grow overflow-x-auto p-4">
