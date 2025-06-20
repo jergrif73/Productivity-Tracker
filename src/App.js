@@ -1411,6 +1411,84 @@ const GanttConsole = ({ projects, assignments }) => {
     );
 };
 
+const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment }) => {
+    const [newComment, setNewComment] = useState('');
+    const [author, setAuthor] = useState('');
+    const [editingComment, setEditingComment] = useState(null); // {id, text}
+
+    const handleAdd = () => {
+        onAddComment(newComment, author);
+        setNewComment('');
+        setAuthor('');
+    };
+
+    const handleUpdate = () => {
+        onUpdateComment(editingComment.id, editingComment.text);
+        setEditingComment(null);
+    };
+
+    return (
+        <div className="mt-4 space-y-3">
+            <div className="space-y-2">
+                {(comments || []).map(comment => (
+                    <div key={comment.id} className="bg-gray-100 p-2 rounded-md text-sm">
+                         {editingComment?.id === comment.id ? (
+                            <div className="space-y-2">
+                                <textarea 
+                                    value={editingComment.text} 
+                                    onChange={(e) => setEditingComment({...editingComment, text: e.target.value})}
+                                    className="w-full p-2 border rounded-md text-sm"
+                                />
+                                <div className="flex gap-2">
+                                    <button onClick={handleUpdate} className="px-3 py-1 bg-green-500 text-white rounded text-xs">Save</button>
+                                    <button onClick={() => setEditingComment(null)} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">Cancel</button>
+                                </div>
+                            </div>
+                         ) : (
+                            <div>
+                                <p className="text-gray-800">{comment.text}</p>
+                                <div className="flex justify-between items-center mt-1 text-gray-500 text-xs">
+                                    <span><strong>{comment.author}</strong> - {new Date(comment.timestamp).toLocaleString()}</span>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setEditingComment({id: comment.id, text: comment.text})} className="hover:underline">Edit</button>
+                                        <button onClick={() => onDeleteComment(comment.id)} className="hover:underline text-red-500">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                         )}
+                    </div>
+                ))}
+            </div>
+            <div className="border-t pt-3 space-y-2">
+                 <textarea 
+                    value={newComment} 
+                    onChange={e => setNewComment(e.target.value)} 
+                    placeholder="Add a comment..." 
+                    className="w-full p-2 border rounded-md"
+                />
+                <div className="flex gap-2 items-center">
+                    <input 
+                        type="text" 
+                        value={author} 
+                        onChange={e => setAuthor(e.target.value.toUpperCase())}
+                        placeholder="Initials"
+                        maxLength="3"
+                        className="p-2 border rounded-md w-20"
+                    />
+                    <button 
+                        onClick={handleAdd}
+                        disabled={!newComment || author.length !== 3}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300"
+                    >
+                        Post Comment
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMessage }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
@@ -1421,13 +1499,14 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     
     useEffect(() => {
         if (task && task.id) {
-            setTaskData({...task, watchers: task.watchers || []});
+            const subTasksWithComments = (task.subTasks || []).map(st => ({...st, comments: st.comments || []}));
+            setTaskData({...task, comments: task.comments || [], subTasks: subTasksWithComments});
             setIsNewTask(false);
         } else {
             setTaskData({
                 taskName: '', projectId: '', detailerId: '', status: taskStatusOptions[0], dueDate: '',
                 entryDate: new Date().toISOString().split('T')[0],
-                subTasks: [], watchers: []
+                subTasks: [], watchers: [], comments: []
             });
             setIsNewTask(true);
         }
@@ -1447,7 +1526,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         if (!newSubTask.name) {
             return;
         }
-        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false };
+        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
         setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
 
         const assignee = detailers.find(d => d.id === subTaskToAdd.detailerId);
@@ -1521,6 +1600,54 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         }));
     };
 
+    const handleCommentAction = (action, payload) => {
+        const { comment, subTaskId } = payload;
+        
+        const updateComments = (comments, newCommentData) => {
+            switch(action) {
+                case 'ADD':
+                    return [...(comments || []), newCommentData];
+                case 'UPDATE':
+                    return comments.map(c => c.id === newCommentData.id ? {...c, text: newCommentData.text, timestamp: new Date().toISOString()} : c);
+                case 'DELETE':
+                    return comments.filter(c => c.id !== newCommentData.id);
+                default:
+                    return comments;
+            }
+        }
+    
+        if (subTaskId) {
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => st.id === subTaskId ? { ...st, comments: updateComments(st.comments, comment) } : st)
+            }));
+        } else {
+             setTaskData(prev => ({ ...prev, comments: updateComments(prev.comments, comment) }));
+        }
+    };
+
+    const handleAddComment = (commentText, author, subTaskId = null) => {
+        if (!commentText.trim() || !author || author.trim().length !== 3) {
+            onSetMessage({ text: "A comment and 3-letter initials are required.", isError: true });
+            return;
+        }
+        const newComment = {
+            id: `comment_${Date.now()}`,
+            author: author.toUpperCase(),
+            text: commentText,
+            timestamp: new Date().toISOString()
+        };
+        handleCommentAction('ADD', { comment: newComment, subTaskId });
+    };
+    
+    const handleUpdateComment = (commentId, newText, subTaskId = null) => {
+        handleCommentAction('UPDATE', { comment: { id: commentId, text: newText }, subTaskId });
+    };
+
+    const handleDeleteComment = (commentId, subTaskId = null) => {
+        handleCommentAction('DELETE', { comment: { id: commentId }, subTaskId });
+    };
+
     if (!taskData) return null;
 
     return (
@@ -1542,7 +1669,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                                 {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                             </select>
                             <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className="w-full p-2 border rounded-md"/>
-                            <p className="p-2 text-sm text-gray-500">Entry: {taskData.entryDate}</p>
+                            <p className="p-2 text-sm text-gray-500">Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
                         </div>
                     </div>
 
@@ -1582,11 +1709,11 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                     {/* --- Sub-tasks Section --- */}
                     <div className="p-4 border rounded-lg">
                         <h3 className="font-semibold mb-2">Sub-tasks</h3>
-                        <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                        <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
                             {(taskData.subTasks || []).map(st => (
-                                <div key={st.id}>
+                                <div key={st.id} className="p-2 bg-gray-50 rounded">
                                     {editingSubTaskId === st.id ? (
-                                        <div className="flex gap-2 items-center p-2 bg-blue-50 rounded">
+                                        <div className="flex gap-2 items-center">
                                             <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className="flex-grow p-1 border rounded-md"/>
                                             <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
                                             <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"/>
@@ -1594,7 +1721,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                                             <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
                                         </div>
                                     ) : (
-                                        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                                        <div className="flex items-center gap-2">
                                             <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
                                             <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
                                             <span className="text-xs text-gray-500">{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
@@ -1603,6 +1730,14 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                                             <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
                                         </div>
                                     )}
+                                    <div className="pl-6">
+                                        <CommentSection 
+                                           comments={st.comments}
+                                           onAddComment={(text, author) => handleAddComment(text, author, st.id)}
+                                           onUpdateComment={(id, text) => handleUpdateComment(id, text, st.id)}
+                                           onDeleteComment={(id) => handleDeleteComment(id, st.id)}
+                                        />
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -1615,6 +1750,17 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                             <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm" />
                             <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
                         </div>
+                    </div>
+                    
+                     {/* --- Main Task Comments --- */}
+                    <div className="p-4 border rounded-lg">
+                         <h3 className="font-semibold mb-2">Task Comments</h3>
+                         <CommentSection 
+                           comments={taskData.comments}
+                           onAddComment={handleAddComment}
+                           onUpdateComment={handleUpdateComment}
+                           onDeleteComment={handleDeleteComment}
+                         />
                     </div>
 
                     <div className="flex justify-end gap-4 pt-4">
@@ -1725,8 +1871,9 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
             const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
             
             const newTask = { id: docRef.id, ...data };
-            setEditingTask(newTask); // Keep modal open in edit mode
-            showNotification("Task created! You can now add attachments.");
+            setEditingTask(newTask); 
+            showNotification("Task created!");
+            handleCloseModal();
             
             if(assignee?.email) sendEmail(assignee.email, `New Task: ${taskData.taskName}`, `You have been assigned a new task: "${taskData.taskName}".`);
             watchers.forEach(w => {

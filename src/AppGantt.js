@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import * as d3 from 'd3';
 
 // --- Helper Functions & Initial Data ---
@@ -119,12 +118,11 @@ const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.pa
   measurementId: "G-LGTREWPTGJ"
 };
 
-let db, auth, storage;
+let db, auth;
 try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
-    storage = getStorage(app);
 } catch (e) {
     console.error("Error initializing Firebase:", e);
 }
@@ -1420,20 +1418,16 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     const [editingSubTaskData, setEditingSubTaskData] = useState(null);
     const [newWatcherId, setNewWatcherId] = useState('');
     const [isNewTask, setIsNewTask] = useState(true);
-    const [isUploading, setIsUploading] = useState(false);
-    const [isDraggingOver, setIsDraggingOver] = useState(false);
-    const dragCounter = useRef(0);
-    const fileInputRef = useRef(null);
     
     useEffect(() => {
         if (task && task.id) {
-            setTaskData({...task, watchers: task.watchers || [], attachments: task.attachments || []});
+            setTaskData({...task, watchers: task.watchers || []});
             setIsNewTask(false);
         } else {
             setTaskData({
                 taskName: '', projectId: '', detailerId: '', status: taskStatusOptions[0], dueDate: '',
                 entryDate: new Date().toISOString().split('T')[0],
-                subTasks: [], attachments: [], watchers: []
+                subTasks: [], watchers: []
             });
             setIsNewTask(true);
         }
@@ -1527,113 +1521,11 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         }));
     };
 
-    const uploadFile = async (file) => {
-        if (!file || isNewTask) return;
-        
-        setIsUploading(true);
-        onSetMessage({ text: `Uploading ${file.name}...`, isError: false });
-        
-        const storageRef = ref(storage, `tasks/${taskData.id}/${file.name}`);
-        try {
-            const snapshot = await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(snapshot.ref);
-            const newAttachment = { id: `att_${Date.now()}`, fileName: file.name, url };
-            
-            const updatedAttachments = [...(taskData.attachments || []), newAttachment];
-            
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
-            await updateDoc(taskRef, { attachments: updatedAttachments });
-            
-            setTaskData(prev => ({...prev, attachments: updatedAttachments}));
-
-            onSetMessage({ text: "File uploaded successfully!", isError: false });
-        } catch(error) {
-            console.error("Error uploading file:", error);
-            onSetMessage({ text: "File upload failed.", isError: true });
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            uploadFile(file);
-        }
-    };
-
-    const handleDeleteAttachment = async (attachment) => {
-        if (isUploading) return;
-        const fileRef = ref(storage, `tasks/${taskData.id}/${attachment.fileName}`);
-        try {
-            await deleteObject(fileRef);
-            const updatedAttachments = taskData.attachments.filter(att => att.id !== attachment.id);
-            
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
-            await updateDoc(taskRef, { attachments: updatedAttachments });
-            setTaskData(prev => ({ ...prev, attachments: updatedAttachments }));
-             onSetMessage({ text: "File deleted.", isError: false });
-            
-        } catch (error) {
-            console.error("Error deleting file:", error);
-            onSetMessage({ text: "Failed to delete file.", isError: true });
-        }
-    };
-
-    const handleDragEnter = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragCounter.current++;
-        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-            setIsDraggingOver(true);
-        }
-    };
-
-    const handleDragLeave = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        dragCounter.current--;
-        if (dragCounter.current === 0) {
-            setIsDraggingOver(false);
-        }
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(false);
-        dragCounter.current = 0;
-        
-        if (isNewTask) return;
-
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
-            uploadFile(files[0]);
-            e.dataTransfer.clearData();
-        }
-    };
-
     if (!taskData) return null;
 
     return (
         <Modal onClose={onClose}>
-            <div 
-                className="relative"
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-            >
-                {isDraggingOver && !isNewTask && (
-                    <div className="absolute inset-0 bg-blue-500 bg-opacity-75 z-10 flex justify-center items-center rounded-lg pointer-events-none">
-                        <p className="text-white text-2xl font-bold">Drop to Attach File</p>
-                    </div>
-                )}
+            <div className="relative">
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
                     
@@ -1724,37 +1616,6 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                             <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
                         </div>
                     </div>
-                    
-                    {/* --- Attachments Section --- */}
-                     <fieldset disabled={isNewTask} className="p-4 border rounded-lg disabled:opacity-50">
-                        <legend className="font-semibold px-1">Attachments</legend>
-                        {isNewTask && <p className='text-sm text-center text-gray-500 mb-2'>Please save the task first to enable attachments.</p>}
-                        
-                        <div 
-                            className={`p-4 border-2 border-dashed rounded-lg text-center ${isNewTask ? 'bg-gray-100' : 'bg-gray-50 hover:bg-gray-100 cursor-pointer'}`}
-                            onClick={() => !isNewTask && fileInputRef.current.click()}
-                        >
-                            <p className="text-gray-500">Drag & drop a file here, or click to select a file.</p>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                className="hidden"
-                                disabled={isUploading || isNewTask}
-                            />
-                            {isUploading && <p className="text-sm text-blue-600 mt-2">Uploading...</p>}
-                        </div>
-
-                        <div className="space-y-2 mt-4 max-h-40 overflow-y-auto">
-                            {(taskData?.attachments || []).map(att => (
-                                <div key={att.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate pr-2">{att.fileName}</a>
-                                    <button onClick={() => handleDeleteAttachment(att)} className="text-red-400 hover:text-red-600 text-xl flex-shrink-0">&times;</button>
-                                </div>
-                            ))}
-                        </div>
-                    </fieldset>
-
 
                     <div className="flex justify-end gap-4 pt-4">
                         <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
