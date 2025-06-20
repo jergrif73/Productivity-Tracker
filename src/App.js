@@ -419,8 +419,8 @@ const App = () => {
 
     return (
         <div style={{ fontFamily: 'Arial, sans-serif' }} className="bg-gray-100 min-h-screen">
-            <div className="max-w-screen-2xl mx-auto bg-white rounded-xl shadow-lg">
-                 <header className={`p-4 border-b space-y-4 ${view === 'tasks' ? 'bg-gray-800 text-white' : ''}`}>
+            <div className="w-full h-screen flex flex-col bg-white">
+                 <header className={`p-4 border-b space-y-4 flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-white' : ''}`}>
                      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <h1 className={`text-2xl font-bold ${view === 'tasks' ? 'text-white' : 'text-gray-800'}`}>Workforce Productivity Tracker</h1>
                         <nav className="bg-gray-200 p-1 rounded-lg">
@@ -451,10 +451,10 @@ const App = () => {
                         )}
                     </div>
                 </header>
-                <main className={view === 'tasks' ? 'bg-gray-800' : "p-4"}>
+                <main className={`flex-grow overflow-y-auto ${view === 'tasks' ? 'bg-gray-800' : 'p-4 bg-gray-50'}`}>
                     {isAuthReady ? renderView() : <div className="text-center p-10">Authenticating...</div>}
                 </main>
-                 <footer className={`text-center p-2 text-xs border-t ${view === 'tasks' ? 'bg-gray-800 text-gray-400' : 'text-gray-500'}`}>
+                 <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-gray-400' : 'text-gray-500'}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
                 </footer>
             </div>
@@ -599,7 +599,7 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
                 <button onClick={() => setSortBy('lastName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Last Name</button>
             </div>
             
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <div className="bg-white rounded-lg p-4 space-y-2">
                 <div className="hidden md:grid grid-cols-12 gap-4 font-bold text-sm text-gray-600 px-4 py-2">
                     <div className="col-span-3">DETAILER</div>
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
@@ -705,7 +705,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
                 {sortedProjects.map(p => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     return (
-                        <div key={p.id} className="bg-gray-50 p-4 rounded-lg border">
+                        <div key={p.id} className="bg-white p-4 rounded-lg border shadow-sm">
                             <h3 className="text-lg font-semibold">{p.name}</h3>
                             <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
                             <div className="mt-2 pl-4 border-l-2 border-blue-200">
@@ -809,7 +809,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
             )}
 
             {editableDetailer && (
-                <div className="bg-gray-50 p-4 rounded-lg border space-y-6">
+                <div className="bg-white p-4 rounded-lg border space-y-6 shadow-sm">
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Basic Info for {editableDetailer.firstName} {editableDetailer.lastName}</h3>
                         <div className="space-y-2">
@@ -962,7 +962,7 @@ const AdminConsole = ({ detailers, projects }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
                 <h2 className="text-xl font-bold mb-4">Manage Detailers</h2>
-                <div className={`bg-gray-50 p-4 rounded-lg border mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Detailer</h3>
                     <div className="space-y-2 mb-4">
                         <input value={newDetailer.firstName} onChange={e => setNewDetailer({...newDetailer, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
@@ -980,7 +980,7 @@ const AdminConsole = ({ detailers, projects }) => {
                 {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
                     {detailers.map(d => (
-                        <div key={d.id} className="bg-white p-3 border rounded-md">
+                        <div key={d.id} className="bg-white p-3 border rounded-md shadow-sm">
                             {editingDetailerId === d.id ? (
                                 <div className="space-y-2">
                                     <input name="firstName" value={editingDetailerData.firstName} onChange={e => handleEditDataChange(e, 'detailer')} className="w-full p-2 border rounded-md"/>
@@ -1017,7 +1017,7 @@ const AdminConsole = ({ detailers, projects }) => {
 
             <div>
                 <h2 className="text-xl font-bold mb-4">Manage Projects</h2>
-                 <div className={`bg-gray-50 p-4 rounded-lg border mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                 <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Project</h3>
                     <div className="space-y-2 mb-4">
                         <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
@@ -1027,7 +1027,7 @@ const AdminConsole = ({ detailers, projects }) => {
                 </div>
                 <div className="space-y-2">
                     {projects.map(p => (
-                         <div key={p.id} className="bg-white p-3 border rounded-md">
+                         <div key={p.id} className="bg-white p-3 border rounded-md shadow-sm">
                             {editingProjectId === p.id ? (
                                 <div className="space-y-2">
                                     <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
@@ -1114,7 +1114,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
 
     return (
         <div className="space-y-4">
-             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
+             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
                  <div className="flex items-center gap-2">
                      <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
                      <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
@@ -1131,9 +1131,9 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                  </div>
              </div>
 
-            <div className="overflow-x-auto border rounded-lg">
+            <div className="overflow-x-auto border rounded-lg bg-white shadow-sm">
                 <table className="min-w-full text-sm text-left border-collapse">
-                    <thead className="bg-gray-100 sticky top-0 z-10">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th className="p-1 font-semibold w-16 min-w-[64px] border border-gray-300">DETAILER</th>
                             <th className="p-1 font-semibold w-11 min-w-[44px] border border-gray-300">TRADE</th>
@@ -1153,7 +1153,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                     <tbody>
                         {groupedData.map(project => (
                             <React.Fragment key={project.id}>
-                                <tr className="bg-gray-200 sticky top-10">
+                                <tr className="bg-gray-100 sticky top-10">
                                     <th colSpan={3 + weekDates.length} className="p-1 text-left font-bold text-gray-700 border border-gray-300">
                                         {project.name} ({project.projectId})
                                     </th>
@@ -1206,7 +1206,7 @@ const GanttConsole = ({ projects, assignments }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects'); // 'projects' or 'totals'
     const weekCount = 16;
-    const dimensions = { width: 960, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
+    const dimensions = { width: 1100, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
     const boundedHeight = height - margin.top - margin.bottom;
@@ -1385,7 +1385,7 @@ const GanttConsole = ({ projects, assignments }) => {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
                     <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
@@ -1396,7 +1396,9 @@ const GanttConsole = ({ projects, assignments }) => {
                     <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? 'bg-white shadow' : ''}`}>Totals</button>
                 </div>
             </div>
-            <svg ref={svgRef} width={width} height={height}></svg>
+            <div className="bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
+                <svg ref={svgRef} width={width} height={height}></svg>
+            </div>
             {ganttView === 'projects' && (
                 <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8" style={{minHeight: '6rem'}}>
                     {projectData.map(p => (
@@ -1859,7 +1861,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-200px)]">
+        <div className="flex flex-col h-full">
              {notification && (
                 <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative m-4" role="alert">
                     <span className="block sm:inline">{notification}</span>
@@ -1872,7 +1874,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                              key={lane.id}
                              onDragOver={handleDragOver}
                              onDrop={(e) => handleDrop(e, lane.id)}
-                             className="bg-gray-900 rounded-lg p-3 w-80 flex-shrink-0 flex flex-col"
+                             className="bg-gray-900 rounded-lg p-3 w-56 flex-shrink-0 flex flex-col"
                          >
                             <div className="flex justify-between items-center mb-4 text-white">
                                { editingLaneId === lane.id ? (
@@ -1908,7 +1910,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                              </div>
                          </div>
                      ))}
-                      <div className="w-80 flex-shrink-0">
+                      <div className="w-56 flex-shrink-0">
                          <button onClick={handleAddLane} className="w-full p-3 bg-gray-700 text-gray-400 rounded-lg hover:bg-gray-600">+ Add Another List</button>
                       </div>
                  </div>

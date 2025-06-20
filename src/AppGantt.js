@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import * as d3 from 'd3';
 
 // --- Helper Functions & Initial Data ---
 
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
+const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+
 
 const titleOptions = [
     "Detailer I",
@@ -107,18 +109,18 @@ const legendColorMapping = {
     "GIS/GPS": 'bg-orange-500',
 };
 
+const firebaseConfig = {
+  apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
+  authDomain: "productivity-tracker-3017d.firebaseapp.com",
+  projectId: "productivity-tracker-3017d",
+  storageBucket: "productivity-tracker-3017d.appspot.com",
+  messagingSenderId: "489412895343",
+  appId: "1:489412895343:web:780e7717db122a2b99639a",
+  measurementId: "G-LGTREWPTGJ"
+};
 
 let db, auth, storage;
 try {
-    const firebaseConfig = {
-      apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
-      authDomain: "productivity-tracker-3017d.firebaseapp.com",
-      projectId: "productivity-tracker-3017d",
-      storageBucket: "productivity-tracker-3017d.appspot.com",
-      messagingSenderId: "489412895343",
-      appId: "1:489412895343:web:780e7717db122a2b99639a",
-      measurementId: "G-LGTREWPTGJ"
-    };
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
@@ -195,12 +197,12 @@ const BubbleRating = ({ score, onScoreChange }) => {
     );
 };
 
-const Modal = ({ children, onClose }) => {
+const Modal = ({ children, onClose, customClasses = 'max-w-4xl' }) => {
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-            <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
+            <div className={`bg-white p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto`}>
                 <div className="flex justify-end">
-                    <button onClick={onClose} className="text-2xl font-bold">&times;</button>
+                    <button onClick={onClose} className="text-2xl font-bold text-gray-600 hover:text-gray-900">&times;</button>
                 </div>
                 {children}
             </div>
@@ -231,6 +233,7 @@ const App = () => {
     const [projects, setProjects] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [tasks, setTasks] = useState([]);
+    const [taskLanes, setTaskLanes] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Authentication state
@@ -249,12 +252,16 @@ const App = () => {
                 setUserId(user.uid);
                 setIsAuthReady(true);
             } else {
-                try {
-                    await signInAnonymously(auth);
+                 try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
                 } catch (error) {
-                    console.error("Anonymous authentication failed:", error);
+                    console.error("Authentication failed:", error);
                 } finally {
-                    setIsAuthReady(true);
+                     setIsAuthReady(true);
                 }
             }
         });
@@ -265,7 +272,9 @@ const App = () => {
         if (!db) return;
         const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
         const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
+        const lanesRef = collection(db, `artifacts/${appId}/public/data/taskLanes`);
         
+        // Seed Detailers
         const detailerSnapshot = await getDocs(query(detailersRef));
         if (detailerSnapshot.empty) {
             console.log("Seeding detailers...");
@@ -277,6 +286,7 @@ const App = () => {
             await batch.commit();
         }
 
+        // Seed Projects
         const projectSnapshot = await getDocs(query(projectsRef));
         if (projectSnapshot.empty) {
             console.log("Seeding projects...");
@@ -284,6 +294,26 @@ const App = () => {
             initialProjects.forEach(p => {
                 const newDocRef = doc(projectsRef);
                 batch.set(newDocRef, p);
+            });
+            await batch.commit();
+        }
+        
+        // Seed Task Lanes
+        const laneSnapshot = await getDocs(query(lanesRef));
+        if (laneSnapshot.empty) {
+            console.log("Seeding task lanes...");
+            const initialLanes = [
+                { name: "New Requests", order: 0 },
+                { name: "Project Setup Support (VDC)", order: 1 },
+                { name: "Process Improvements (VDC)", order: 2 },
+                { name: "Support Requests (VDC)", order: 3 },
+                { name: "RFA Requests (VDC)", order: 4 },
+                { name: "On Hold", order: 5 },
+            ];
+            const batch = writeBatch(db);
+            initialLanes.forEach(lane => {
+                const newDocRef = doc(lanesRef);
+                batch.set(newDocRef, lane);
             });
             await batch.commit();
         }
@@ -306,6 +336,10 @@ const App = () => {
         const unsubTasks = onSnapshot(collection(db, `artifacts/${appId}/public/data/tasks`), snapshot => {
             setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
+        const unsubTaskLanes = onSnapshot(collection(db, `artifacts/${appId}/public/data/taskLanes`), snapshot => {
+            const lanes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setTaskLanes(lanes.sort((a, b) => a.order - b.order));
+        });
         
         setLoading(false);
         return () => {
@@ -313,6 +347,7 @@ const App = () => {
             unsubProjects();
             unsubAssignments();
             unsubTasks();
+            unsubTaskLanes();
         };
     }, [isAuthReady]);
 
@@ -370,7 +405,7 @@ const App = () => {
             case 'workloader':
                 return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} />;
             case 'tasks':
-                return <TaskConsole tasks={tasks} detailers={detailers} projects={projects} />;
+                return <TaskConsole tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} />;
              case 'gantt':
                 return <GanttConsole projects={projects} assignments={assignments} />;
             case 'skills':
@@ -383,11 +418,11 @@ const App = () => {
     };
 
     return (
-        <div style={{ fontFamily: 'Arial, sans-serif' }} className="bg-gray-100 min-h-screen p-4 sm:p-6 lg:p-8">
-            <div className="max-w-screen-2xl mx-auto bg-white rounded-xl shadow-lg">
-                <header className="p-4 border-b space-y-4">
+        <div style={{ fontFamily: 'Arial, sans-serif' }} className="bg-gray-100 min-h-screen">
+            <div className="w-full h-screen flex flex-col bg-white">
+                 <header className={`p-4 border-b space-y-4 flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-white' : ''}`}>
                      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <h1 className="text-2xl font-bold text-gray-800">Workforce Productivity Tracker</h1>
+                        <h1 className={`text-2xl font-bold ${view === 'tasks' ? 'text-white' : 'text-gray-800'}`}>Workforce Productivity Tracker</h1>
                         <nav className="bg-gray-200 p-1 rounded-lg">
                             <div className="flex items-center space-x-1 flex-wrap justify-center">
                                 {visibleNavButtons.map(button => (
@@ -416,10 +451,10 @@ const App = () => {
                         )}
                     </div>
                 </header>
-                <main className="p-4">
+                <main className={`flex-grow overflow-y-auto ${view === 'tasks' ? 'bg-gray-800' : 'p-4 bg-gray-50'}`}>
                     {isAuthReady ? renderView() : <div className="text-center p-10">Authenticating...</div>}
                 </main>
-                 <footer className="text-center p-2 text-xs text-gray-500 border-t">
+                 <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-gray-400' : 'text-gray-500'}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
                 </footer>
             </div>
@@ -564,7 +599,7 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
                 <button onClick={() => setSortBy('lastName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Last Name</button>
             </div>
             
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <div className="bg-white rounded-lg p-4 space-y-2">
                 <div className="hidden md:grid grid-cols-12 gap-4 font-bold text-sm text-gray-600 px-4 py-2">
                     <div className="col-span-3">DETAILER</div>
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
@@ -670,7 +705,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
                 {sortedProjects.map(p => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     return (
-                        <div key={p.id} className="bg-gray-50 p-4 rounded-lg border">
+                        <div key={p.id} className="bg-white p-4 rounded-lg border shadow-sm">
                             <h3 className="text-lg font-semibold">{p.name}</h3>
                             <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
                             <div className="mt-2 pl-4 border-l-2 border-blue-200">
@@ -774,7 +809,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
             )}
 
             {editableDetailer && (
-                <div className="bg-gray-50 p-4 rounded-lg border space-y-6">
+                <div className="bg-white p-4 rounded-lg border space-y-6 shadow-sm">
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Basic Info for {editableDetailer.firstName} {editableDetailer.lastName}</h3>
                         <div className="space-y-2">
@@ -927,7 +962,7 @@ const AdminConsole = ({ detailers, projects }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
                 <h2 className="text-xl font-bold mb-4">Manage Detailers</h2>
-                <div className={`bg-gray-50 p-4 rounded-lg border mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Detailer</h3>
                     <div className="space-y-2 mb-4">
                         <input value={newDetailer.firstName} onChange={e => setNewDetailer({...newDetailer, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
@@ -945,7 +980,7 @@ const AdminConsole = ({ detailers, projects }) => {
                 {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
                     {detailers.map(d => (
-                        <div key={d.id} className="bg-white p-3 border rounded-md">
+                        <div key={d.id} className="bg-white p-3 border rounded-md shadow-sm">
                             {editingDetailerId === d.id ? (
                                 <div className="space-y-2">
                                     <input name="firstName" value={editingDetailerData.firstName} onChange={e => handleEditDataChange(e, 'detailer')} className="w-full p-2 border rounded-md"/>
@@ -982,7 +1017,7 @@ const AdminConsole = ({ detailers, projects }) => {
 
             <div>
                 <h2 className="text-xl font-bold mb-4">Manage Projects</h2>
-                 <div className={`bg-gray-50 p-4 rounded-lg border mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                 <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Project</h3>
                     <div className="space-y-2 mb-4">
                         <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
@@ -992,7 +1027,7 @@ const AdminConsole = ({ detailers, projects }) => {
                 </div>
                 <div className="space-y-2">
                     {projects.map(p => (
-                         <div key={p.id} className="bg-white p-3 border rounded-md">
+                         <div key={p.id} className="bg-white p-3 border rounded-md shadow-sm">
                             {editingProjectId === p.id ? (
                                 <div className="space-y-2">
                                     <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
@@ -1079,7 +1114,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
 
     return (
         <div className="space-y-4">
-             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
+             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
                  <div className="flex items-center gap-2">
                      <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
                      <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
@@ -1096,9 +1131,9 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                  </div>
              </div>
 
-            <div className="overflow-x-auto border rounded-lg">
+            <div className="overflow-x-auto border rounded-lg bg-white shadow-sm">
                 <table className="min-w-full text-sm text-left border-collapse">
-                    <thead className="bg-gray-100 sticky top-0 z-10">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th className="p-1 font-semibold w-16 min-w-[64px] border border-gray-300">DETAILER</th>
                             <th className="p-1 font-semibold w-11 min-w-[44px] border border-gray-300">TRADE</th>
@@ -1118,7 +1153,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                     <tbody>
                         {groupedData.map(project => (
                             <React.Fragment key={project.id}>
-                                <tr className="bg-gray-200 sticky top-10">
+                                <tr className="bg-gray-100 sticky top-10">
                                     <th colSpan={3 + weekDates.length} className="p-1 text-left font-bold text-gray-700 border border-gray-300">
                                         {project.name} ({project.projectId})
                                     </th>
@@ -1171,7 +1206,7 @@ const GanttConsole = ({ projects, assignments }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects'); // 'projects' or 'totals'
     const weekCount = 16;
-    const dimensions = { width: 960, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
+    const dimensions = { width: 1100, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
     const boundedHeight = height - margin.top - margin.bottom;
@@ -1350,7 +1385,7 @@ const GanttConsole = ({ projects, assignments }) => {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
                     <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
@@ -1361,7 +1396,9 @@ const GanttConsole = ({ projects, assignments }) => {
                     <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? 'bg-white shadow' : ''}`}>Totals</button>
                 </div>
             </div>
-            <svg ref={svgRef} width={width} height={height}></svg>
+            <div className="bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
+                <svg ref={svgRef} width={width} height={height}></svg>
+            </div>
             {ganttView === 'projects' && (
                 <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8" style={{minHeight: '6rem'}}>
                     {projectData.map(p => (
@@ -1655,15 +1692,73 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     );
 };
 
-const TaskConsole = ({ tasks, detailers, projects }) => {
+
+const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
+    const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);
+    const subTasks = task.subTasks || [];
+    const completedSubTasks = subTasks.filter(st => st.isCompleted).length;
+    const assignee = detailers.find(d => d.id === task.detailerId);
+
+    return (
+        <div
+            draggable
+            onDragStart={(e) => onDragStart(e, task.id)}
+            onClick={onClick}
+            className="bg-gray-700 p-3 rounded-lg border border-gray-600 shadow-sm cursor-pointer mb-3 text-gray-200"
+        >
+            <p className="font-semibold mb-2">{task.taskName}</p>
+            <div className="flex items-center justify-between text-xs text-gray-400 mt-2">
+                <span className={task.dueDate ? '' : 'text-gray-500'}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
+                    {task.dueDate || 'No due date'}
+                </span>
+                <div className="flex items-center gap-2">
+                    {subTasks.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" />
+                          </svg>
+                          {completedSubTasks}/{subTasks.length}
+                        </span>
+                    )}
+                     <div className="flex -space-x-2">
+                        {assignee && (
+                             <Tooltip text={`Assignee: ${assignee.firstName} ${assignee.lastName}`}>
+                                 <span className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs border-2 border-gray-700">
+                                     {assignee.firstName.charAt(0)}{assignee.lastName.charAt(0)}
+                                 </span>
+                            </Tooltip>
+                        )}
+                        {watchers.slice(0, 2).map(watcher => (
+                            <Tooltip key={watcher.id} text={`${watcher.firstName} ${watcher.lastName}`}>
+                                 <span className="w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center text-white text-xs border-2 border-gray-700">
+                                     {watcher.firstName.charAt(0)}{watcher.lastName.charAt(0)}
+                                 </span>
+                            </Tooltip>
+                        ))}
+                     </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
     const [notification, setNotification] = useState('');
+    const [editingLaneId, setEditingLaneId] = useState(null);
+    const [editingLaneName, setEditingLaneName] = useState('');
+    const [deletingLane, setDeletingLane] = useState(null); // {id, name}
 
     const showNotification = (message) => {
         setNotification(message);
         setTimeout(() => setNotification(''), 3000);
-    }
+    };
 
     const handleOpenModal = (task = null) => {
         setEditingTask(task);
@@ -1677,19 +1772,23 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
 
     const handleSaveTask = async (taskData) => {
         const isNew = !taskData.id;
-        
-        // Find assignee and watchers before saving
         const assignee = detailers.find(d => d.id === taskData.detailerId);
         const watchers = (taskData.watchers || []).map(watcherId => detailers.find(d => d.id === watcherId)).filter(Boolean);
 
         if (isNew) {
+            const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
+            if (!newRequestsLane) {
+                showNotification("Error: 'New Requests' lane not found.");
+                return;
+            }
             const { id, ...data } = taskData;
+            data.laneId = newRequestsLane.id;
             const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-            const newTask = { id: docRef.id, ...data };
-            setEditingTask(newTask);
-            showNotification("Task created successfully! Email notifications sent.");
             
-            // Send emails for new task
+            const newTask = { id: docRef.id, ...data };
+            setEditingTask(newTask); // Keep modal open in edit mode
+            showNotification("Task created! You can now add attachments.");
+            
             if(assignee?.email) sendEmail(assignee.email, `New Task: ${taskData.taskName}`, `You have been assigned a new task: "${taskData.taskName}".`);
             watchers.forEach(w => {
                  if(w.email) sendEmail(w.email, `New Task (Watched): ${taskData.taskName}`, `A new task you are watching has been created: "${taskData.taskName}".`);
@@ -1699,10 +1798,8 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
             const { id, ...data } = taskData;
             const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
             await updateDoc(taskRef, data);
-            showNotification("Task updated successfully! Email notifications sent.");
+            showNotification("Task updated successfully!");
             handleCloseModal();
-            
-            // Send emails for updated task
             if(assignee?.email) sendEmail(assignee.email, `Task Updated: ${taskData.taskName}`, `A task assigned to you has been updated: "${taskData.taskName}".`);
             watchers.forEach(w => {
                  if(w.email) sendEmail(w.email, `Task Updated (Watched): ${taskData.taskName}`, `A task you are watching has been updated: "${taskData.taskName}".`);
@@ -1710,115 +1807,114 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
         }
     };
 
-    const handleDeleteTask = async (taskId) => {
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
-        showNotification("Task deleted.");
+    const handleDragStart = (e, taskId) => {
+        e.dataTransfer.setData("taskId", taskId);
     };
-    
-    const handleStatusChange = async (taskId, newStatus) => {
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    const handleDrop = async (e, targetLaneId) => {
+        const taskId = e.dataTransfer.getData("taskId");
         const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
-        try {
-            await updateDoc(taskRef, { status: newStatus });
-        } catch (error) {
-            console.error("Error updating task status:", error);
+        await updateDoc(taskRef, { laneId: targetLaneId });
+    };
+
+    const handleAddLane = async () => {
+        const newLaneName = prompt("Enter new lane name:");
+        if (newLaneName && newLaneName.trim() !== '') {
+            const newLane = {
+                name: newLaneName.trim(),
+                order: taskLanes.length,
+            };
+            await addDoc(collection(db, `artifacts/${appId}/public/data/taskLanes`), newLane);
+            showNotification(`Lane '${newLaneName}' added.`);
         }
     };
     
-    const getStatusColor = (status) => {
-        switch(status) {
-            case 'Completed': return 'bg-green-100 text-green-800';
-            case 'In Progress': return 'bg-blue-100 text-blue-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
+    const handleRenameLane = async (laneId) => {
+        if (!editingLaneName.trim()) {
+            setEditingLaneId(null);
+            return;
+        };
+        const laneRef = doc(db, `artifacts/${appId}/public/data/taskLanes`, laneId);
+        await updateDoc(laneRef, { name: editingLaneName });
+        setEditingLaneId(null);
+        setEditingLaneName('');
+    };
+    
+    const confirmDeleteLane = async (laneId) => {
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/taskLanes`, laneId));
+        showNotification("Lane deleted.");
+        setDeletingLane(null);
     }
 
-    return (
-        <div>
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">Task Console</h1>
-                <button onClick={() => handleOpenModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">+ Add Task</button>
-            </div>
 
-            {notification && (
-                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+    const handleDeleteLane = (lane) => {
+        const tasksInLane = tasks.filter(t => t.laneId === lane.id);
+        if (tasksInLane.length > 0) {
+            showNotification("Cannot delete a lane that contains tasks.");
+            return;
+        }
+        setDeletingLane(lane);
+    };
+
+    return (
+        <div className="flex flex-col h-full">
+             {notification && (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded relative m-4" role="alert">
                     <span className="block sm:inline">{notification}</span>
                 </div>
             )}
+             <div className="flex-grow overflow-x-auto p-4">
+                 <div className="flex space-x-4 h-full">
+                     {taskLanes.map(lane => (
+                         <div
+                             key={lane.id}
+                             onDragOver={handleDragOver}
+                             onDrop={(e) => handleDrop(e, lane.id)}
+                             className="bg-gray-900 rounded-lg p-3 w-56 flex-shrink-0 flex flex-col"
+                         >
+                            <div className="flex justify-between items-center mb-4 text-white">
+                               { editingLaneId === lane.id ? (
+                                   <input
+                                      type="text"
+                                      value={editingLaneName}
+                                      onChange={(e) => setEditingLaneName(e.target.value)}
+                                      onBlur={() => handleRenameLane(lane.id)}
+                                      onKeyPress={(e) => e.key === 'Enter' && handleRenameLane(lane.id)}
+                                      className="font-semibold p-1 rounded-md border bg-gray-700 w-full text-white"
+                                      autoFocus
+                                   />
+                               ) : (
+                                   <h2 className="font-semibold cursor-pointer" onClick={() => { setEditingLaneId(lane.id); setEditingLaneName(lane.name); }}>{lane.name}</h2>
+                               )}
+                                <button onClick={() => handleDeleteLane(lane)} className="text-gray-400 hover:text-red-500 disabled:opacity-20" disabled={tasks.some(t => t.laneId === lane.id)}>&times;</button>
+                            </div>
 
-            <div className="bg-white shadow rounded-lg">
-                <div className="grid grid-cols-14 gap-4 font-bold text-sm text-gray-600 px-4 py-3 border-b">
-                    <div className="col-span-3">TASK NAME</div>
-                    <div className="col-span-2">ASSIGNED TO</div>
-                    <div className="col-span-2">WATCHERS</div>
-                    <div className="col-span-2">PROJECT</div>
-                    <div className="col-span-1">ENTRY DATE</div>
-                    <div className="col-span-1">DUE DATE</div>
-                    <div className="col-span-1 text-center">STATUS</div>
-                    <div className="col-span-2 text-right">ACTIONS</div>
-                </div>
-                <div className="divide-y divide-gray-200">
-                    {tasks.map(task => {
-                        const detailer = detailers.find(d => d.id === task.detailerId);
-                        const project = projects.find(p => p.id === task.projectId);
-                        const subTasks = task.subTasks || [];
-                        return (
-                            <React.Fragment key={task.id}>
-                                <div className="grid grid-cols-14 gap-4 items-center px-4 py-3">
-                                    <div className="col-span-3 font-medium">{task.taskName}</div>
-                                    <div className="col-span-2">{detailer ? `${detailer.firstName} ${detailer.lastName}` : 'N/A'}</div>
-                                    <div className="col-span-2 text-sm text-gray-600">
-                                        {(task.watchers && task.watchers.length > 0) ? (
-                                            <div className="flex flex-wrap gap-1">
-                                                {task.watchers.map(watcherId => {
-                                                    const watcher = detailers.find(d => d.id === watcherId);
-                                                    return (
-                                                        <Tooltip key={watcherId} text={watcher ? `${watcher.firstName} ${watcher.lastName}` : ''}>
-                                                            <span className="bg-gray-200 text-gray-800 text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full">
-                                                                {watcher ? `${watcher.firstName.charAt(0)}${watcher.lastName.charAt(0)}` : '?'}
-                                                            </span>
-                                                        </Tooltip>
-                                                    )
-                                                })}
-                                            </div>
-                                        ) : 'None'}
-                                    </div>
-                                    <div className="col-span-2">{project ? project.name : 'N/A'}</div>
-                                    <div className="col-span-1 text-sm text-gray-600">{task.entryDate || 'N/A'}</div>
-                                    <div className="col-span-1 text-sm text-gray-600">{task.dueDate}</div>
-                                    <div className="col-span-1 text-center">
-                                         <select
-                                            value={task.status}
-                                            onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                                            className={`w-full text-xs p-1 border-0 rounded-md appearance-none focus:ring-0 ${getStatusColor(task.status)}`}
-                                        >
-                                            {taskStatusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="col-span-2 flex justify-end gap-4">
-                                        <button onClick={() => handleOpenModal(task)} className="text-blue-600 hover:text-blue-800">Edit</button>
-                                        <button onClick={() => handleDeleteTask(task.id)} className="text-red-500 hover:text-red-700">Delete</button>
-                                    </div>
-                                </div>
-                                {subTasks.map(subTask => (
-                                    <div key={subTask.id} className="grid grid-cols-14 gap-4 items-center px-4 py-1 bg-gray-50 text-sm">
-                                        <div className="col-start-2 col-span-5 flex items-center gap-3">
-                                            <input type="checkbox" readOnly checked={subTask.isCompleted} className="h-4 w-4 rounded text-blue-600 focus:ring-0"/>
-                                            <p className={`${subTask.isCompleted ? 'line-through text-gray-500' : ''}`}>{subTask.name}</p>
-                                        </div>
-                                        <div className="col-span-2 text-xs text-gray-500">
-                                            {detailers.find(d => d.id === subTask.detailerId)?.lastName || 'N/A'}
-                                        </div>
-                                        <div className="col-span-2 text-xs text-gray-500">
-                                           Due: {subTask.dueDate || 'N/A'}
-                                        </div>
-                                    </div>
-                                ))}
-                            </React.Fragment>
-                        )
-                    })}
-                </div>
-            </div>
+                             {lane.name === "New Requests" && (
+                                 <button onClick={() => handleOpenModal(null)} className="w-full text-left p-2 mb-3 bg-gray-700 text-gray-300 rounded-md shadow-sm hover:bg-gray-600">+ Add Task</button>
+                             )}
 
+                             <div className="flex-grow overflow-y-auto pr-2">
+                                 {tasks.filter(t => t.laneId === lane.id).map(task => (
+                                     <TaskCard
+                                         key={task.id}
+                                         task={task}
+                                         detailers={detailers}
+                                         onDragStart={handleDragStart}
+                                         onClick={() => handleOpenModal(task)}
+                                     />
+                                 ))}
+                             </div>
+                         </div>
+                     ))}
+                      <div className="w-56 flex-shrink-0">
+                         <button onClick={handleAddLane} className="w-full p-3 bg-gray-700 text-gray-400 rounded-lg hover:bg-gray-600">+ Add Another List</button>
+                      </div>
+                 </div>
+             </div>
             {isModalOpen && (
                 <TaskDetailModal
                     task={editingTask}
@@ -1829,6 +1925,18 @@ const TaskConsole = ({ tasks, detailers, projects }) => {
                     onSetMessage={showNotification}
                 />
             )}
+             {deletingLane && (
+                <Modal onClose={() => setDeletingLane(null)} customClasses="max-w-md">
+                    <div className="text-center p-4">
+                        <h3 className="text-lg font-bold mb-4">Confirm Deletion</h3>
+                        <p className="mb-6">Are you sure you want to delete the lane "{deletingLane.name}"? This action cannot be undone.</p>
+                        <div className="flex justify-center gap-4">
+                            <button onClick={() => setDeletingLane(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
+                            <button onClick={() => confirmDeleteLane(deletingLane.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+                        </div>
+                    </div>
+                </Modal>
+             )}
         </div>
     );
 };
