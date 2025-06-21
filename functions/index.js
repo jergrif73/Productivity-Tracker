@@ -1,4 +1,4 @@
-const {onDocumentUpdated} = require("firebase-functions/v2/firestore");
+const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {logger} = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -53,7 +53,50 @@ const getRecipientEmails = async (taskData) => {
 };
 
 /**
- * Cloud Function that triggers when a task is updated.
+ * Cloud Function that triggers when a new task is CREATED.
+ */
+exports.onTaskCreate = onDocumentCreated({
+    document: "artifacts/default-prod-tracker-app/public/data/tasks/{taskId}",
+    secrets: [sendgridApiKey],
+}, async (event) => {
+    sgMail.setApiKey(sendgridApiKey.value());
+    const taskData = event.data.data();
+    const taskName = taskData.taskName || "Untitled Task";
+
+    const recipients = await getRecipientEmails(taskData);
+
+    if (recipients.length === 0) {
+        logger.log("Task created, but no recipients found.");
+        return null;
+    }
+
+    const msg = {
+        to: recipients,
+        from: FROM_EMAIL,
+        subject: `New Task Assigned: ${taskName}`,
+        html: `
+            <p>Hello,</p>
+            <p>You have been assigned a new task: <strong>${taskName}</strong>.</p>
+            <p>Please check the application for details.</p>
+        `,
+    };
+
+    try {
+        await sgMail.send(msg);
+        logger.log("New task email sent successfully to:", recipients);
+    } catch (error) {
+        logger.error("Error sending new task email:", error);
+        if (error.response) {
+            logger.error(error.response.body);
+        }
+    }
+
+    return null;
+});
+
+
+/**
+ * Cloud Function that triggers when a task is UPDATED.
  */
 exports.onTaskUpdate = onDocumentUpdated({
     document: "artifacts/default-prod-tracker-app/public/data/tasks/{taskId}",
@@ -72,7 +115,7 @@ exports.onTaskUpdate = onDocumentUpdated({
     const recipients = await getRecipientEmails(taskDataAfter);
 
     if (recipients.length === 0) {
-        logger.log("No recipients found for this task.");
+        logger.log("Task updated, but no recipients found.");
         return null;
     }
 
@@ -91,7 +134,7 @@ exports.onTaskUpdate = onDocumentUpdated({
         await sgMail.send(msg);
         logger.log("Update email sent successfully to:", recipients);
     } catch (error) {
-        logger.error("Error sending email:", error);
+        logger.error("Error sending update email:", error);
         if (error.response) {
             logger.error(error.response.body);
         }
@@ -131,7 +174,7 @@ exports.dailyReminder = onSchedule({
                 subject: `Reminder: Task "${task.taskName}" is due tomorrow`,
                 html: `
                     <p>Hello,</p>
-                    <p>This is a reminder that the task <strong>${task.name}</strong> is due tomorrow, ${tomorrowStr}.</p>
+                    <p>This is a reminder that the task <strong>${task.taskName}</strong> is due tomorrow, ${tomorrowStr}.</p>
                 `,
             };
             return sgMail.send(msg);
