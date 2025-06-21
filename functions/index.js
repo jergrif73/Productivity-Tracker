@@ -13,7 +13,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // IMPORTANT: Change this to your verified SendGrid sender email
-const FROM_EMAIL = "jgriffith@southlandind.com";
+const FROM_EMAIL = "jergrif73@gmail.com";
 
 /**
  * A helper function to get the email addresses for assignees and watchers.
