@@ -1478,7 +1478,7 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
 };
 
 
-const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMessage }) => {
+const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMessage, onDelete }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
@@ -1733,6 +1733,14 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                     </div>
 
                     <div className="flex justify-end gap-4 pt-4">
+                        {!isNewTask && (!taskData.subTasks || taskData.subTasks.length === 0) && (
+                            <button
+                                onClick={onDelete}
+                                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 mr-auto"
+                            >
+                                Delete Task
+                            </button>
+                        )}
                         <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
                         <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
                     </div>
@@ -1804,6 +1812,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     const [editingLaneId, setEditingLaneId] = useState(null);
     const [editingLaneName, setEditingLaneName] = useState('');
     const [deletingLane, setDeletingLane] = useState(null); // {id, name}
+    const [taskToDelete, setTaskToDelete] = useState(null);
 
     const showNotification = (message) => {
         if (typeof message === 'string') {
@@ -1822,6 +1831,14 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingTask(null);
+    };
+    
+    const handleDeleteTask = async (taskId) => {
+        if (!taskId) return;
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
+        showNotification("Task deleted successfully!");
+        handleCloseModal(); 
+        setTaskToDelete(null); 
     };
 
     const handleSaveTask = async (taskData) => {
@@ -1964,6 +1981,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                     onClose={handleCloseModal}
                     onSave={handleSaveTask}
                     onSetMessage={showNotification}
+                    onDelete={() => setTaskToDelete(editingTask)}
                 />
             )}
              {deletingLane && (
@@ -1974,6 +1992,18 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                         <div className="flex justify-center gap-4">
                             <button onClick={() => setDeletingLane(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
                             <button onClick={() => confirmDeleteLane(deletingLane.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+                        </div>
+                    </div>
+                </Modal>
+             )}
+             {taskToDelete && (
+                <Modal onClose={() => setTaskToDelete(null)} customClasses="max-w-md">
+                    <div className="text-center p-4">
+                        <h3 className="text-lg font-bold mb-4">Confirm Task Deletion</h3>
+                        <p className="mb-6">Are you sure you want to delete the task "{taskToDelete.taskName}"? This action cannot be undone.</p>
+                        <div className="flex justify-center gap-4">
+                            <button onClick={() => setTaskToDelete(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
+                            <button onClick={() => handleDeleteTask(taskToDelete.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                         </div>
                     </div>
                 </Modal>
