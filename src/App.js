@@ -127,17 +127,6 @@ try {
     console.error("Error initializing Firebase:", e);
 }
 
-// --- Email Simulation Function ---
-const sendEmail = (to, subject, body) => {
-    console.log("--- Sending Email (Simulation) ---");
-    console.log(`To: ${to}`);
-    console.log(`From: Jgriffith@southlandind.com`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Body: \n${body}`);
-    console.log("-----------------------------------");
-};
-
-
 // --- React Components ---
 
 const LoginInline = ({ onLogin, error }) => {
@@ -1528,16 +1517,6 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         }
         const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
         setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
-
-        const assignee = detailers.find(d => d.id === subTaskToAdd.detailerId);
-        if (assignee?.email) {
-            sendEmail(
-                assignee.email, 
-                `New Sub-Task Assigned: ${subTaskToAdd.name}`,
-                `A new sub-task "${subTaskToAdd.name}" has been assigned to you for the main task "${taskData.taskName}".\nDue Date: ${subTaskToAdd.dueDate}`
-            );
-        }
-
         setNewSubTask({ name: '', detailerId: '', dueDate: '' });
     };
 
@@ -1559,16 +1538,6 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     const handleUpdateSubTask = () => {
         const updatedSubTasks = taskData.subTasks.map(st => st.id === editingSubTaskId ? editingSubTaskData : st);
         setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
-        
-        const assignee = detailers.find(d => d.id === editingSubTaskData.detailerId);
-         if (assignee?.email) {
-            sendEmail(
-                assignee.email,
-                `Sub-Task Updated: ${editingSubTaskData.name}`,
-                `The sub-task "${editingSubTaskData.name}" for the main task "${taskData.taskName}" has been updated.`
-            );
-        }
-
         handleCancelEditSubTask();
     };
     
@@ -1857,9 +1826,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
 
     const handleSaveTask = async (taskData) => {
         const isNew = !taskData.id;
-        const assignee = detailers.find(d => d.id === taskData.detailerId);
-        const watchers = (taskData.watchers || []).map(watcherId => detailers.find(d => d.id === watcherId)).filter(Boolean);
-
+       
         if (isNew) {
             const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
             if (!newRequestsLane) {
@@ -1868,17 +1835,9 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
             }
             const { id, ...data } = taskData;
             data.laneId = newRequestsLane.id;
-            const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-            
-            const newTask = { id: docRef.id, ...data };
-            setEditingTask(newTask); 
+            await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
             showNotification("Task created!");
             handleCloseModal();
-            
-            if(assignee?.email) sendEmail(assignee.email, `New Task: ${taskData.taskName}`, `You have been assigned a new task: "${taskData.taskName}".`);
-            watchers.forEach(w => {
-                 if(w.email) sendEmail(w.email, `New Task (Watched): ${taskData.taskName}`, `A new task you are watching has been created: "${taskData.taskName}".`);
-            });
 
         } else {
             const { id, ...data } = taskData;
@@ -1886,10 +1845,6 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
             await updateDoc(taskRef, data);
             showNotification("Task updated successfully!");
             handleCloseModal();
-            if(assignee?.email) sendEmail(assignee.email, `Task Updated: ${taskData.taskName}`, `A task assigned to you has been updated: "${taskData.taskName}".`);
-            watchers.forEach(w => {
-                 if(w.email) sendEmail(w.email, `Task Updated (Watched): ${taskData.taskName}`, `A task you are watching has been updated: "${taskData.taskName}".`);
-            });
         }
     };
 
