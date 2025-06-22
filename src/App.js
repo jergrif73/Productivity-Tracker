@@ -129,13 +129,14 @@ const initialActivityData = [
 ];
 
 
-const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {
-  apiKey: "YOUR_API_KEY", // Replace with your actual Firebase config
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+const firebaseConfig = {
+  apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
+  authDomain: "productivity-tracker-3017d.firebaseapp.com",
+  projectId: "productivity-tracker-3017d",
+  storageBucket: "productivity-tracker-3017d.firebasestorage.app",
+  messagingSenderId: "489412895343",
+  appId: "1:489412895343:web:780e7717db122a2b99639a",
+  measurementId: "G-LGTREWPTGJ"
 };
 
 let db, auth;
