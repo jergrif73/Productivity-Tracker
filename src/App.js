@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc, getDoc } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import * as d3 from 'd3';
 
@@ -681,41 +681,204 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
 
 
 const ProjectConsole = ({ detailers, projects, assignments }) => {
+    const [expandedProjectId, setExpandedProjectId] = useState(null);
+
     const sortedProjects = useMemo(() => {
         return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
     }, [projects]);
     
+    const toggleProject = (projectId) => {
+        setExpandedProjectId(prevId => prevId === projectId ? null : projectId);
+    };
+
     return (
         <div>
             <h2 className="text-xl font-bold mb-4">Project Overview</h2>
             <div className="space-y-4">
                 {sortedProjects.map(p => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
+                    const isExpanded = expandedProjectId === p.id;
+
                     return (
                         <div key={p.id} className="bg-white p-4 rounded-lg border shadow-sm">
-                            <h3 className="text-lg font-semibold">{p.name}</h3>
-                            <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
-                            <div className="mt-2 pl-4 border-l-2 border-blue-200">
-                                <h4 className="text-sm font-semibold mb-1">Assigned Detailers:</h4>
-                                {projectAssignments.length === 0 ? (
-                                    <p className="text-sm text-gray-500">None</p>
-                                ) : (
-                                    <ul className="list-disc list-inside text-sm space-y-1">
-                                        {projectAssignments.map(a => {
-                                            const detailer = detailers.find(d => d.id === a.detailerId);
-                                            return (
-                                                <li key={a.id}>
-                                                    {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade}/{a.activity})
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                )}
+                            <div className="flex justify-between items-center cursor-pointer" onClick={() => toggleProject(p.id)}>
+                                <div>
+                                    <h3 className="text-lg font-semibold">{p.name}</h3>
+                                    <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
                             </div>
+                            
+                            {isExpanded && (
+                                <div className="mt-4 pt-4 border-t">
+                                    <div className="mt-2 pl-4 border-l-2 border-blue-200">
+                                        <h4 className="text-sm font-semibold mb-1">Assigned Detailers:</h4>
+                                        {projectAssignments.length === 0 ? (
+                                            <p className="text-sm text-gray-500">None</p>
+                                        ) : (
+                                            <ul className="list-disc list-inside text-sm space-y-1">
+                                                {projectAssignments.map(a => {
+                                                    const detailer = detailers.find(d => d.id === a.detailerId);
+                                                    return (
+                                                        <li key={a.id}>
+                                                            {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade}/{a.activity})
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        )}
+                                    </div>
+                                    <div className="mt-4 pl-4 border-l-2 border-green-200">
+                                         <h4 className="text-sm font-semibold mb-1">Activity Tracker:</h4>
+                                         <ActivityTracker projectId={p.id} />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
             </div>
+        </div>
+    );
+};
+
+const activityTrackerStructure = [
+    { id: 'sm_modeling', activity: 'SM Modeling', chargeCode: '96100-96-ENG-10' },
+    { id: 'sm_coordination', activity: 'SM Coordination', chargeCode: '96800-96-ENG-61' },
+    { id: 'sm_deliverables', activity: 'SM Deliverables', chargeCode: '96810-96-ENG-61' },
+    { id: 'sm_spooling', activity: 'SM Spooling', chargeCode: '96210-96-ENG-61' },
+    { id: 'sm_misc', activity: 'SM Misc', chargeCode: '96830-96-ENG-61' },
+    { id: 'pf_modeling', activity: 'PF Modeling', chargeCode: '96110-96-ENG-10' },
+    { id: 'pf_coordination', activity: 'PF Coordination', chargeCode: '96801-96-ENG-61' },
+    { id: 'pf_deliverables', activity: 'PF Deliverables', chargeCode: '96811-96-ENG-61' },
+    { id: 'pf_spooling', activity: 'PF Spooling', chargeCode: '96211-96-ENG-61' },
+    { id: 'pf_misc', activity: 'PF Misc', chargeCode: '96831-96-ENG-61' },
+    { id: 'pl_modeling', activity: 'PL Modeling', chargeCode: '96130-96-ENG-10' },
+    { id: 'pl_coordination', activity: 'PL Coordination', chargeCode: '96803-96-ENG-61' },
+    { id: 'pl_deliverables', activity: 'PL Deliverables', chargeCode: '96813-96-ENG-61' },
+    { id: 'pl_spooling', activity: 'PL Spooling', chargeCode: '96213-96-ENG-61' },
+    { id: 'pl_misc', activity: 'PL Misc', chargeCode: '96833-96-ENG-61' },
+    { id: 'detailing_mgr', activity: 'Detailing-In House-Cad Mgr', chargeCode: '96505-96-ENG-10' },
+    { id: 'project_setup', activity: 'Project Setup', chargeCode: '96301-96-ENG-62' }
+];
+
+const ActivityTracker = ({ projectId }) => {
+    const [activities, setActivities] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [message, setMessage] = useState('');
+    
+    const activityDocRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projects/${projectId}/activityTracker/data`), [projectId]);
+
+    useEffect(() => {
+        const getActivities = async () => {
+            setIsLoading(true);
+            const docSnap = await getDoc(activityDocRef);
+            if (docSnap.exists()) {
+                setActivities(docSnap.data().rows);
+            } else {
+                const initialData = activityTrackerStructure.map(item => ({
+                    ...item,
+                    estimatedHours: 0,
+                    percentComplete: 0,
+                    hoursUsed: 0,
+                }));
+                setActivities(initialData);
+            }
+            setIsLoading(false);
+        };
+        getActivities();
+    }, [activityDocRef]);
+
+    const handleInputChange = (id, field, value) => {
+        const newValue = Number(value) < 0 ? 0 : Number(value);
+        setActivities(prev => 
+            prev.map(activity => 
+                activity.id === id ? { ...activity, [field]: newValue } : activity
+            )
+        );
+    };
+
+    const handleSave = async () => {
+        await setDoc(activityDocRef, { rows: activities });
+        setMessage('Activities saved successfully!');
+        setTimeout(() => setMessage(''), 3000);
+    };
+
+    const totals = useMemo(() => {
+        const estimatedHours = activities.reduce((sum, act) => sum + (act.estimatedHours || 0), 0);
+        const hoursUsed = activities.reduce((sum, act) => sum + (act.hoursUsed || 0), 0);
+        
+        const earnedHours = activities.reduce((sum, act) => {
+            return sum + ((act.estimatedHours || 0) * ((act.percentComplete || 0) / 100));
+        }, 0);
+        
+        const percentComplete = estimatedHours > 0 ? (earnedHours / estimatedHours) * 100 : 0;
+        
+        const projectedHours = percentComplete > 0 ? (hoursUsed / (percentComplete / 100)) : 0;
+        const variance = estimatedHours - projectedHours;
+
+        return { estimatedHours, percentComplete, hoursUsed, projectedHours, variance };
+    }, [activities]);
+
+    if(isLoading) {
+        return <p>Loading activity tracker...</p>
+    }
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-collapse table-auto">
+                <thead className="bg-gray-100">
+                    <tr>
+                        <th className="p-2 border font-semibold text-left w-1/4">Activity Description</th>
+                        <th className="p-2 border font-semibold text-left w-1/4">Charge Code</th>
+                        <th className="p-2 border font-semibold w-[100px]">Est. Hours</th>
+                        <th className="p-2 border font-semibold w-[100px]">% Comp</th>
+                        <th className="p-2 border font-semibold w-[100px]">Hours Used</th>
+                        <th className="p-2 border font-semibold w-[100px]">Proj. Hours</th>
+                        <th className="p-2 border font-semibold w-[100px]">Variance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {activities.map(activity => {
+                        const projectedHours = (activity.percentComplete > 0) ? (activity.hoursUsed / (activity.percentComplete / 100)) : 0;
+                        const variance = activity.estimatedHours - projectedHours;
+                        
+                        return (
+                            <tr key={activity.id}>
+                                <td className="p-1 border">{activity.activity}</td>
+                                <td className="p-1 border">{activity.chargeCode}</td>
+                                <td className="p-0 border">
+                                    <input type="number" value={activity.estimatedHours} onChange={e => handleInputChange(activity.id, 'estimatedHours', e.target.value)} className="w-full p-1 text-right focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                                </td>
+                                <td className="p-0 border">
+                                     <input type="number" value={activity.percentComplete} onChange={e => handleInputChange(activity.id, 'percentComplete', e.target.value)} className="w-full p-1 text-right focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                                </td>
+                                <td className="p-0 border">
+                                     <input type="number" value={activity.hoursUsed} onChange={e => handleInputChange(activity.id, 'hoursUsed', e.target.value)} className="w-full p-1 text-right focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                                </td>
+                                <td className="p-1 border text-right">{projectedHours.toFixed(2)}</td>
+                                <td className={`p-1 border text-right ${variance < 0 ? 'text-red-600' : 'text-green-600'}`}>{variance.toFixed(2)}</td>
+                            </tr>
+                        )
+                    })}
+                </tbody>
+                <tfoot className="bg-gray-100 font-bold">
+                    <tr>
+                        <td colSpan="2" className="p-2 border text-right">Totals</td>
+                        <td className="p-2 border text-right">{totals.estimatedHours.toFixed(2)}</td>
+                        <td className="p-2 border text-right">{totals.percentComplete.toFixed(2)}%</td>
+                        <td className="p-2 border text-right">{totals.hoursUsed.toFixed(2)}</td>
+                        <td className="p-2 border text-right">{totals.projectedHours.toFixed(2)}</td>
+                        <td className={`p-2 border text-right ${totals.variance < 0 ? 'text-red-600' : 'text-green-600'}`}>{totals.variance.toFixed(2)}</td>
+                    </tr>
+                </tfoot>
+            </table>
+             <div className="mt-4 flex justify-end items-center">
+                 {message && <span className="text-green-600 mr-4">{message}</span>}
+                 <button onClick={handleSave} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Save Activities</button>
+             </div>
         </div>
     );
 };
@@ -1040,716 +1203,6 @@ const AdminConsole = ({ detailers, projects }) => {
         </div>
     );
 };
-
-const WorkloaderConsole = ({ detailers, projects, assignments }) => {
-    const [startDate, setStartDate] = useState(new Date());
-
-    const getWeekDates = (from) => {
-        const sunday = new Date(from);
-        sunday.setDate(sunday.getDate() - sunday.getDay());
-        const weeks = [];
-        for (let i = 0; i < 25; i++) {
-            const weekStart = new Date(sunday);
-            weekStart.setDate(sunday.getDate() + (i * 7));
-            weeks.push(weekStart);
-        }
-        return weeks;
-    };
-    
-    const weekDates = useMemo(() => getWeekDates(startDate), [startDate]);
-
-    const groupedData = useMemo(() => {
-        const assignmentsByProject = assignments.reduce((acc, assignment) => {
-            const projId = assignment.projectId;
-            if (!acc[projId]) acc[projId] = [];
-            acc[projId].push(assignment);
-            return acc;
-        }, {});
-
-        return projects
-            .map(project => {
-                const projectAssignments = (assignmentsByProject[project.id] || []).map(ass => {
-                    const detailer = detailers.find(d => d.id === ass.detailerId);
-                    return {
-                        ...ass,
-                        detailerName: detailer ? `${detailer.firstName.charAt(0)}. ${detailer.lastName}` : 'Unknown Detailer'
-                    };
-                });
-                return {
-                    ...project,
-                    assignments: projectAssignments,
-                };
-            })
-            .filter(p => p.assignments.length > 0)
-            .sort((a,b) => a.name.localeCompare(b.name));
-
-    }, [projects, assignments, detailers]);
-
-    const handleDateNav = (offset) => {
-        setStartDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setDate(newDate.getDate() + offset);
-            return newDate;
-        });
-    };
-    
-    const getWeekDisplay = (start) => {
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        return `${start.getMonth()+1}/${start.getDate()}/${start.getFullYear()} - ${end.getMonth()+1}/${end.getDate()}/${end.getFullYear()}`;
-    }
-
-    return (
-        <div className="space-y-4">
-             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
-                 <div className="flex items-center gap-2">
-                     <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
-                     <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
-                     <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
-                     <span className="font-semibold text-sm ml-4">{getWeekDisplay(weekDates[0])}</span>
-                 </div>
-                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                     {Object.entries(legendColorMapping).map(([trade, color]) => (
-                         <div key={trade} className="flex items-center gap-2">
-                             <div className={`w-4 h-4 rounded-sm ${color}`}></div>
-                             <span>{trade}</span>
-                         </div>
-                     ))}
-                 </div>
-             </div>
-
-            <div className="overflow-x-auto border rounded-lg bg-white shadow-sm">
-                <table className="min-w-full text-sm text-left border-collapse">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                            <th className="p-1 font-semibold w-16 min-w-[64px] border border-gray-300">DETAILER</th>
-                            <th className="p-1 font-semibold w-11 min-w-[44px] border border-gray-300">TRADE</th>
-                            <th className="p-1 font-semibold w-9 min-w-[36px] border border-gray-300">% ALLOCATED</th>
-                            {weekDates.map(date => {
-                                const weekStart = new Date(date);
-                                const weekEnd = new Date(weekStart);
-                                weekEnd.setDate(weekEnd.getDate() + 6);
-                                const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
-                                return (
-                                <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
-                                    {`${date.getMonth() + 1}/${date.getDate()}`}
-                                </th>
-                            )})}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {groupedData.map(project => (
-                            <React.Fragment key={project.id}>
-                                <tr className="bg-gray-100 sticky top-10">
-                                    <th colSpan={3 + weekDates.length} className="p-1 text-left font-bold text-gray-700 border border-gray-300">
-                                        {project.name} ({project.projectId})
-                                    </th>
-                                </tr>
-                                {project.assignments.map(assignment => {
-                                    const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
-                                    return (
-                                        <tr key={assignment.id} className="hover:bg-gray-50 h-8">
-                                            <td className="p-1 font-medium border border-gray-300">{assignment.detailerName}</td>
-                                            <td className="p-1 border border-gray-300">{assignment.trade}</td>
-                                            <td className="p-1 font-semibold border border-gray-300">{assignment.allocation}%</td>
-                                            {weekDates.map(weekStart => {
-                                                const weekEnd = new Date(weekStart);
-                                                weekEnd.setDate(weekStart.getDate() + 6);
-                                                
-                                                const assignStart = new Date(assignment.startDate);
-                                                const assignEnd = new Date(assignment.endDate);
-
-                                                const isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
-                                                const tooltipText = isAssigned ? `Activity: ${assignment.activity || 'N/A'}` : '';
-
-                                                return (
-                                                    <td key={weekStart.toISOString()} className="p-0 border border-gray-300">
-                                                        {isAssigned ? (
-                                                          <Tooltip text={tooltipText}>
-                                                              <div className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded`}>
-                                                                  <span>
-                                                                    {assignment.allocation}%
-                                                                  </span>
-                                                              </div>
-                                                          </Tooltip>
-                                                        ) : <div className="h-full"></div>}
-                                                    </td>
-                                                )
-                                            })}
-                                        </tr>
-                                    )
-                                })}
-                            </React.Fragment>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
-
-const GanttConsole = ({ projects, assignments }) => {
-    const svgRef = useRef(null);
-    const [startDate, setStartDate] = useState(new Date());
-    const [ganttView, setGanttView] = useState('projects'); // 'projects' or 'totals'
-    const weekCount = 25;
-    const dimensions = { width: 1100, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
-    const { width, height, margin } = dimensions;
-    const boundedWidth = width - margin.left - margin.right;
-    const boundedHeight = height - margin.top - margin.bottom;
-    const color = useMemo(() => d3.scaleOrdinal(d3.schemeCategory10), []);
-
-    const getWeekDates = (from, count) => {
-        const sunday = new Date(from);
-        sunday.setDate(sunday.getDate() - sunday.getDay());
-        const weeks = [];
-        for (let i = 0; i < count; i++) {
-            const weekStart = new Date(sunday);
-            weekStart.setDate(sunday.getDate() + (i * 7));
-            weeks.push(weekStart);
-        }
-        return weeks;
-    };
-
-    const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
-
-    const projectData = useMemo(() => {
-        const dataByProject = assignments.reduce((acc, assignment) => {
-            if (!acc[assignment.projectId]) {
-                acc[assignment.projectId] = [];
-            }
-            acc[assignment.projectId].push(assignment);
-            return acc;
-        }, {});
-
-        return Object.entries(dataByProject).map(([projectId, projectAssignments]) => {
-            const project = projects.find(p => p.id === projectId);
-            const weeklyHours = weekDates.map(weekStart => {
-                let totalHours = 0;
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-
-                projectAssignments.forEach(ass => {
-                    const assignStart = new Date(ass.startDate);
-                    const assignEnd = new Date(ass.endDate);
-                    if (assignStart <= weekEnd && assignEnd >= weekStart) {
-                        totalHours += (Number(ass.allocation) / 100) * 40;
-                    }
-                });
-                return { date: weekStart, hours: totalHours };
-            });
-            return {
-                projectId,
-                projectName: project ? project.name : 'Unknown Project',
-                projectNumber: project ? project.projectId : 'N/A',
-                values: weeklyHours
-            };
-        });
-    }, [projects, assignments, weekDates]);
-
-    const totalData = useMemo(() => {
-        const totalWeeklyHours = weekDates.map(weekStart => {
-            let totalHours = 0;
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-
-            assignments.forEach(ass => {
-                const assignStart = new Date(ass.startDate);
-                const assignEnd = new Date(ass.endDate);
-                if (assignStart <= weekEnd && assignEnd >= weekStart) {
-                    totalHours += (Number(ass.allocation) / 100) * 40;
-                }
-            });
-            return { date: weekStart, hours: totalHours };
-        });
-        return [{ projectId: 'total', projectName: 'Total Hours', values: totalWeeklyHours }];
-    }, [assignments, weekDates]);
-
-
-    useEffect(() => {
-        if (!svgRef.current) return;
-        const dataToRender = ganttView === 'projects' ? projectData : totalData;
-        if(dataToRender.length === 0) return;
-
-        const svg = d3.select(svgRef.current);
-        svg.selectAll("*").remove();
-        
-        const yMax = ganttView === 'projects' 
-            ? d3.max(dataToRender, d => d3.max(d.values, v => v.hours)) 
-            : d3.max(dataToRender[0].values, v => v.hours);
-
-        const x = d3.scaleTime()
-            .domain(d3.extent(weekDates))
-            .range([0, boundedWidth]);
-
-        const y = d3.scaleLinear()
-            .domain([0, yMax || 100])
-            .range([boundedHeight, 0]);
-        
-        color.domain(projectData.map(p => p.projectId));
-
-        const line = d3.line()
-            .x(d => x(d.date))
-            .y(d => y(d.hours))
-            .curve(d3.curveMonotoneX);
-
-        const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-        
-        const tooltip = d3.select("body").append("div")
-            .attr("class", "absolute opacity-0 transition-opacity duration-300 bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg")
-
-
-        g.append("g")
-            .attr("transform", `translate(0,${boundedHeight})`)
-            .call(d3.axisBottom(x).ticks(d3.timeWeek.every(1)).tickFormat(d3.timeFormat("%m/%d")));
-
-        g.append("g")
-            .call(d3.axisLeft(y))
-            .append("text")
-            .attr("fill", "#000")
-            .attr("transform", "rotate(-90)")
-            .attr("y", 6)
-            .attr("dy", "0.71em")
-            .attr("text-anchor", "end")
-            .text("Total Weekly Hours");
-
-        // Manually create an array of 40-hour intervals for the reference lines
-        const fortyHourTicks = [];
-        for (let i = 40; i <= yMax; i += 40) {
-            fortyHourTicks.push(i);
-        }
-
-        // Add horizontal reference lines
-        g.append("g")
-            .attr("class", "grid")
-            .selectAll("line")
-            .data(fortyHourTicks)
-            .join("line")
-                .attr("x1", 0)
-                .attr("x2", boundedWidth)
-                .attr("y1", d => y(d))
-                .attr("y2", d => y(d))
-                .attr("stroke", "red")
-                .attr("stroke-opacity", 0.6)
-                .attr("stroke-width", .5);
-        
-        const project = g.selectAll(".project")
-            .data(dataToRender)
-            .enter().append("g")
-            .attr("class", "project");
-        
-        project.append("path")
-            .attr("class", "line")
-            .attr("d", d => line(d.values))
-            .style("stroke", d => ganttView === 'projects' ? color(d.projectId) : '#2563eb')
-            .style("fill", "none")
-            .style("stroke-width", "2px")
-            .on("mouseover", function(event, d) {
-                if (ganttView === 'totals') return;
-                tooltip.transition().duration(200).style("opacity", .9);
-                tooltip.html(`<strong>${d.projectName}</strong><br/>ID: ${d.projectNumber}`)
-                    .style("left", (event.pageX + 5) + "px")
-                    .style("top", (event.pageY - 28) + "px");
-                d3.select(this).style('stroke-width', '4px');
-            })
-            .on("mouseout", function(d) {
-                if (ganttView === 'totals') return;
-                tooltip.transition().duration(500).style("opacity", 0);
-                d3.select(this).style('stroke-width', '2px');
-            });
-
-        return () => { tooltip.remove() };
-
-    }, [projectData, totalData, ganttView, boundedHeight, boundedWidth, margin.left, margin.top, weekDates, color]);
-
-    const handleDateNav = (offset) => {
-        setStartDate(prev => {
-            const newDate = new Date(prev);
-            newDate.setDate(newDate.getDate() + offset);
-            return newDate;
-        });
-    };
-
-    return (
-        <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
-                <div className="flex items-center gap-2">
-                    <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
-                    <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
-                    <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
-                </div>
-                 <div className="flex items-center gap-2 bg-gray-200 p-1 rounded-lg">
-                    <button onClick={() => setGanttView('projects')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'projects' ? 'bg-white shadow' : ''}`}>Projects</button>
-                    <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? 'bg-white shadow' : ''}`}>Totals</button>
-                </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
-                <svg ref={svgRef} width={width} height={height}></svg>
-            </div>
-            {ganttView === 'projects' && (
-                <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8" style={{minHeight: '6rem'}}>
-                    {projectData.map(p => (
-                        <div key={p.projectId} className="flex flex-col items-center">
-                            <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
-                            <span className="transform -rotate-90 whitespace-nowrap mt-4">{p.projectNumber}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
-const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment }) => {
-    const [newComment, setNewComment] = useState('');
-    const [author, setAuthor] = useState('');
-    const [editingComment, setEditingComment] = useState(null); // {id, text}
-
-    const handleAdd = () => {
-        onAddComment(newComment, author);
-        setNewComment('');
-        setAuthor('');
-    };
-
-    const handleUpdate = () => {
-        onUpdateComment(editingComment.id, editingComment.text);
-        setEditingComment(null);
-    };
-
-    return (
-        <div className="mt-4 space-y-3">
-            <div className="space-y-2">
-                {(comments || []).map(comment => (
-                    <div key={comment.id} className="bg-gray-100 p-2 rounded-md text-sm">
-                         {editingComment?.id === comment.id ? (
-                            <div className="space-y-2">
-                                <textarea 
-                                    value={editingComment.text} 
-                                    onChange={(e) => setEditingComment({...editingComment, text: e.target.value})}
-                                    className="w-full p-2 border rounded-md text-sm"
-                                />
-                                <div className="flex gap-2">
-                                    <button onClick={handleUpdate} className="px-3 py-1 bg-green-500 text-white rounded text-xs">Save</button>
-                                    <button onClick={() => setEditingComment(null)} className="px-3 py-1 bg-gray-400 text-white rounded text-xs">Cancel</button>
-                                </div>
-                            </div>
-                         ) : (
-                            <div>
-                                <p className="text-gray-800">{comment.text}</p>
-                                <div className="flex justify-between items-center mt-1 text-gray-500 text-xs">
-                                    <span><strong>{comment.author}</strong> - {new Date(comment.timestamp).toLocaleString()}</span>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setEditingComment({id: comment.id, text: comment.text})} className="hover:underline">Edit</button>
-                                        <button onClick={() => onDeleteComment(comment.id)} className="hover:underline text-red-500">Delete</button>
-                                    </div>
-                                </div>
-                            </div>
-                         )}
-                    </div>
-                ))}
-            </div>
-            <div className="border-t pt-3 space-y-2">
-                 <textarea 
-                    value={newComment} 
-                    onChange={e => setNewComment(e.target.value)} 
-                    placeholder="Add a comment..." 
-                    className="w-full p-2 border rounded-md"
-                />
-                <div className="flex gap-2 items-center">
-                    <input 
-                        type="text" 
-                        value={author} 
-                        onChange={e => setAuthor(e.target.value.toUpperCase())}
-                        placeholder="Initials"
-                        maxLength="3"
-                        className="p-2 border rounded-md w-20"
-                    />
-                    <button 
-                        onClick={handleAdd}
-                        disabled={!newComment || author.length !== 3}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300"
-                    >
-                        Post Comment
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMessage, onDelete }) => {
-    const [taskData, setTaskData] = useState(null);
-    const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
-    const [editingSubTaskId, setEditingSubTaskId] = useState(null);
-    const [editingSubTaskData, setEditingSubTaskData] = useState(null);
-    const [newWatcherId, setNewWatcherId] = useState('');
-    const [isNewTask, setIsNewTask] = useState(true);
-    
-    useEffect(() => {
-        if (task && task.id) {
-            const subTasksWithComments = (task.subTasks || []).map(st => ({...st, comments: st.comments || []}));
-            setTaskData({...task, comments: task.comments || [], subTasks: subTasksWithComments});
-            setIsNewTask(false);
-        } else {
-            setTaskData({
-                taskName: '', projectId: '', detailerId: '', status: taskStatusOptions[0], dueDate: '',
-                entryDate: new Date().toISOString().split('T')[0],
-                subTasks: [], watchers: [], comments: []
-            });
-            setIsNewTask(true);
-        }
-    }, [task]);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setTaskData(prev => ({...prev, [name]: value}));
-    };
-    
-    const handleSubTaskChange = (e) => {
-        const { name, value } = e.target;
-        setNewSubTask(prev => ({...prev, [name]: value}));
-    };
-    
-    const handleAddSubTask = () => {
-        if (!newSubTask.name) {
-            return;
-        }
-        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
-        setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
-        setNewSubTask({ name: '', detailerId: '', dueDate: '' });
-    };
-
-    const handleStartEditSubTask = (subTask) => {
-        setEditingSubTaskId(subTask.id);
-        setEditingSubTaskData({...subTask});
-    };
-
-    const handleCancelEditSubTask = () => {
-        setEditingSubTaskId(null);
-        setEditingSubTaskData(null);
-    };
-
-    const handleEditingSubTaskDataChange = (e) => {
-        const { name, value } = e.target;
-        setEditingSubTaskData(prev => ({...prev, [name]: value}));
-    };
-    
-    const handleUpdateSubTask = () => {
-        const updatedSubTasks = taskData.subTasks.map(st => st.id === editingSubTaskId ? editingSubTaskData : st);
-        setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
-        handleCancelEditSubTask();
-    };
-    
-    const handleToggleSubTask = (subTaskId) => {
-        const updatedSubTasks = taskData.subTasks.map(st => st.id === subTaskId ? { ...st, isCompleted: !st.isCompleted } : st);
-        const completedCount = updatedSubTasks.filter(st => st.isCompleted).length;
-        let newStatus = taskStatusOptions[0];
-        if (completedCount > 0) {
-            newStatus = completedCount === updatedSubTasks.length ? taskStatusOptions[2] : taskStatusOptions[1];
-        }
-        setTaskData(prev => ({ ...prev, subTasks: updatedSubTasks, status: newStatus }));
-    };
-    
-    const handleDeleteSubTask = (subTaskId) => {
-        setTaskData(prev => ({ ...prev, subTasks: prev.subTasks.filter(st => st.id !== subTaskId) }));
-    };
-
-    const handleAddWatcher = () => {
-      if (newWatcherId && !taskData.watchers.includes(newWatcherId)) {
-          setTaskData(prev => ({ ...prev, watchers: [...prev.watchers, newWatcherId] }));
-          setNewWatcherId('');
-      }
-    };
-
-    const handleRemoveWatcher = (watcherIdToRemove) => {
-        setTaskData(prev => ({
-            ...prev,
-            watchers: prev.watchers.filter(id => id !== watcherIdToRemove)
-        }));
-    };
-
-    const handleCommentAction = (action, payload) => {
-        const { comment, subTaskId } = payload;
-        
-        const updateComments = (comments, newCommentData) => {
-            switch(action) {
-                case 'ADD':
-                    return [...(comments || []), newCommentData];
-                case 'UPDATE':
-                    return comments.map(c => c.id === newCommentData.id ? {...c, text: newCommentData.text, timestamp: new Date().toISOString()} : c);
-                case 'DELETE':
-                    return comments.filter(c => c.id !== newCommentData.id);
-                default:
-                    return comments;
-            }
-        }
-    
-        if (subTaskId) {
-            setTaskData(prev => ({
-                ...prev,
-                subTasks: prev.subTasks.map(st => st.id === subTaskId ? { ...st, comments: updateComments(st.comments, comment) } : st)
-            }));
-        } else {
-             setTaskData(prev => ({ ...prev, comments: updateComments(prev.comments, comment) }));
-        }
-    };
-
-    const handleAddComment = (commentText, author, subTaskId = null) => {
-        if (!commentText.trim() || !author || author.trim().length !== 3) {
-            onSetMessage({ text: "A comment and 3-letter initials are required.", isError: true });
-            return;
-        }
-        const newComment = {
-            id: `comment_${Date.now()}`,
-            author: author.toUpperCase(),
-            text: commentText,
-            timestamp: new Date().toISOString()
-        };
-        handleCommentAction('ADD', { comment: newComment, subTaskId });
-    };
-    
-    const handleUpdateComment = (commentId, newText, subTaskId = null) => {
-        handleCommentAction('UPDATE', { comment: { id: commentId, text: newText }, subTaskId });
-    };
-
-    const handleDeleteComment = (commentId, subTaskId = null) => {
-        handleCommentAction('DELETE', { comment: { id: commentId }, subTaskId });
-    };
-
-    if (!taskData) return null;
-
-    return (
-        <Modal onClose={onClose}>
-            <div className="relative">
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
-                    
-                    {/* --- Main Task Details --- */}
-                    <div className="p-4 border rounded-lg space-y-3">
-                        <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className="w-full text-lg font-semibold p-2 border rounded-md" />
-                        <div className="grid grid-cols-2 gap-4">
-                            <select name="projectId" value={taskData.projectId} onChange={handleChange} className="w-full p-2 border rounded-md">
-                                <option value="">Select Project...</option>
-                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                            <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className="w-full p-2 border rounded-md">
-                                <option value="">Assign To...</option>
-                                {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
-                            </select>
-                            <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className="w-full p-2 border rounded-md"/>
-                            <p className="p-2 text-sm text-gray-500">Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
-                        </div>
-                    </div>
-
-                    {/* --- Watchers Section --- */}
-                    <div className="p-4 border rounded-lg">
-                        <h3 className="font-semibold mb-2">Watchers</h3>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {(taskData.watchers || []).map(watcherId => {
-                                const watcher = detailers.find(d => d.id === watcherId);
-                                return (
-                                    <span key={watcherId} className="bg-gray-200 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full flex items-center">
-                                        {watcher ? `${watcher.firstName} ${watcher.lastName}` : 'Unknown'}
-                                        <button onClick={() => handleRemoveWatcher(watcherId)} className="ml-2 text-gray-500 hover:text-gray-800 font-bold">&times;</button>
-                                    </span>
-                                );
-                            })}
-                        </div>
-                        <div className="flex gap-2 items-center border-t pt-4">
-                            <select
-                                value={newWatcherId}
-                                onChange={(e) => setNewWatcherId(e.target.value)}
-                                className="flex-grow p-2 border rounded-md"
-                            >
-                                <option value="">Add a watcher...</option>
-                                {detailers.map(d => (
-                                    <option key={d.id} value={d.id}>
-                                        {d.firstName} {d.lastName}
-                                    </option>
-                                ))}
-                            </select>
-                            <button onClick={handleAddWatcher} className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
-                                Add
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* --- Sub-tasks Section --- */}
-                    <div className="p-4 border rounded-lg">
-                        <h3 className="font-semibold mb-2">Sub-tasks</h3>
-                        <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
-                            {(taskData.subTasks || []).map(st => (
-                                <div key={st.id} className="p-2 bg-gray-50 rounded">
-                                    {editingSubTaskId === st.id ? (
-                                        <div className="flex gap-2 items-center">
-                                            <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className="flex-grow p-1 border rounded-md"/>
-                                            <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
-                                            <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"/>
-                                            <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
-                                            <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
-                                            <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
-                                            <span className="text-xs text-gray-500">{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
-                                            <span className="text-xs text-gray-500">{st.dueDate}</span>
-                                            <button onClick={() => handleStartEditSubTask(st)} className="text-xs text-blue-600 hover:underline" disabled={editingSubTaskId}>Edit</button>
-                                            <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
-                                        </div>
-                                    )}
-                                    <div className="pl-6">
-                                        <CommentSection 
-                                           comments={st.comments}
-                                           onAddComment={(text, author) => handleAddComment(text, author, st.id)}
-                                           onUpdateComment={(id, text) => handleUpdateComment(id, text, st.id)}
-                                           onDeleteComment={(id) => handleDeleteComment(id, st.id)}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex gap-2 items-center p-2 border-t">
-                            <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className="flex-grow p-1 border rounded-md" />
-                            <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm">
-                                <option value="">Assignee...</option>
-                                {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
-                            </select>
-                            <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm" />
-                            <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
-                        </div>
-                    </div>
-                    
-                     {/* --- Main Task Comments --- */}
-                    <div className="p-4 border rounded-lg">
-                         <h3 className="font-semibold mb-2">Task Comments</h3>
-                         <CommentSection 
-                           comments={taskData.comments}
-                           onAddComment={handleAddComment}
-                           onUpdateComment={handleUpdateComment}
-                           onDeleteComment={handleDeleteComment}
-                         />
-                    </div>
-
-                    <div className="flex justify-end gap-4 pt-4">
-                        {!isNewTask && (!taskData.subTasks || taskData.subTasks.length === 0) && (
-                            <button
-                                onClick={onDelete}
-                                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 mr-auto"
-                            >
-                                Delete Task
-                            </button>
-                        )}
-                        <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                        <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
-                    </div>
-                </div>
-            </div>
-        </Modal>
-    );
-};
-
 
 const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
     const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);

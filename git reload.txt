@@ -1,5 +1,5 @@
 git add .
-git commit -m "Modified Task view...again"
+git commit -m "Modified Email Function to Task"
 git push origin main
 
 
