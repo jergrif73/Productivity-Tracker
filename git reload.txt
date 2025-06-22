@@ -1,5 +1,5 @@
 git add .
-git commit -m "Modified Email Function to Task"
+git commit -m "Fixed package.json file"
 git push origin main
 
 
@@ -14,7 +14,3 @@ Repair email notifications for the Task Console.
 
 w-full h-4
 
-review the attached code. Create a react app preview of it. Do not change any of the code at this time.
-Remove the add attachment upload button on the Task interface.
-Add a comments section to each task and sub-task in task view. Allow editing of the comments.
-when posting comments in task and sub-task, require user to type their 3 letter Name Initials to be able to save the comment.

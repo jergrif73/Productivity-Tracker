@@ -1291,7 +1291,6 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
         showNotification("Task deleted successfully!");
         handleCloseModal(); 
-        setTaskToDelete(null); 
     };
 
     const handleSaveTask = async (taskData) => {
@@ -1434,7 +1433,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                     onClose={handleCloseModal}
                     onSave={handleSaveTask}
                     onSetMessage={showNotification}
-                    onDelete={() => setTaskToDelete(editingTask)}
+                    onDelete={handleDeleteTask}
                 />
             )}
              {deletingLane && (
@@ -1445,18 +1444,6 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                         <div className="flex justify-center gap-4">
                             <button onClick={() => setDeletingLane(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
                             <button onClick={() => confirmDeleteLane(deletingLane.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
-                        </div>
-                    </div>
-                </Modal>
-             )}
-             {taskToDelete && (
-                <Modal onClose={() => setTaskToDelete(null)} customClasses="max-w-md">
-                    <div className="text-center p-4">
-                        <h3 className="text-lg font-bold mb-4">Confirm Task Deletion</h3>
-                        <p className="mb-6">Are you sure you want to delete the task "{taskToDelete.taskName}"? This action cannot be undone.</p>
-                        <div className="flex justify-center gap-4">
-                            <button onClick={() => setTaskToDelete(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                            <button onClick={() => handleDeleteTask(taskToDelete.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                         </div>
                     </div>
                 </Modal>
