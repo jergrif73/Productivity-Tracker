@@ -109,23 +109,23 @@ const legendColorMapping = {
 };
 
 const initialActivityData = [
-    { description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
 ];
 
 
@@ -133,7 +133,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
   authDomain: "productivity-tracker-3017d.firebaseapp.com",
   projectId: "productivity-tracker-3017d",
-  storageBucket: "productivity-tracker-3017d.firebasestorage.app",
+  storageBucket: "productivity-tracker-3017d.appspot.com",
   messagingSenderId: "489412895343",
   appId: "1:489412895343:web:780e7717db122a2b99639a",
   measurementId: "G-LGTREWPTGJ"
@@ -701,20 +701,36 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
 };
 
 const ActivityTracker = ({ projectId }) => {
-    const [activities, setActivities] = useState([]);
+    const [activities, setActivities] = useState({ sheetmetal: [], piping: [], plumbing: [], bim: [] });
     const [loading, setLoading] = useState(true);
 
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId]);
+    
+    const groupActivities = (activityArray) => {
+        return activityArray.reduce((acc, act) => {
+            const desc = act.description.toUpperCase();
+            if (desc.startsWith('SM')) acc.sheetmetal.push(act);
+            else if (desc.startsWith('PF')) acc.piping.push(act);
+            else if (desc.startsWith('PL')) acc.plumbing.push(act);
+            else acc.bim.push(act);
+            return acc;
+        }, { sheetmetal: [], piping: [], plumbing: [], bim: [] });
+    };
 
     useEffect(() => {
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-                setActivities(docSnap.data().activities);
+                const data = docSnap.data();
+                // Check if data is in the old flat format or new grouped format
+                if (Array.isArray(data.activities)) {
+                    setActivities(groupActivities(data.activities));
+                } else {
+                    setActivities(data);
+                }
             } else {
-                // Doc doesn't exist, create it with initial data
-                const initialData = { activities: initialActivityData };
-                setDoc(docRef, initialData); // This will trigger the snapshot listener again
-                setActivities(initialData.activities);
+                const initialGroupedData = groupActivities(initialActivityData);
+                setDoc(docRef, initialGroupedData);
+                setActivities(initialGroupedData);
             }
             setLoading(false);
         }, (error) => {
@@ -725,15 +741,37 @@ const ActivityTracker = ({ projectId }) => {
         return () => unsubscribe();
     }, [docRef]);
     
-    const handleActivityChange = (index, field, value) => {
-        const updatedActivities = [...activities];
-        const numValue = Number(value)
-        updatedActivities[index][field] = isNaN(numValue) ? 0 : numValue;
+    const handleActivityChange = (group, index, field, value) => {
+        const updatedActivities = { ...activities };
+        const numValue = field === 'description' || field === 'chargeCode' ? value : Number(value);
+        updatedActivities[group][index][field] = (field !== 'description' && field !== 'chargeCode' && isNaN(numValue)) ? 0 : numValue;
         setActivities(updatedActivities);
+    };
+    
+    const handleAddNewActivity = (group) => {
+        const newActivity = {
+            id: `act_${Date.now()}`,
+            description: "New Activity",
+            chargeCode: "",
+            estimatedHours: 0,
+            percentComplete: 0,
+            hoursUsed: 0
+        };
+        const updatedActivities = { ...activities };
+        updatedActivities[group].push(newActivity);
+        setActivities(updatedActivities);
+        handleSaveActivities();
+    };
+    
+    const handleDeleteActivity = (group, index) => {
+        const updatedActivities = { ...activities };
+        updatedActivities[group].splice(index, 1);
+        setActivities(updatedActivities);
+        handleSaveActivities();
     };
 
     const handleSaveActivities = async () => {
-         await setDoc(docRef, { activities }, { merge: true });
+         await setDoc(docRef, activities, { merge: true });
     };
 
     const calculateProjectedHours = (activity) => {
@@ -743,13 +781,50 @@ const ActivityTracker = ({ projectId }) => {
     };
 
     const totals = useMemo(() => {
-        return activities.reduce((acc, activity) => {
+        const allActivities = Object.values(activities).flat();
+        return allActivities.reduce((acc, activity) => {
             acc.estimated += Number(activity.estimatedHours) || 0;
             acc.used += Number(activity.hoursUsed) || 0;
             acc.projected += calculateProjectedHours(activity) || 0;
             return acc;
         }, { estimated: 0, used: 0, projected: 0 });
     }, [activities]);
+    
+    const ActivityTableSection = ({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, onSave }) => {
+        return (
+            <tbody className={colorClass}>
+                <tr>
+                    <th colSpan="7" className="p-2 text-left font-bold bg-gray-200">{title}</th>
+                </tr>
+                {data.map((activity, index) => {
+                    const projected = calculateProjectedHours(activity);
+                    return (
+                        <tr key={activity.id || index}>
+                            <td className="p-1 border-b border-gray-300">
+                                <input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} onBlur={onSave} className="w-full p-1 bg-transparent rounded" />
+                            </td>
+                            <td className="p-1 border-b border-gray-300">
+                                <input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} onBlur={onSave} className="w-full p-1 bg-transparent rounded" />
+                            </td>
+                            <td className="p-1 border-b border-gray-300"><input type="number" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} onBlur={onSave} className="w-24 p-1 bg-transparent rounded" /></td>
+                            <td className="p-1 border-b border-gray-300"><input type="number" value={activity.percentComplete} onChange={(e) => onChange(groupKey, index, 'percentComplete', e.target.value)} onBlur={onSave} className="w-24 p-1 bg-transparent rounded" /></td>
+                            <td className="p-1 border-b border-gray-300"><input type="number" value={activity.hoursUsed} onChange={(e) => onChange(groupKey, index, 'hoursUsed', e.target.value)} onBlur={onSave} className="w-24 p-1 bg-transparent rounded" /></td>
+                            <td className="p-1 border-b border-gray-300">{projected.toFixed(2)}</td>
+                             <td className="p-1 border-b border-gray-300 text-center">
+                                <button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
+                            </td>
+                        </tr>
+                    );
+                })}
+                 <tr>
+                    <td colSpan="7" className="p-1">
+                        <button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button>
+                    </td>
+                </tr>
+            </tbody>
+        );
+    }
+
 
     if (loading) {
         return <div className="p-4 text-center">Loading Activity Tracker...</div>;
@@ -757,56 +832,23 @@ const ActivityTracker = ({ projectId }) => {
 
     return (
         <div className="overflow-x-auto mt-4 border-t pt-4">
-            <table className="min-w-full text-sm">
-                <thead className="bg-gray-100">
-                    <tr>
+            <table className="min-w-full text-sm border-collapse">
+                <thead>
+                    <tr className="bg-gray-100">
                         <th className="p-2 text-left font-semibold">Activity Description</th>
                         <th className="p-2 text-left font-semibold">Charge Code</th>
                         <th className="p-2 text-left font-semibold">Estimated Hours</th>
                         <th className="p-2 text-left font-semibold">% Complete</th>
                         <th className="p-2 text-left font-semibold">Hours Used</th>
                         <th className="p-2 text-left font-semibold">Projected Hours</th>
+                        <th className="p-2 text-left font-semibold">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {activities.map((activity, index) => {
-                        const projected = calculateProjectedHours(activity);
-                        return (
-                            <tr key={index} className="border-b">
-                                <td className="p-2">{activity.description}</td>
-                                <td className="p-2">{activity.chargeCode}</td>
-                                <td className="p-2">
-                                    <input 
-                                        type="number" 
-                                        value={activity.estimatedHours} 
-                                        onChange={(e) => handleActivityChange(index, 'estimatedHours', e.target.value)}
-                                        onBlur={handleSaveActivities}
-                                        className="w-24 p-1 border rounded" 
-                                    />
-                                </td>
-                                <td className="p-2">
-                                     <input 
-                                        type="number" 
-                                        value={activity.percentComplete} 
-                                        onChange={(e) => handleActivityChange(index, 'percentComplete', e.target.value)}
-                                        onBlur={handleSaveActivities}
-                                        className="w-24 p-1 border rounded" 
-                                    />
-                                </td>
-                                <td className="p-2">
-                                     <input 
-                                        type="number" 
-                                        value={activity.hoursUsed} 
-                                        onChange={(e) => handleActivityChange(index, 'hoursUsed', e.target.value)}
-                                        onBlur={handleSaveActivities}
-                                        className="w-24 p-1 border rounded" 
-                                    />
-                                </td>
-                                <td className="p-2">{projected.toFixed(2)}</td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
+                <ActivityTableSection title="Sheetmetal" data={activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
+                <ActivityTableSection title="Piping" data={activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
+                <ActivityTableSection title="Plumbing" data={activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
+                <ActivityTableSection title="BIM" data={activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
+
                 <tfoot className="bg-gray-100 font-bold">
                     <tr>
                         <td colSpan="2" className="p-2 text-right">Totals</td>
@@ -814,6 +856,7 @@ const ActivityTracker = ({ projectId }) => {
                         <td className="p-2"></td>
                         <td className="p-2">{totals.used.toFixed(2)}</td>
                         <td className="p-2">{totals.projected.toFixed(2)}</td>
+                        <td className="p-2"></td>
                     </tr>
                 </tfoot>
             </table>
