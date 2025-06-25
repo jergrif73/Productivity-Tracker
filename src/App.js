@@ -2048,27 +2048,83 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
         setTaskToDelete(null); 
     };
 
+    const sendEmailNotification = async (task, isNew, detailers, projects) => {
+        const recipient = 'jgriffith@southland.com';
+        const subject = isNew ? `New Task Created: ${task.taskName}` : `Task Updated: ${task.taskName}`;
+        const project = projects.find(p => p.id === task.projectId);
+        const assignee = detailers.find(d => d.id === task.detailerId);
+        const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);
+
+        let body = `
+            <h2>Task Details</h2>
+            <p><strong>Task:</strong> ${task.taskName}</p>
+            <p><strong>Project:</strong> ${project ? project.name : 'N/A'}</p>
+            <p><strong>Status:</strong> ${task.status}</p>
+            <p><strong>Due Date:</strong> ${task.dueDate || 'N/A'}</p>
+            <hr>
+            <h3>Assignee:</h3>
+            <p>${assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Not Assigned'}</p>
+            <h3>Watchers:</h3>
+        `;
+
+        if (watchers.length > 0) {
+            body += '<ul>';
+            watchers.forEach(w => {
+                body += `<li>${w.firstName} ${w.lastName}</li>`;
+            });
+            body += '</ul>';
+        } else {
+            body += '<p>No watchers for this task.</p>';
+        }
+
+        // This is a placeholder for your backend service that sends the email
+        // You'll need to replace 'YOUR_BACKEND_EMAIL_ENDPOINT' with the actual URL
+        try {
+            await fetch('YOUR_BACKEND_EMAIL_ENDPOINT', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    to: recipient,
+                    from: 'noreply@yourdomain.com', // This should be a verified sender in SendGrid
+                    subject: subject,
+                    html: body,
+                }),
+            });
+            console.log('Email notification sent.');
+        } catch (error) {
+            console.error('Failed to send email notification:', error);
+        }
+    };
+
     const handleSaveTask = async (taskData) => {
         const isNew = !taskData.id;
        
-        if (isNew) {
-            const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
-            if (!newRequestsLane) {
-                showNotification({ text: "Error: 'New Requests' lane not found.", isError: true });
-                return;
+        try {
+            if (isNew) {
+                const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
+                if (!newRequestsLane) {
+                    showNotification({ text: "Error: 'New Requests' lane not found.", isError: true });
+                    return;
+                }
+                const { id, ...data } = taskData;
+                data.laneId = newRequestsLane.id;
+                const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
+                const newTask = { id: docRef.id, ...data };
+                await sendEmailNotification(newTask, true, detailers, projects);
+                showNotification("Task created!");
+            } else {
+                const { id, ...data } = taskData;
+                const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
+                await updateDoc(taskRef, data);
+                await sendEmailNotification(taskData, false, detailers, projects);
+                showNotification("Task updated successfully!");
             }
-            const { id, ...data } = taskData;
-            data.laneId = newRequestsLane.id;
-            await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-            showNotification("Task created!");
             handleCloseModal();
-
-        } else {
-            const { id, ...data } = taskData;
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
-            await updateDoc(taskRef, data);
-            showNotification("Task updated successfully!");
-            handleCloseModal();
+        } catch (error) {
+            console.error("Error saving task: ", error);
+            showNotification({ text: `Error saving task: ${error.message}`, isError: true });
         }
     };
 
