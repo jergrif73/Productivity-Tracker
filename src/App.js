@@ -148,6 +148,66 @@ try {
     console.error("Error initializing Firebase:", e);
 }
 
+// --- Email Notification Logic ---
+const sendEmailNotification = async (details) => {
+    const { task, change, comment, detailers, projects } = details;
+    const recipient = 'jgriffith@southlandind.com';
+    const sender = 'jergrif73@gmail.com';
+    const project = projects.find(p => p.id === task.projectId);
+    const assignee = detailers.find(d => d.id === task.detailerId);
+    const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);
+
+    let subject = `Task Update: ${task.taskName}`;
+    let body = `
+        <h2>Task Notification</h2>
+        <p><strong>Task:</strong> ${task.taskName}</p>
+        <p><strong>Project:</strong> ${project ? project.name : 'N/A'}</p>
+        <p><strong>Change:</strong> ${change}</p>
+        <hr>
+    `;
+
+    if (comment) {
+        body += `
+            <h3>New Comment:</h3>
+            <p><em>"${comment.text}"</em> - <strong>${comment.author}</strong></p>
+            <hr>
+        `;
+    }
+
+    body += `
+        <h3>Assignee:</h3>
+        <p>${assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Not Assigned'}</p>
+        <h3>Watchers:</h3>
+    `;
+
+    if (watchers.length > 0) {
+        body += '<ul>';
+        watchers.forEach(w => {
+            body += `<li>${w.firstName} ${w.lastName}</li>`;
+        });
+        body += '</ul>';
+    } else {
+        body += '<p>No watchers for this task.</p>';
+    }
+    
+    // In a real application, you would replace this with a call to a backend service (e.g., a Cloud Function)
+    // that securely handles the SendGrid API key and sends the email.
+    console.log("--- EMAIL SIMULATION ---");
+    console.log(`To: ${recipient}`);
+    console.log(`From: ${sender}`);
+    console.log(`Subject: ${subject}`);
+    console.log(`Body: ${body}`);
+    console.log("------------------------");
+    
+    // Placeholder for actual fetch to backend
+    try {
+        // Example: await fetch('YOUR_SENDGRID_CLOUD_FUNCTION_URL', { ... });
+    } catch (error) {
+        console.error('Failed to send email notification:', error);
+    }
+};
+
+
 // --- React Components ---
 
 const LoginInline = ({ onLogin, error }) => {
@@ -358,6 +418,54 @@ const App = () => {
             unsubTaskLanes();
         };
     }, [isAuthReady]);
+
+    // Due Date Reminder Logic
+    useEffect(() => {
+        if (tasks.length === 0 || detailers.length === 0 || projects.length === 0) return;
+
+        const checkDueDates = () => {
+            const today = new Date();
+            const tomorrow = new Date();
+            tomorrow.setDate(today.getDate() + 1);
+            
+            const formatDate = (date) => date.toISOString().split('T')[0];
+            const tomorrowStr = formatDate(tomorrow);
+
+            tasks.forEach(task => {
+                // Check main task due date
+                if (task.dueDate === tomorrowStr) {
+                    sendEmailNotification({
+                        task,
+                        change: `REMINDER: Task is due tomorrow (${task.dueDate})`,
+                        detailers,
+                        projects
+                    });
+                }
+
+                // Check sub-tasks due dates
+                (task.subTasks || []).forEach(subTask => {
+                    if (subTask.dueDate === tomorrowStr) {
+                         sendEmailNotification({
+                            task, // Main task context
+                            change: `REMINDER: Sub-task "${subTask.name}" is due tomorrow (${subTask.dueDate})`,
+                            detailers,
+                            projects
+                        });
+                    }
+                });
+            });
+        };
+        
+        // In a production app, this check should be handled by a reliable backend service (e.g., a scheduled Cloud Function)
+        // to ensure it runs daily, regardless of whether a user has the app open.
+        // For this frontend simulation, we'll run it once on load and then set an interval.
+        checkDueDates(); 
+        const interval = setInterval(checkDueDates, 1000 * 60 * 60 * 24); // Check once a day
+        
+        return () => clearInterval(interval);
+
+    }, [tasks, detailers, projects]);
+
 
     // --- Authentication and Navigation Handlers ---
     const protectedViews = ['detailers', 'skills', 'admin'];
@@ -1607,13 +1715,19 @@ const GanttConsole = ({ projects, assignments }) => {
     );
 };
 
-const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment }) => {
+const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment, task, detailers, projects }) => {
     const [newComment, setNewComment] = useState('');
     const [author, setAuthor] = useState('');
-    const [editingComment, setEditingComment] = useState(null); // {id, text}
+    const [editingComment, setEditingComment] = useState(null);
 
     const handleAdd = () => {
-        onAddComment(newComment, author);
+        const commentData = {
+            id: `comment_${Date.now()}`,
+            author: author.toUpperCase(),
+            text: newComment,
+            timestamp: new Date().toISOString()
+        };
+        onAddComment(commentData);
         setNewComment('');
         setAuthor('');
     };
@@ -1719,11 +1833,19 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     };
     
     const handleAddSubTask = () => {
-        if (!newSubTask.name) {
-            return;
-        }
+        if (!newSubTask.name) return;
+        
         const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
-        setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
+        const updatedTaskData = {...taskData, subTasks: [...(taskData.subTasks || []), subTaskToAdd]};
+        setTaskData(updatedTaskData);
+
+        sendEmailNotification({
+            task: updatedTaskData,
+            change: `New sub-task added: "${subTaskToAdd.name}"`,
+            detailers,
+            projects
+        });
+        
         setNewSubTask({ name: '', detailerId: '', dueDate: '' });
     };
 
@@ -1744,7 +1866,16 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     
     const handleUpdateSubTask = () => {
         const updatedSubTasks = taskData.subTasks.map(st => st.id === editingSubTaskId ? editingSubTaskData : st);
-        setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
+        const updatedTaskData = {...taskData, subTasks: updatedSubTasks};
+        setTaskData(updatedTaskData);
+        
+        sendEmailNotification({
+            task: updatedTaskData,
+            change: `Sub-task updated: "${editingSubTaskData.name}"`,
+            detailers,
+            projects
+        });
+        
         handleCancelEditSubTask();
     };
     
@@ -1755,67 +1886,113 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         if (completedCount > 0) {
             newStatus = completedCount === updatedSubTasks.length ? taskStatusOptions[2] : taskStatusOptions[1];
         }
-        setTaskData(prev => ({ ...prev, subTasks: updatedSubTasks, status: newStatus }));
+        const updatedTaskData = { ...taskData, subTasks: updatedSubTasks, status: newStatus };
+        setTaskData(updatedTaskData);
+        
+        const toggledSubTask = updatedSubTasks.find(st => st.id === subTaskId);
+        sendEmailNotification({
+            task: updatedTaskData,
+            change: `Sub-task "${toggledSubTask.name}" marked as ${toggledSubTask.isCompleted ? 'complete' : 'incomplete'}.`,
+            detailers,
+            projects
+        });
     };
     
     const handleDeleteSubTask = (subTaskId) => {
-        setTaskData(prev => ({ ...prev, subTasks: prev.subTasks.filter(st => st.id !== subTaskId) }));
+        const subTaskToDelete = taskData.subTasks.find(st => st.id === subTaskId);
+        const updatedTaskData = { ...taskData, subTasks: taskData.subTasks.filter(st => st.id !== subTaskId) };
+        setTaskData(updatedTaskData);
+        sendEmailNotification({
+            task: updatedTaskData,
+            change: `Sub-task deleted: "${subTaskToDelete.name}"`,
+            detailers,
+            projects
+        });
     };
 
     const handleAddWatcher = () => {
       if (newWatcherId && !taskData.watchers.includes(newWatcherId)) {
-          setTaskData(prev => ({ ...prev, watchers: [...prev.watchers, newWatcherId] }));
+          const updatedTaskData = { ...taskData, watchers: [...taskData.watchers, newWatcherId] };
+          setTaskData(updatedTaskData);
+          const newWatcher = detailers.find(d => d.id === newWatcherId);
+          sendEmailNotification({
+              task: updatedTaskData,
+              change: `Watcher added: ${newWatcher.firstName} ${newWatcher.lastName}`,
+              detailers,
+              projects
+          });
           setNewWatcherId('');
       }
     };
 
     const handleRemoveWatcher = (watcherIdToRemove) => {
-        setTaskData(prev => ({
-            ...prev,
-            watchers: prev.watchers.filter(id => id !== watcherIdToRemove)
-        }));
+        const watcher = detailers.find(d => d.id === watcherIdToRemove);
+        const updatedTaskData = {
+            ...taskData,
+            watchers: taskData.watchers.filter(id => id !== watcherIdToRemove)
+        };
+        setTaskData(updatedTaskData);
+        sendEmailNotification({
+            task: updatedTaskData,
+            change: `Watcher removed: ${watcher.firstName} ${watcher.lastName}`,
+            detailers,
+            projects
+        });
     };
-
+    
     const handleCommentAction = (action, payload) => {
         const { comment, subTaskId } = payload;
-        
+
         const updateComments = (comments, newCommentData) => {
-            switch(action) {
+            switch (action) {
                 case 'ADD':
                     return [...(comments || []), newCommentData];
                 case 'UPDATE':
-                    return comments.map(c => c.id === newCommentData.id ? {...c, text: newCommentData.text, timestamp: new Date().toISOString()} : c);
+                    return comments.map(c => c.id === newCommentData.id ? { ...c, text: newCommentData.text, timestamp: new Date().toISOString() } : c);
                 case 'DELETE':
                     return comments.filter(c => c.id !== newCommentData.id);
                 default:
                     return comments;
             }
         }
-    
+
+        let updatedTaskData;
         if (subTaskId) {
-            setTaskData(prev => ({
-                ...prev,
-                subTasks: prev.subTasks.map(st => st.id === subTaskId ? { ...st, comments: updateComments(st.comments, comment) } : st)
-            }));
+            updatedTaskData = {
+                ...taskData,
+                subTasks: taskData.subTasks.map(st => st.id === subTaskId ? { ...st, comments: updateComments(st.comments, comment) } : st)
+            };
         } else {
-             setTaskData(prev => ({ ...prev, comments: updateComments(prev.comments, comment) }));
+            updatedTaskData = { ...taskData, comments: updateComments(taskData.comments, comment) };
+        }
+        setTaskData(updatedTaskData);
+        
+        // Send email for new comments
+        if(action === 'ADD') {
+            const subTask = subTaskId ? updatedTaskData.subTasks.find(st => st.id === subTaskId) : null;
+            const change = subTask 
+                ? `New comment on sub-task "${subTask.name}"`
+                : "New comment on task";
+
+            sendEmailNotification({
+                task: updatedTaskData,
+                change,
+                comment,
+                detailers,
+                projects
+            });
         }
     };
 
-    const handleAddComment = (commentText, author, subTaskId = null) => {
-        if (!commentText.trim() || !author || author.trim().length !== 3) {
+
+    const handleAddComment = (commentData, subTaskId = null) => {
+        if (!commentData.text.trim() || !commentData.author || commentData.author.trim().length !== 3) {
             onSetMessage({ text: "A comment and 3-letter initials are required.", isError: true });
             return;
         }
-        const newComment = {
-            id: `comment_${Date.now()}`,
-            author: author.toUpperCase(),
-            text: commentText,
-            timestamp: new Date().toISOString()
-        };
-        handleCommentAction('ADD', { comment: newComment, subTaskId });
+        handleCommentAction('ADD', { comment: commentData, subTaskId });
     };
-    
+
     const handleUpdateComment = (commentId, newText, subTaskId = null) => {
         handleCommentAction('UPDATE', { comment: { id: commentId, text: newText }, subTaskId });
     };
@@ -1823,7 +2000,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     const handleDeleteComment = (commentId, subTaskId = null) => {
         handleCommentAction('DELETE', { comment: { id: commentId }, subTaskId });
     };
-
+    
     if (!taskData) return null;
 
     return (
@@ -1909,7 +2086,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
                                     <div className="pl-6">
                                         <CommentSection 
                                            comments={st.comments}
-                                           onAddComment={(text, author) => handleAddComment(text, author, st.id)}
+                                           onAddComment={(commentData) => handleAddComment(commentData, st.id)}
                                            onUpdateComment={(id, text) => handleUpdateComment(id, text, st.id)}
                                            onDeleteComment={(id) => handleDeleteComment(id, st.id)}
                                         />
@@ -2048,56 +2225,6 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
         setTaskToDelete(null); 
     };
 
-    const sendEmailNotification = async (task, isNew, detailers, projects) => {
-        const recipient = 'jgriffith@southland.com';
-        const subject = isNew ? `New Task Created: ${task.taskName}` : `Task Updated: ${task.taskName}`;
-        const project = projects.find(p => p.id === task.projectId);
-        const assignee = detailers.find(d => d.id === task.detailerId);
-        const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);
-
-        let body = `
-            <h2>Task Details</h2>
-            <p><strong>Task:</strong> ${task.taskName}</p>
-            <p><strong>Project:</strong> ${project ? project.name : 'N/A'}</p>
-            <p><strong>Status:</strong> ${task.status}</p>
-            <p><strong>Due Date:</strong> ${task.dueDate || 'N/A'}</p>
-            <hr>
-            <h3>Assignee:</h3>
-            <p>${assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Not Assigned'}</p>
-            <h3>Watchers:</h3>
-        `;
-
-        if (watchers.length > 0) {
-            body += '<ul>';
-            watchers.forEach(w => {
-                body += `<li>${w.firstName} ${w.lastName}</li>`;
-            });
-            body += '</ul>';
-        } else {
-            body += '<p>No watchers for this task.</p>';
-        }
-
-        // This is a placeholder for your backend service that sends the email
-        // You'll need to replace 'YOUR_BACKEND_EMAIL_ENDPOINT' with the actual URL
-        try {
-            await fetch('YOUR_BACKEND_EMAIL_ENDPOINT', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    to: recipient,
-                    from: 'noreply@yourdomain.com', // This should be a verified sender in SendGrid
-                    subject: subject,
-                    html: body,
-                }),
-            });
-            console.log('Email notification sent.');
-        } catch (error) {
-            console.error('Failed to send email notification:', error);
-        }
-    };
-
     const handleSaveTask = async (taskData) => {
         const isNew = !taskData.id;
        
@@ -2112,13 +2239,23 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                 data.laneId = newRequestsLane.id;
                 const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
                 const newTask = { id: docRef.id, ...data };
-                await sendEmailNotification(newTask, true, detailers, projects);
+                sendEmailNotification({
+                    task: newTask,
+                    change: 'Task Created',
+                    detailers,
+                    projects
+                });
                 showNotification("Task created!");
             } else {
                 const { id, ...data } = taskData;
                 const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
                 await updateDoc(taskRef, data);
-                await sendEmailNotification(taskData, false, detailers, projects);
+                sendEmailNotification({
+                    task: taskData,
+                    change: 'Task Details Updated',
+                    detailers,
+                    projects
+                });
                 showNotification("Task updated successfully!");
             }
             handleCloseModal();
@@ -2138,8 +2275,21 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
 
     const handleDrop = async (e, targetLaneId) => {
         const taskId = e.dataTransfer.getData("taskId");
-        const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
-        await updateDoc(taskRef, { laneId: targetLaneId });
+        const task = tasks.find(t => t.id === taskId);
+        const sourceLane = taskLanes.find(l => l.id === task.laneId);
+        const targetLane = taskLanes.find(l => l.id === targetLaneId);
+
+        if (sourceLane.id !== targetLane.id) {
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
+            await updateDoc(taskRef, { laneId: targetLaneId });
+
+            sendEmailNotification({
+                task,
+                change: `Task moved from "${sourceLane.name}" to "${targetLane.name}"`,
+                detailers,
+                projects
+            });
+        }
     };
 
     const handleAddLane = async () => {
