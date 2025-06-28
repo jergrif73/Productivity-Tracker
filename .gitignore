@@ -8,6 +8,9 @@
 # testing
 /coverage
 
+# Firebase and environment-specific files
+functions/.env.*
+
 # production
 /build
 

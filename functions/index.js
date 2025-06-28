@@ -1,198 +1,260 @@
-const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
-const {onSchedule} = require("firebase-functions/v2/scheduler");
-const {logger} = require("firebase-functions");
+/**
+ * Main file for Firebase Cloud Functions using the v2 syntax.
+ * This version notifies watchers in addition to the primary recipient.
+ */
+
+// v2 Function Imports
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { defineString } = require('firebase-functions/params');
+
+// Firebase Admin and SendGrid
 const admin = require("firebase-admin");
 const sgMail = require("@sendgrid/mail");
-const {defineSecret} = require("firebase-functions/params");
+const { getFirestore } = require("firebase-admin/firestore");
 
-// Define the SendGrid API key secret
-const sendgridApiKey = defineSecret("SENDGRID_KEY");
-
-// Initialize the Firebase Admin SDK
 admin.initializeApp();
-const db = admin.firestore();
+const db = getFirestore();
 
-// IMPORTANT: Change this to your verified SendGrid sender email
+// --- SendGrid Configuration (v2 Method) ---
+const sendgridApiKey = defineString('SENDGRID_API_KEY');
+
 const FROM_EMAIL = "jergrif73@gmail.com";
+const PRIMARY_RECIPIENT = "jgriffith@southlandind.com";
 
-/**
- * A helper function to get the email addresses for assignees and watchers.
- * @param {object} taskData The data from the task document.
- * @param {string} appId The ID of the current application instance.
- * @return {Promise<string[]>} A promise that resolves to an array of emails.
- */
-const getRecipientEmails = async (taskData, appId) => {
-  const recipientIds = new Set();
-
-  if (taskData.detailerId) {
-    recipientIds.add(taskData.detailerId);
+// --- Helper Function to Send Emails ---
+const sendEmail = async (recipients, subject, html) => {
+  const key = sendgridApiKey.value();
+  if (!key) {
+    console.log("Skipping email send: SENDGRID_API_KEY is not set in environment.");
+    return;
+  }
+  
+  // Ensure recipients list is not empty and contains unique emails
+  const uniqueRecipients = [...new Set(recipients.filter(Boolean))];
+  if (uniqueRecipients.length === 0) {
+      console.log("No recipients, skipping email.");
+      return;
   }
 
-  if (taskData.watchers && taskData.watchers.length > 0) {
-    taskData.watchers.forEach((id) => recipientIds.add(id));
-  }
+  sgMail.setApiKey(key);
+  const msg = {
+    to: uniqueRecipients,
+    from: FROM_EMAIL,
+    subject,
+    html,
+  };
 
-  if (recipientIds.size === 0) {
-    return [];
-  }
-
-  const detailersRef = db.collection(`artifacts/${appId}/public/data/detailers`);
-  const promises = Array.from(recipientIds).map((id) => detailersRef.doc(id).get());
-  const docSnapshots = await Promise.all(promises);
-
-  const emails = [];
-  docSnapshots.forEach((doc) => {
-    if (doc.exists) {
-      const detailer = doc.data();
-      if (detailer.email) {
-        emails.push(detailer.email);
-      }
+  try {
+    await sgMail.send(msg);
+    console.log("Email sent successfully to:", uniqueRecipients.join(", "));
+  } catch (error) {
+    console.error("Error sending email:", error.toString());
+    if (error.response) {
+      console.error(JSON.stringify(error.response.body));
     }
-  });
-
-  return emails;
+  }
 };
 
-/**
- * Cloud Function that triggers when a new task is CREATED.
- */
-exports.onTaskCreate = onDocumentCreated({
-    document: "artifacts/{appId}/public/data/tasks/{taskId}",
-    secrets: [sendgridApiKey],
-}, async (event) => {
-    sgMail.setApiKey(sendgridApiKey.value());
-    const {appId} = event.params;
-    const taskData = event.data.data();
-    const taskName = taskData.taskName || "Untitled Task";
+// --- Helper to get Contextual Data ---
+const getContextData = async () => {
+    const detailers = new Map();
+    const projects = new Map();
+    const lanes = new Map();
+    const appId = "default-prod-tracker-app";
+    
+    const detailersSnapshot = await db.collection(`artifacts/${appId}/public/data/detailers`).get();
+    detailersSnapshot.forEach(doc => {
+        const data = doc.data();
+        // Store both name and email for later use
+        detailers.set(doc.id, { 
+            name: `${data.firstName} ${data.lastName}`,
+            email: data.email 
+        });
+    });
 
-    const recipients = await getRecipientEmails(taskData, appId);
+    const projectsSnapshot = await db.collection(`artifacts/${appId}/public/data/projects`).get();
+    projectsSnapshot.forEach(doc => projects.set(doc.id, doc.data().name));
+    
+    const lanesSnapshot = await db.collection(`artifacts/${appId}/public/data/taskLanes`).get();
+    lanesSnapshot.forEach(doc => lanes.set(doc.id, doc.data().name));
+    
+    return { detailers, projects, lanes };
+};
 
-    if (recipients.length === 0) {
-        logger.log("Task created, but no recipients found.");
-        return null;
-    }
+// --- Runtime Options ---
+const runtimeOpts = {
+  cpu: 1,
+  timeoutSeconds: 60,
+  memory: "512MiB",
+  concurrency: 1,
+};
 
-    const msg = {
-        to: recipients,
-        from: FROM_EMAIL,
-        subject: `New Task Assigned: ${taskName}`,
-        html: `
-            <p>Hello,</p>
-            <p>You have been assigned a new task: <strong>${taskName}</strong>.</p>
-            <p>Please check the application for details.</p>
-        `,
-    };
+// --- Cloud Function: onTaskCreate ---
+exports.onTaskCreate = onDocumentCreated({ document: "artifacts/{appId}/public/data/tasks/{taskId}", ...runtimeOpts }, async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const task = snap.data();
+    const { detailers, projects } = await getContextData();
 
-    try {
-        await sgMail.send(msg);
-        logger.log("New task email sent successfully to:", recipients);
-    } catch (error) {
-        logger.error("Error sending new task email:", error);
-        if (error.response) {
-            logger.error(error.response.body);
-        }
-    }
+    const assignee = detailers.get(task.detailerId);
+    const watchers = (task.watchers || []).map(id => detailers.get(id));
+    
+    const recipientList = [PRIMARY_RECIPIENT];
+    if (assignee && assignee.email) recipientList.push(assignee.email);
+    watchers.forEach(w => {
+        if (w && w.email) recipientList.push(w.email);
+    });
 
-    return null;
+    const subject = `New Task Created: ${task.taskName}`;
+    const html = `<h2>A new task has been created.</h2><p><strong>Task Name:</strong> ${task.taskName}</p><p><strong>Project:</strong> ${projects.get(task.projectId) || 'N/A'}</p><p><strong>Status:</strong> ${task.status}</p><p><strong>Due Date:</strong> ${task.dueDate || "N/A"}</p><hr><p><strong>Assignee:</strong> ${assignee ? assignee.name : 'N/A'}</p><p><strong>Watchers:</strong> ${watchers.map(w => w.name).join(", ") || "None"}</p>`;
+    
+    return sendEmail(recipientList, subject, html);
 });
 
+// --- Cloud Function: onTaskUpdate ---
+exports.onTaskUpdate = onDocumentUpdated({ document: "artifacts/{appId}/public/data/tasks/{taskId}", ...runtimeOpts }, async (event) => {
+    const change = event.data;
+    if (!change) return;
+    const before = change.before.data();
+    const after = change.after.data();
+    const { detailers, projects, lanes } = await getContextData();
+    const changes = [];
+    let latestComment = null;
 
-/**
- * Cloud Function that triggers when a task is UPDATED.
- */
-exports.onTaskUpdate = onDocumentUpdated({
-    document: "artifacts/{appId}/public/data/tasks/{taskId}",
-    secrets: [sendgridApiKey],
-}, async (event) => {
-    sgMail.setApiKey(sendgridApiKey.value());
-    const {appId} = event.params;
-    const taskDataAfter = event.data.after.data();
-    const taskDataBefore = event.data.before.data();
-    const taskName = taskDataAfter.taskName || "Untitled Task";
+    // --- Start Change Detection ---
 
-    if (JSON.stringify(taskDataAfter) === JSON.stringify(taskDataBefore)) {
-        logger.log("No actual data change detected. Skipping email.");
-        return null;
+    // 1. Task moved to a new lane
+    if (before.laneId !== after.laneId) {
+        changes.push(`Task was moved from <strong>${lanes.get(before.laneId) || 'an old lane'}</strong> to <strong>${lanes.get(after.laneId) || 'a new lane'}</strong>.`);
     }
 
-    const recipients = await getRecipientEmails(taskDataAfter, appId);
-
-    if (recipients.length === 0) {
-        logger.log("Task updated, but no recipients found.");
-        return null;
+    // 2. New comment on the main task
+    if ((after.comments?.length || 0) > (before.comments?.length || 0)) {
+        latestComment = after.comments[after.comments.length - 1];
+        changes.push(`New comment added to the main task by <strong>${latestComment.author}</strong>.`);
     }
-
-    const msg = {
-        to: recipients,
-        from: FROM_EMAIL,
-        subject: `Task Updated: ${taskName}`,
-        html: `
-            <p>Hello,</p>
-            <p>An update was made to the task: <strong>${taskName}</strong>.</p>
-            <p>Please check the application for details.</p>
-        `,
-    };
-
-    try {
-        await sgMail.send(msg);
-        logger.log("Update email sent successfully to:", recipients);
-    } catch (error) {
-        logger.error("Error sending update email:", error);
-        if (error.response) {
-            logger.error(error.response.body);
+    
+    // 3. Sub-task changes
+    const beforeSubTasks = new Map((before.subTasks || []).map(st => [st.id, st]));
+    (after.subTasks || []).forEach(afterST => {
+        const beforeST = beforeSubTasks.get(afterST.id);
+        if (!beforeST) {
+            changes.push(`A new sub-task was added: "${afterST.name}".`);
+        } else if (JSON.stringify(beforeST) !== JSON.stringify(afterST)) {
+            changes.push(`Sub-task was modified: "${afterST.name}".`);
+            if ((afterST.comments?.length || 0) > (beforeST.comments?.length || 0)) {
+                latestComment = afterST.comments[afterST.comments.length - 1];
+                changes.push(`New comment on sub-task "${afterST.name}" by <strong>${latestComment.author}</strong>.`);
+            }
         }
+    });
+    
+    // 4. New watcher added (for dedicated notification)
+    const beforeWatcherIds = new Set(before.watchers || []);
+    const afterWatcherIds = new Set(after.watchers || []);
+    let newWatchersAdded = false;
+
+    afterWatcherIds.forEach(watcherId => {
+        if (!beforeWatcherIds.has(watcherId)) {
+            newWatchersAdded = true;
+            const newWatcher = detailers.get(watcherId);
+            if (newWatcher && newWatcher.email) {
+                const subject = `You've been added as a watcher on task: ${after.taskName}`;
+                const html = `
+                    <h2>You are now a watcher on a task.</h2>
+                    <p>You will receive future notifications about this task.</p>
+                    <hr>
+                    <p><strong>Task Name:</strong> ${after.taskName}</p>
+                    <p><strong>Project:</strong> ${projects.get(after.projectId) || 'N/A'}</p>
+                    <p><strong>Assignee:</strong> ${detailers.get(after.detailerId)?.name || 'N/A'}</p>
+                `;
+                // Send a dedicated email to the new watcher
+                sendEmail([newWatcher.email], subject, html);
+            }
+        }
+    });
+
+    if (newWatchersAdded) {
+        changes.push('Watchers have been updated.');
     }
 
-    return null;
+    // --- End Change Detection ---
+
+    if (changes.length === 0) return null; // No relevant changes, so no general email
+
+    // Send a general update email to the main list
+    const assignee = detailers.get(after.detailerId);
+    const watchers = (after.watchers || []).map(id => detailers.get(id));
+
+    const recipientList = [PRIMARY_RECIPIENT];
+    if (assignee && assignee.email) recipientList.push(assignee.email);
+    watchers.forEach(w => {
+        if (w && w.email) recipientList.push(w.email);
+    });
+
+    const subject = `Task Updated: ${after.taskName}`;
+    let html = `<h2>A task has been updated.</h2><p><strong>Task Name:</strong> ${after.taskName}</p><p><strong>Project:</strong> ${projects.get(after.projectId) || 'N/A'}</p><hr><h3>Change Details:</h3><ul>${changes.map(c => `<li>${c}</li>`).join('')}</ul>`;
+    if (latestComment) {
+      html += `<hr><h3>Comment:</h3><p>"<em>${latestComment.text}</em>"</p>`;
+    }
+    html += `<hr><p><strong>Current Assignee:</strong> ${assignee ? assignee.name : 'N/A'}</p><p><strong>Current Watchers:</strong> ${watchers.map(w => w.name).join(", ") || "None"}</p>`;
+    
+    return sendEmail(recipientList, subject, html);
 });
 
-/**
- * A scheduled Cloud Function that runs daily to send due date reminders.
- */
-exports.dailyReminder = onSchedule({
-    schedule: "every 24 hours",
-    secrets: [sendgridApiKey],
-}, async (event) => {
-    sgMail.setApiKey(sendgridApiKey.value());
+// --- Cloud Function: dailyReminder ---
+exports.dailyReminder = onSchedule({ schedule: "every 24 hours", ...runtimeOpts }, async (event) => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
-
-    // This function will check all app instances for due tasks.
-    const artifactsCollection = await db.collection("artifacts").get();
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const appId = "default-prod-tracker-app";
+    const tasksRef = db.collection(`artifacts/${appId}/public/data/tasks`);
+    const allTasksSnapshot = await tasksRef.get();
+    if (allTasksSnapshot.empty) return null;
     
-    for (const appDoc of artifactsCollection.docs) {
-        const appId = appDoc.id;
-        const tasksRef = db.collection(`artifacts/${appId}/public/data/tasks`);
-        const snapshot = await tasksRef.where("dueDate", "==", tomorrowStr).get();
+    const { detailers, projects } = await getContextData();
+    const itemsDueTomorrow = new Map();
 
-        if (snapshot.empty) {
-            logger.log(`No tasks due tomorrow for app: ${appId}`);
-            continue; 
-        }
+    allTasksSnapshot.forEach((doc) => {
+      const task = doc.data();
+      
+      const checkDueDate = (item, type, parentTaskName = null) => {
+          if (item.dueDate === tomorrowStr) {
+              const assignee = detailers.get(item.detailerId);
+              const watchers = (task.watchers || []).map(id => detailers.get(id));
+              const recipientList = [PRIMARY_RECIPIENT];
+              if(assignee && assignee.email) recipientList.push(assignee.email);
+              watchers.forEach(w => {
+                  if(w && w.email) recipientList.push(w.email);
+              });
 
-        const promises = snapshot.docs.map(async (doc) => {
-            const task = doc.data();
-            const recipients = await getRecipientEmails(task, appId);
+              const uniqueRecipients = [...new Set(recipientList)];
+              const description = type === 'Task'
+                ? `<li><strong>Task:</strong> ${item.taskName} (Project: ${projects.get(item.projectId) || 'N/A'}, Assignee: ${assignee ? assignee.name : 'N/A'})</li>`
+                : `<li><strong>Sub-Task:</strong> ${item.name} <em>(from main task: ${parentTaskName})</em> (Assignee: ${assignee ? assignee.name : 'N/A'})</li>`;
 
-            if (recipients.length > 0) {
-                const msg = {
-                    to: recipients,
-                    from: FROM_EMAIL,
-                    subject: `Reminder: Task "${task.taskName}" is due tomorrow`,
-                    html: `
-                        <p>Hello,</p>
-                        <p>This is a reminder that the task <strong>${task.taskName}</strong> is due tomorrow, ${tomorrowStr}.</p>
-                    `,
-                };
-                return sgMail.send(msg);
-            }
-            return Promise.resolve();
-        });
+              uniqueRecipients.forEach(email => {
+                  if (!itemsDueTomorrow.has(email)) {
+                      itemsDueTomorrow.set(email, []);
+                  }
+                  itemsDueTomorrow.get(email).push(description);
+              });
+          }
+      };
 
-        await Promise.all(promises);
-        logger.log(`Sent ${promises.length} reminder emails for app: ${appId}.`);
+      checkDueDate(task, 'Task');
+      (task.subTasks || []).forEach(subTask => checkDueDate(subTask, 'Sub-Task', task.taskName));
+    });
+
+    if (itemsDueTomorrow.size === 0) return null;
+
+    const promises = [];
+    for (const [email, items] of itemsDueTomorrow.entries()) {
+        const subject = `Daily Task Reminder for ${tomorrowStr}`;
+        const html = `<h2>The following items are due tomorrow:</h2><ul>${items.join('')}</ul>`;
+        promises.push(sendEmail([email], subject, html));
     }
-
-    return null;
+    
+    return Promise.all(promises);
 });

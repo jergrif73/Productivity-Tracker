@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
@@ -8,7 +8,12 @@ import * as d3 from 'd3';
 
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {};
 
+const formatCurrency = (value) => {
+    const numberValue = Number(value) || 0;
+    return numberValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
 
 const titleOptions = [
     "Detailer I",
@@ -47,46 +52,17 @@ const initialDetailers = [
 ];
 
 const initialProjects = [
-    { name: "Brandt Interco", projectId: "5800005" },
-    { name: "PRECON / Estimating 2022", projectId: "5818022" },
-    { name: "RLSB 7th Floor Buildout", projectId: "5820526" },
-    { name: "PRN 1 Modernization", projectId: "5820533" },
-    { name: "OHEP IPA", projectId: "5820574" },
-    { name: "Vantage WA 13", projectId: "5820577" },
-    { name: "Microsoft Service Project", projectId: "5820580" },
-    { name: "PSU VSC", projectId: "5820608" },
-    { name: "Albina Library", projectId: "5820637" },
-    { name: "KND1-2 Type F", projectId: "5820643" },
-    { name: "Vantage WA 13 - Tenant Office Fit up", projectId: "5820648" },
-    { name: "UCO Type F", projectId: "5820653" },
-    { name: "DLS BD CL02 BATCH TANK RE", projectId: "5820654" },
-    { name: "Old Trapper Warehouse Expansion", projectId: "5820661" },
-    { name: "Legacy Emanuel Cath Lab", projectId: "5820663" },
-    { name: "PRN Wellhouse", projectId: "5820664" },
-    { name: "Sunriver Public Safety Building", projectId: "5820668" },
-    { name: "Meta MOFE MTR Racks - UCO", projectId: "5820669" },
-    { name: "Meta MOFE MTR Racks - KND", projectId: "5820670" },
-    { name: "Providence POP 1 Womens Health", projectId: "5820682" },
-    { name: "Microsoft EAT04", projectId: "5820690" },
-    { name: "Legacy LEW Infrastructure Package 1", projectId: "5820705" },
-    { name: "T5CS - Portland IV - Phase-III", projectId: "5820707" },
-    { name: "Vantage WA13 Phase 4 & 5", projectId: "5820709" },
-    { name: "Meta MOFE MTR Racks - RIN", projectId: "5820717" },
-    { name: "Meta MOFE MTR Racks - RMN", projectId: "5820718" },
-    { name: "Hitt Project Avalon Engineering", projectId: "5820723" },
-    { name: "Genentech - Acid CIP 200 Tank Replacement", projectId: "5820738" },
-    { name: "Apple - PRZ.05 PreCon", projectId: "5820754" },
-    { name: "Meta DCF v2.0 MOFE Design Support", projectId: "5820777" },
-    { name: "WA13 Level 2 Office TI", projectId: "5820779" },
-    { name: "Meta MOFE MTRs - Project Cable - LVN", projectId: "5820788" },
-    { name: "NTT H13", projectId: "5820800" },
-    { name: "UCSF Benioff MRI Replacement", projectId: "5622373" }
+    { name: "Brandt Interco", projectId: "5800005", initialBudget: 0, blendedRate: 0, contingency: 0 },
+    { name: "PRECON / Estimating 2022", projectId: "5818022", initialBudget: 0, blendedRate: 0, contingency: 0 },
+    { name: "RLSB 7th Floor Buildout", projectId: "5820526", initialBudget: 0, blendedRate: 0, contingency: 0 },
 ];
 
 const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
 const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
 const activityOptions = ["Modeling", "Coordination", "Spooling", "Deliverables", "Miscellaneous"];
 const taskStatusOptions = ["Not Started", "In Progress", "Completed"];
+const subsetTypes = ["Phase", "Building", "Area", "Level", "System", "Other"];
+
 
 const tradeColorMapping = {
     Piping: { bg: 'bg-green-500', text: 'text-white' },
@@ -109,104 +85,35 @@ const legendColorMapping = {
 };
 
 const initialActivityData = [
-    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
-    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, percentComplete: 0, hoursUsed: 0 },
+    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0 },
 ];
-
-
-const firebaseConfig = {
-  apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
-  authDomain: "productivity-tracker-3017d.firebaseapp.com",
-  projectId: "productivity-tracker-3017d",
-  storageBucket: "productivity-tracker-3017d.appspot.com",
-  messagingSenderId: "489412895343",
-  appId: "1:489412895343:web:780e7717db122a2b99639a",
-  measurementId: "G-LGTREWPTGJ"
-};
 
 let db, auth;
 try {
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
+  if (firebaseConfig.apiKey) {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      auth = getAuth(app);
+  }
 } catch (e) {
     console.error("Error initializing Firebase:", e);
 }
-
-// --- Email Notification Logic ---
-const sendEmailNotification = async (details) => {
-    const { task, change, comment, detailers, projects } = details;
-    const recipient = 'jgriffith@southlandind.com';
-    const sender = 'jergrif73@gmail.com';
-    const project = projects.find(p => p.id === task.projectId);
-    const assignee = detailers.find(d => d.id === task.detailerId);
-    const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);
-
-    let subject = `Task Update: ${task.taskName}`;
-    let body = `
-        <h2>Task Notification</h2>
-        <p><strong>Task:</strong> ${task.taskName}</p>
-        <p><strong>Project:</strong> ${project ? project.name : 'N/A'}</p>
-        <p><strong>Change:</strong> ${change}</p>
-        <hr>
-    `;
-
-    if (comment) {
-        body += `
-            <h3>New Comment:</h3>
-            <p><em>"${comment.text}"</em> - <strong>${comment.author}</strong></p>
-            <hr>
-        `;
-    }
-
-    body += `
-        <h3>Assignee:</h3>
-        <p>${assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Not Assigned'}</p>
-        <h3>Watchers:</h3>
-    `;
-
-    if (watchers.length > 0) {
-        body += '<ul>';
-        watchers.forEach(w => {
-            body += `<li>${w.firstName} ${w.lastName}</li>`;
-        });
-        body += '</ul>';
-    } else {
-        body += '<p>No watchers for this task.</p>';
-    }
-    
-    // In a real application, you would replace this with a call to a backend service (e.g., a Cloud Function)
-    // that securely handles the SendGrid API key and sends the email.
-    console.log("--- EMAIL SIMULATION ---");
-    console.log(`To: ${recipient}`);
-    console.log(`From: ${sender}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Body: ${body}`);
-    console.log("------------------------");
-    
-    // Placeholder for actual fetch to backend
-    try {
-        // Example: await fetch('YOUR_SENDGRID_CLOUD_FUNCTION_URL', { ... });
-    } catch (error) {
-        console.error('Failed to send email notification:', error);
-    }
-};
-
 
 // --- React Components ---
 
@@ -419,54 +326,6 @@ const App = () => {
         };
     }, [isAuthReady]);
 
-    // Due Date Reminder Logic
-    useEffect(() => {
-        if (tasks.length === 0 || detailers.length === 0 || projects.length === 0) return;
-
-        const checkDueDates = () => {
-            const today = new Date();
-            const tomorrow = new Date();
-            tomorrow.setDate(today.getDate() + 1);
-            
-            const formatDate = (date) => date.toISOString().split('T')[0];
-            const tomorrowStr = formatDate(tomorrow);
-
-            tasks.forEach(task => {
-                // Check main task due date
-                if (task.dueDate === tomorrowStr) {
-                    sendEmailNotification({
-                        task,
-                        change: `REMINDER: Task is due tomorrow (${task.dueDate})`,
-                        detailers,
-                        projects
-                    });
-                }
-
-                // Check sub-tasks due dates
-                (task.subTasks || []).forEach(subTask => {
-                    if (subTask.dueDate === tomorrowStr) {
-                         sendEmailNotification({
-                            task, // Main task context
-                            change: `REMINDER: Sub-task "${subTask.name}" is due tomorrow (${subTask.dueDate})`,
-                            detailers,
-                            projects
-                        });
-                    }
-                });
-            });
-        };
-        
-        // In a production app, this check should be handled by a reliable backend service (e.g., a scheduled Cloud Function)
-        // to ensure it runs daily, regardless of whether a user has the app open.
-        // For this frontend simulation, we'll run it once on load and then set an interval.
-        checkDueDates(); 
-        const interval = setInterval(checkDueDates, 1000 * 60 * 60 * 24); // Check once a day
-        
-        return () => clearInterval(interval);
-
-    }, [tasks, detailers, projects]);
-
-
     // --- Authentication and Navigation Handlers ---
     const protectedViews = ['detailers', 'skills', 'admin'];
 
@@ -633,8 +492,8 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
 
     const getMostRecentMonday = () => {
         const today = new Date();
-        const day = today.getDay();
-        const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+        const dayOfWeek = today.getDay();
+        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // adjust when day is sunday
         const monday = new Date(today.setDate(diff));
         return monday.toISOString().split('T')[0];
     };
@@ -808,12 +667,189 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
     );
 };
 
-const ActivityTracker = ({ projectId }) => {
-    const [activities, setActivities] = useState({ sheetmetal: [], piping: [], plumbing: [], bim: [] });
+const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project }) => {
+    const blendedRate = project.blendedRate || 0;
+    const earnedValue = (activity.estimatedHours * blendedRate) * (activity.percentComplete / 100);
+    const actualCost = activity.hoursUsed * blendedRate;
+
+    const calculateProjectedHours = (activity) => {
+        const hoursUsed = Number(activity.hoursUsed) || 0;
+        const percentComplete = Number(activity.percentComplete) || 0;
+        if (!percentComplete || percentComplete === 0) return 0;
+        return (hoursUsed / percentComplete) * 100;
+    };
+    const projected = calculateProjectedHours(activity);
+    
+    return (
+        <tr key={activity.id}>
+            <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className="w-full p-1 bg-transparent rounded" /></td>
+            <td className="p-1"><input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} className="w-full p-1 bg-transparent rounded" /></td>
+            <td className="p-1 w-24"><input type="text" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} className="w-full p-1 bg-transparent rounded" /></td>
+            <td className="p-1 w-24 bg-gray-100">{activity.percentComplete.toFixed(2)}%</td>
+            <td className="p-1 w-24 bg-gray-100">{activity.hoursUsed.toFixed(2)}</td>
+            <td className="p-1 w-24 bg-gray-100">{formatCurrency(earnedValue)}</td>
+            <td className="p-1 w-24 bg-gray-100">{formatCurrency(actualCost)}</td>
+            <td className="p-1 w-24 bg-gray-100">{projected.toFixed(2)}</td>
+            <td className="p-1 text-center w-12"><button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button></td>
+        </tr>
+    );
+});
+
+
+const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project }) => {
+    const calculateProjectedHours = (activity) => {
+        const hoursUsed = Number(activity.hoursUsed) || 0;
+        const percentComplete = Number(activity.percentComplete) || 0;
+        if (!percentComplete || percentComplete === 0) return 0;
+        return (hoursUsed / percentComplete) * 100;
+    };
+    
+    return (
+        <div className="border-b">
+            <button
+                onClick={onToggle}
+                className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}
+            >
+                <span>{title}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            {!isCollapsed && (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead>
+                            <tr className="bg-gray-100">
+                                <th className="p-2 text-left font-semibold">Activity Description</th>
+                                <th className="p-2 text-left font-semibold">Charge Code</th>
+                                <th className="p-2 text-left font-semibold">Est. Hrs</th>
+                                <th className="p-2 text-left font-semibold">% Comp</th>
+                                <th className="p-2 text-left font-semibold">Hrs Used</th>
+                                <th className="p-2 text-left font-semibold">Earned ($)</th>
+                                <th className="p-2 text-left font-semibold">Actual ($)</th>
+                                <th className="p-2 text-left font-semibold">Proj. Hrs</th>
+                                <th className="p-2 text-left font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((activity, index) => (
+                                <ActivityRow
+                                    key={activity.id}
+                                    activity={activity}
+                                    groupKey={groupKey}
+                                    index={index}
+                                    onChange={onChange}
+                                    onDelete={onDelete}
+                                    calculateProjectedHours={calculateProjectedHours}
+                                    project={project}
+                                />
+                            ))}
+                             <tr>
+                                <td colSpan="9" className="p-1"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    )
+});
+
+const FinancialSummary = ({ project, activityTotals }) => {
+    if (!project) return null;
+
+    const initialBudget = project.initialBudget || 0;
+    const contingency = project.contingency || 0;
+    const blendedRate = project.blendedRate || 0;
+
+    const spentToDate = activityTotals.used * blendedRate;
+    
+    const totalHours = activityTotals.estimated;
+    const overallPercentComplete = totalHours > 0 ? (activityTotals.used / totalHours) * 100 : 0;
+    
+    const earnedValue = initialBudget * (overallPercentComplete / 100);
+    const productivity = spentToDate > 0 ? earnedValue / spentToDate : 0;
+
+    const costToComplete = (activityTotals.estimated - activityTotals.used) * blendedRate;
+    const estFinalCost = spentToDate + costToComplete;
+
+    return (
+        <div className="bg-white p-4 rounded-lg border shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+            <div>
+                <p className="text-sm text-gray-500">Initial Budget</p>
+                <p className="text-lg font-bold">{formatCurrency(initialBudget)}</p>
+            </div>
+            <div>
+                <p className="text-sm text-gray-500">Contingency</p>
+                <p className="text-lg font-bold">{formatCurrency(contingency)}</p>
+            </div>
+            <div>
+                <p className="text-sm text-gray-500">Spent to Date</p>
+                <p className="text-lg font-bold">{formatCurrency(spentToDate)}</p>
+            </div>
+             <div>
+                <p className="text-sm text-gray-500">Cost to Complete</p>
+                <p className="text-lg font-bold">{formatCurrency(costToComplete)}</p>
+            </div>
+             <div>
+                <p className="text-sm text-gray-500">Est. Final Cost</p>
+                <p className="text-lg font-bold">{formatCurrency(estFinalCost)}</p>
+            </div>
+             <div >
+                <p className="text-sm text-gray-500">Productivity</p>
+                <p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p>
+            </div>
+        </div>
+    )
+}
+
+const HourSummary = ({ project, activityTotals }) => {
+    if (!project) return null;
+
+    const totalBudgetHours = (project.initialBudget || 0) / (project.blendedRate || 1);
+    const allocatedHours = activityTotals.estimated;
+    const unallocatedHours = totalBudgetHours - allocatedHours;
+
+    return (
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+                <p className="text-sm text-blue-800">Total Budgeted Hours</p>
+                <p className="text-lg font-bold text-blue-900">{totalBudgetHours.toFixed(2)}</p>
+            </div>
+            <div className="text-center">
+                <p className="text-sm text-blue-800">Total Allocated Hours</p>
+                <p className="text-lg font-bold text-blue-900">{allocatedHours.toFixed(2)}</p>
+            </div>
+             <div className="text-center">
+                <p className="text-sm text-blue-800">Unallocated Hours</p>
+                <p className={`text-lg font-bold ${unallocatedHours < 0 ? 'text-red-500' : 'text-green-600'}`}>{unallocatedHours.toFixed(2)}</p>
+            </div>
+        </div>
+    )
+}
+
+const ProjectDetailView = ({ project, projectId }) => {
+    const [draftData, setDraftData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
+    const [editingSubsetId, setEditingSubsetId] = useState(null);
+    const [editingSubsetData, setEditingSubsetData] = useState(null);
+    const [collapsedSections, setCollapsedSections] = useState({
+        projectBreakdown: true,
+        sheetmetal: true,
+        piping: true,
+        plumbing: true,
+        bim: true
+    });
 
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId]);
-    
+
+    const allActivitiesList = useMemo(() => {
+        if (!draftData) return [];
+        return Object.values(draftData.activities).flat();
+    }, [draftData]);
+
+
     const groupActivities = (activityArray) => {
         return activityArray.reduce((acc, act) => {
             const desc = act.description.toUpperCase();
@@ -825,149 +861,315 @@ const ActivityTracker = ({ projectId }) => {
         }, { sheetmetal: [], piping: [], plumbing: [], bim: [] });
     };
 
+    const calculateRollups = useCallback((activities, subsets) => {
+        const newActivities = JSON.parse(JSON.stringify(activities));
+        
+        Object.keys(newActivities).forEach(group => {
+            newActivities[group].forEach(activity => {
+                const relevantSubsets = subsets.filter(s => s.activityId === activity.id);
+                
+                const totalHoursUsed = relevantSubsets.reduce((sum, s) => sum + (Number(s.hoursUsed) || 0), 0);
+                
+                const totalPercentComplete = relevantSubsets.reduce((sum, s) => {
+                    const subsetPercentOfProject = Number(s.percentageOfProject) || 0;
+                    const subsetPercentComplete = Number(s.percentComplete) || 0;
+                    return sum + ((subsetPercentOfProject / 100) * subsetPercentComplete);
+                }, 0);
+
+                activity.hoursUsed = totalHoursUsed;
+                activity.percentComplete = totalPercentComplete; 
+            });
+        });
+        return newActivities;
+    }, []);
+
     useEffect(() => {
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            let initialData;
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // Check if data is in the old flat format or new grouped format
-                if (Array.isArray(data.activities)) {
-                    setActivities(groupActivities(data.activities));
-                } else {
-                    setActivities(data);
-                }
+                const activities = data.activities || groupActivities(initialActivityData);
+                const subsets = data.subsets || [];
+                initialData = { activities, subsets };
             } else {
                 const initialGroupedData = groupActivities(initialActivityData);
-                setDoc(docRef, initialGroupedData);
-                setActivities(initialGroupedData);
+                initialData = { activities: initialGroupedData, subsets: [] };
+                setDoc(docRef, initialData);
             }
+            const rolledUpActivities = calculateRollups(initialData.activities, initialData.subsets);
+            const fullData = {...initialData, activities: rolledUpActivities};
+            
+            setDraftData(JSON.parse(JSON.stringify(fullData))); // Deep copy for draft
             setLoading(false);
         }, (error) => {
-            console.error("Error fetching activity tracker data:", error);
+            console.error("Error fetching project data:", error);
             setLoading(false);
         });
 
         return () => unsubscribe();
-    }, [docRef]);
+    }, [projectId, docRef, calculateRollups]);
     
-    const handleActivityChange = (group, index, field, value) => {
-        const updatedActivities = { ...activities };
-        const numValue = field === 'description' || field === 'chargeCode' ? value : Number(value);
-        updatedActivities[group][index][field] = (field !== 'description' && field !== 'chargeCode' && isNaN(numValue)) ? 0 : numValue;
-        setActivities(updatedActivities);
+    useEffect(() => {
+        if (draftData) {
+            const rolledUpActivities = calculateRollups(draftData.activities, draftData.subsets);
+            if(JSON.stringify(rolledUpActivities) !== JSON.stringify(draftData.activities)){
+                setDraftData(prev => ({ ...prev, activities: rolledUpActivities }));
+            }
+        }
+    }, [draftData, calculateRollups]);
+
+
+    const handleActivityChange = useCallback((group, index, field, value) => {
+        setDraftData(prevDraft => {
+            const newActivities = { ...prevDraft.activities };
+            const newGroup = [...newActivities[group]];
+            newGroup[index] = { ...newGroup[index], [field]: value };
+            newActivities[group] = newGroup;
+
+            return {
+                ...prevDraft,
+                activities: newActivities
+            };
+        });
+    }, []);
+    
+    const handleSaveChanges = async () => {
+        const dataToSave = JSON.parse(JSON.stringify(draftData));
+
+        // Sanitize subset data before saving
+        dataToSave.subsets.forEach(subset => {
+            subset.percentageOfProject = Number(subset.percentageOfProject) || 0;
+            subset.percentComplete = Number(subset.percentComplete) || 0;
+            subset.hoursUsed = Number(subset.hoursUsed) || 0;
+            subset.budget = Number(subset.budget) || 0;
+        });
+
+        // Remove calculated fields from activities before saving
+        for (const groupKey of Object.keys(dataToSave.activities)) {
+            dataToSave.activities[groupKey].forEach(activity => {
+                delete activity.percentComplete;
+                delete activity.hoursUsed;
+            });
+        }
+
+        await setDoc(docRef, dataToSave, { merge: true });
+        alert("Changes saved!");
     };
     
-    const handleAddNewActivity = (group) => {
+    const handleEditingSubsetChange = (field, value) => {
+        setEditingSubsetData(prev => ({ ...prev, [field]: value }));
+    };
+
+
+    const handleAddNewSubset = () => {
+        if (!newSubset.name.trim()) return;
+        const subsetToAdd = { 
+            ...newSubset, 
+            id: `sub_${Date.now()}`, 
+            percentageOfProject: Number(newSubset.percentageOfProject) || 0,
+            percentComplete: Number(newSubset.percentComplete) || 0,
+            hoursUsed: Number(newSubset.hoursUsed) || 0,
+            budget: Number(newSubset.budget) || 0,
+        };
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            subsets: [...(prevDraft.subsets || []), subsetToAdd]
+        }));
+        setNewSubset({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
+    };
+
+    const handleUpdateSubset = () => {
+        if (!editingSubsetData || !editingSubsetData.name.trim()) return;
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            subsets: prevDraft.subsets.map(s => 
+                s.id === editingSubsetId 
+                ? { ...editingSubsetData, 
+                    percentageOfProject: Number(editingSubsetData.percentageOfProject) || 0,
+                    percentComplete: Number(editingSubsetData.percentComplete) || 0,
+                    hoursUsed: Number(editingSubsetData.hoursUsed) || 0,
+                    budget: Number(editingSubsetData.budget) || 0,
+                  } 
+                : s
+            )
+        }));
+        setEditingSubsetId(null);
+        setEditingSubsetData(null);
+    };
+
+    const handleDeleteSubset = (subsetId) => {
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            subsets: prevDraft.subsets.filter(s => s.id !== subsetId)
+        }));
+    };
+    
+    const handleAddNewActivity = useCallback((group) => {
         const newActivity = {
             id: `act_${Date.now()}`,
             description: "New Activity",
             chargeCode: "",
             estimatedHours: 0,
-            percentComplete: 0,
-            hoursUsed: 0
+            percentComplete: 0, // Initialize to prevent error
+            hoursUsed: 0,        // Initialize to prevent error
         };
-        const updatedActivities = { ...activities };
-        updatedActivities[group].push(newActivity);
-        setActivities(updatedActivities);
-        handleSaveActivities();
-    };
-    
-    const handleDeleteActivity = (group, index) => {
-        const updatedActivities = { ...activities };
-        updatedActivities[group].splice(index, 1);
-        setActivities(updatedActivities);
-        handleSaveActivities();
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            activities: {
+                ...prevDraft.activities,
+                [group]: [...prevDraft.activities[group], newActivity]
+            }
+        }));
+    }, []);
+
+    const handleDeleteActivity = useCallback((group, index) => {
+        setDraftData(prevDraft => {
+            const newGroup = [...prevDraft.activities[group]];
+            const deletedActivityId = newGroup[index].id;
+            newGroup.splice(index, 1);
+            return {
+                ...prevDraft,
+                activities: {
+                    ...prevDraft.activities,
+                    [group]: newGroup
+                },
+                subsets: prevDraft.subsets.filter(s => s.activityId !== deletedActivityId)
+            };
+        });
+    }, []);
+
+    const handleToggleCollapse = (section) => {
+        setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
-    const handleSaveActivities = async () => {
-         await setDoc(docRef, activities, { merge: true });
-    };
-
-    const calculateProjectedHours = (activity) => {
-        const { hoursUsed, percentComplete } = activity;
-        if (!percentComplete || percentComplete === 0) return 0;
-        return (hoursUsed / percentComplete) * 100;
-    };
-
-    const totals = useMemo(() => {
-        const allActivities = Object.values(activities).flat();
+    const activityTotals = useMemo(() => {
+        if (!draftData) return { estimated: 0, used: 0 };
+        const allActivities = Object.values(draftData.activities).flat();
         return allActivities.reduce((acc, activity) => {
-            acc.estimated += Number(activity.estimatedHours) || 0;
-            acc.used += Number(activity.hoursUsed) || 0;
-            acc.projected += calculateProjectedHours(activity) || 0;
+            acc.estimated += Number(activity.estimatedHours || 0);
+            acc.used += Number(activity.hoursUsed || 0);
             return acc;
-        }, { estimated: 0, used: 0, projected: 0 });
-    }, [activities]);
+        }, { estimated: 0, used: 0 });
+    }, [draftData]);
+
+    if (loading || !draftData) return <div className="p-4 text-center">Loading Project Details...</div>;
     
-    const ActivityTableSection = ({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, onSave }) => {
-        return (
-            <tbody className={colorClass}>
-                <tr>
-                    <th colSpan="7" className="p-2 text-left font-bold bg-gray-200">{title}</th>
-                </tr>
-                {data.map((activity, index) => {
-                    const projected = calculateProjectedHours(activity);
-                    return (
-                        <tr key={activity.id || index}>
-                            <td className="p-1 border-b border-gray-300">
-                                <input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} onBlur={onSave} className="w-full p-1 bg-transparent rounded" />
-                            </td>
-                            <td className="p-1 border-b border-gray-300">
-                                <input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} onBlur={onSave} className="w-full p-1 bg-transparent rounded" />
-                            </td>
-                            <td className="p-1 border-b border-gray-300"><input type="number" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} onBlur={onSave} className="w-24 p-1 bg-transparent rounded" /></td>
-                            <td className="p-1 border-b border-gray-300"><input type="number" value={activity.percentComplete} onChange={(e) => onChange(groupKey, index, 'percentComplete', e.target.value)} onBlur={onSave} className="w-24 p-1 bg-transparent rounded" /></td>
-                            <td className="p-1 border-b border-gray-300"><input type="number" value={activity.hoursUsed} onChange={(e) => onChange(groupKey, index, 'hoursUsed', e.target.value)} onBlur={onSave} className="w-24 p-1 bg-transparent rounded" /></td>
-                            <td className="p-1 border-b border-gray-300">{projected.toFixed(2)}</td>
-                             <td className="p-1 border-b border-gray-300 text-center">
-                                <button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                            </td>
-                        </tr>
-                    );
-                })}
-                 <tr>
-                    <td colSpan="7" className="p-1">
-                        <button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button>
-                    </td>
-                </tr>
-            </tbody>
-        );
-    }
-
-
-    if (loading) {
-        return <div className="p-4 text-center">Loading Activity Tracker...</div>;
-    }
-
     return (
-        <div className="overflow-x-auto mt-4 border-t pt-4">
-            <table className="min-w-full text-sm border-collapse">
-                <thead>
-                    <tr className="bg-gray-100">
-                        <th className="p-2 text-left font-semibold">Activity Description</th>
-                        <th className="p-2 text-left font-semibold">Charge Code</th>
-                        <th className="p-2 text-left font-semibold">Estimated Hours</th>
-                        <th className="p-2 text-left font-semibold">% Complete</th>
-                        <th className="p-2 text-left font-semibold">Hours Used</th>
-                        <th className="p-2 text-left font-semibold">Projected Hours</th>
-                        <th className="p-2 text-left font-semibold">Actions</th>
-                    </tr>
-                </thead>
-                <ActivityTableSection title="Sheetmetal" data={activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
-                <ActivityTableSection title="Piping" data={activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
-                <ActivityTableSection title="Plumbing" data={activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
-                <ActivityTableSection title="BIM" data={activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} onSave={handleSaveActivities} />
+        <div className="space-y-6 mt-4 border-t pt-4">
+             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <FinancialSummary project={project} activityTotals={activityTotals} />
+                <HourSummary project={project} activityTotals={activityTotals} />
+             </div>
+            
+            {/* --- Project Subsets Section --- */}
+            <div className="bg-white rounded-lg border shadow-sm">
+                 <button
+                    onClick={() => handleToggleCollapse('projectBreakdown')}
+                    className="w-full p-3 text-left font-bold flex justify-between items-center bg-gray-200 hover:bg-gray-300 transition-colors"
+                >
+                    <h3 className="text-lg font-semibold">Project Breakdown</h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${collapsedSections.projectBreakdown ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                {!collapsedSections.projectBreakdown && (
+                    <div className="p-4">
+                        <div className="space-y-2 mb-4">
+                            <div className="hidden sm:grid grid-cols-11 gap-x-4 font-bold text-xs text-gray-600 px-2">
+                                <span className="col-span-2">Name</span>
+                                <span className="col-span-1">Activity</span>
+                                <span className="col-span-1">Budget ($)</span>
+                                <span className="col-span-1">% of Project</span>
+                                <span className="col-span-1">% Complete</span>
+                                <span className="col-span-1">Hours Used</span>
+                                <span className="col-span-1">Earned ($)</span>
+                                <span className="col-span-1">Actual ($)</span>
+                                <span className="col-span-1">Productivity</span>
+                                <span className="col-span-1">Actions</span>
+                            </div>
+                            {(draftData.subsets || []).map((subset, index) => {
+                                const earned = (subset.budget || 0) * (subset.percentComplete || 0) / 100;
+                                const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
+                                const productivity = actual > 0 ? earned / actual : 0;
+                                return (
+                                    <div key={subset.id} className="grid grid-cols-1 sm:grid-cols-11 gap-x-4 items-center p-2 bg-gray-50 rounded-md">
+                                        {editingSubsetId === subset.id ? (
+                                            <>
+                                                <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className="p-1 border rounded col-span-2"/>
+                                                <select value={editingSubsetData.activityId} onChange={e => handleEditingSubsetChange('activityId', e.target.value)} className="p-1 border rounded w-full">
+                                                    <option value="">Select Activity...</option>
+                                                    {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
+                                                </select>
+                                                <input type="number" placeholder="Budget ($)" value={editingSubsetData.budget} onChange={e => handleEditingSubsetChange('budget', e.target.value)} className="p-1 border rounded w-full"/>
+                                                <input type="number" placeholder="% of Project" value={editingSubsetData.percentageOfProject} onChange={e => handleEditingSubsetChange('percentageOfProject', e.target.value)} className="p-1 border rounded w-full"/>
+                                                <input type="number" placeholder="% Complete" value={editingSubsetData.percentComplete} onChange={e => handleEditingSubsetChange('percentComplete', e.target.value)} className="p-1 border rounded w-full"/>
+                                                <input type="number" placeholder="Hours Used" value={editingSubsetData.hoursUsed} onChange={e => handleEditingSubsetChange('hoursUsed', e.target.value)} className="p-1 border rounded w-full"/>
+                                                <div className="col-span-3"></div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={handleUpdateSubset} className="text-green-500 hover:text-green-700">Save</button>
+                                                    <button onClick={() => setEditingSubsetId(null)} className="text-gray-500 hover:text-gray-700">Cancel</button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="font-medium col-span-2">{subset.name}</span>
+                                                <span className="text-sm text-gray-600">{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
+                                                <span className="text-sm text-gray-600">{formatCurrency(subset.budget || 0)}</span>
+                                                <span className="text-sm text-gray-600">{subset.percentageOfProject}%</span>
+                                                <span className="text-sm text-gray-600">{subset.percentComplete}%</span>
+                                                <span className="text-sm text-gray-600">{subset.hoursUsed}</span>
+                                                <span className="text-sm text-gray-600 font-semibold">{formatCurrency(earned)}</span>
+                                                <span className="text-sm text-gray-600 font-semibold">{formatCurrency(actual)}</span>
+                                                <span className={`text-sm font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => {setEditingSubsetId(subset.id); setEditingSubsetData({...subset});}} className="text-blue-500 hover:text-blue-700">Edit</button>
+                                                    <button onClick={() => handleDeleteSubset(subset.id)} className="text-red-500 hover:text-red-700">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                            )})}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
+                            <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className="p-2 border rounded-md col-span-2" />
+                            <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className="p-2 border rounded-md">
+                                <option value="">Select Activity...</option>
+                                {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
+                            </select>
+                             <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className="p-2 border rounded-md" />
+                            <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className="p-2 border rounded-md" />
+                            <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className="p-2 border rounded-md" />
+                            <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className="p-2 border rounded-md" />
 
-                <tfoot className="bg-gray-100 font-bold">
-                    <tr>
-                        <td colSpan="2" className="p-2 text-right">Totals</td>
-                        <td className="p-2">{totals.estimated.toFixed(2)}</td>
-                        <td className="p-2"></td>
-                        <td className="p-2">{totals.used.toFixed(2)}</td>
-                        <td className="p-2">{totals.projected.toFixed(2)}</td>
-                        <td className="p-2"></td>
-                    </tr>
-                </tfoot>
-            </table>
+                            <button onClick={handleAddNewSubset} className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 col-span-2">Add Subset</button>
+                        </div>
+                    </div>
+                 )}
+            </div>
+
+
+            {/* --- Activity Tracker Section --- */}
+            <div className="bg-white p-4 rounded-lg border shadow-sm">
+                 <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-semibold">Activity Tracker</h3>
+                    <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
+                        Save All Changes
+                    </button>
+                 </div>
+                <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={() => handleToggleCollapse('sheetmetal')} project={project}/>
+                <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={() => handleToggleCollapse('piping')} project={project}/>
+                <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={() => handleToggleCollapse('plumbing')} project={project}/>
+                <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={() => handleToggleCollapse('bim')} project={project}/>
+                 <div className="bg-gray-100 font-bold p-2 flex justify-end gap-x-6">
+                    <span className="text-right">Totals:</span>
+                    <span>Est: {activityTotals.estimated.toFixed(2)}</span>
+                    <span>Used: {activityTotals.used.toFixed(2)}</span>
+                 </div>
+            </div>
         </div>
     );
 };
@@ -980,7 +1182,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
         return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
     }, [projects]);
     
-    const toggleActivityTracker = (projectId) => {
+    const toggleProjectDetail = (projectId) => {
         setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
     };
 
@@ -991,6 +1193,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
                 {sortedProjects.map(p => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     const isExpanded = expandedProjectId === p.id;
+                    const project = projects.find(proj => proj.id === p.id)
 
                     return (
                         <div key={p.id} className="bg-white p-4 rounded-lg border shadow-sm">
@@ -1000,10 +1203,10 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
                                     <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
                                 </div>
                                 <button
-                                    onClick={() => toggleActivityTracker(p.id)}
+                                    onClick={() => toggleProjectDetail(p.id)}
                                     className="text-sm text-blue-600 hover:underline flex items-center"
                                 >
-                                    Activity Tracker
+                                    Details
                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                                       <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                     </svg>
@@ -1026,7 +1229,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
                                     </ul>
                                 )}
                             </div>
-                            {isExpanded && <ActivityTracker projectId={p.id} />}
+                            {isExpanded && <ProjectDetailView project={project} projectId={p.id} />}
                         </div>
                     );
                 })}
@@ -1176,7 +1379,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
 
 const AdminConsole = ({ detailers, projects }) => {
     const [newDetailer, setNewDetailer] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-    const [newProject, setNewProject] = useState({ name: '', projectId: '' });
+    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
 
     const [editingDetailerId, setEditingDetailerId] = useState(null);
     const [editingDetailerData, setEditingDetailerData] = useState(null);
@@ -1201,8 +1404,13 @@ const AdminConsole = ({ detailers, projects }) => {
                  setTimeout(()=> setMessage(''), 3000);
                 return;
             }
-            await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), newProject);
-            setNewProject({ name: '', projectId: '' });
+            await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), {
+                ...newProject,
+                initialBudget: Number(newProject.initialBudget),
+                blendedRate: Number(newProject.blendedRate),
+                contingency: Number(newProject.contingency),
+            });
+            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
             setMessage('Project added.');
         }
         setTimeout(()=> setMessage(''), 3000);
@@ -1221,7 +1429,12 @@ const AdminConsole = ({ detailers, projects }) => {
         } else {
             setEditingDetailerId(null);
             setEditingProjectId(item.id);
-            setEditingProjectData({ ...item });
+            setEditingProjectData({ 
+                initialBudget: 0,
+                blendedRate: 0,
+                contingency: 0,
+                ...item 
+            });
         }
     };
 
@@ -1239,7 +1452,12 @@ const AdminConsole = ({ detailers, projects }) => {
             } else {
                 const { id, ...data } = editingProjectData;
                 const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, id);
-                await updateDoc(projectRef, data);
+                await updateDoc(projectRef, {
+                    ...data,
+                    initialBudget: Number(data.initialBudget),
+                    blendedRate: Number(data.blendedRate),
+                    contingency: Number(data.contingency),
+                });
             }
             handleCancel();
         } catch (error) {
@@ -1324,6 +1542,18 @@ const AdminConsole = ({ detailers, projects }) => {
                     <div className="space-y-2 mb-4">
                         <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
                         <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                         <div className="flex items-center gap-2">
+                            <label className="w-32">Initial Budget ($):</label>
+                            <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        </div>
+                         <div className="flex items-center gap-2">
+                            <label className="w-32">Blended Rate ($/hr):</label>
+                            <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        </div>
+                         <div className="flex items-center gap-2">
+                            <label className="w-32">Contingency ($):</label>
+                            <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        </div>
                     </div>
                     <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                 </div>
@@ -1334,6 +1564,18 @@ const AdminConsole = ({ detailers, projects }) => {
                                 <div className="space-y-2">
                                     <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
                                     <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Initial Budget ($):</label>
+                                        <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className="w-full p-2 border rounded-md"/>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Blended Rate ($/hr):</label>
+                                        <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className="w-full p-2 border rounded-md"/>
+                                    </div>
+                                     <div className="flex items-center gap-2">
+                                        <label className="w-32">Contingency ($):</label>
+                                        <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className="w-full p-2 border rounded-md"/>
+                                    </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
                                         <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
@@ -1341,7 +1583,10 @@ const AdminConsole = ({ detailers, projects }) => {
                                 </div>
                             ) : (
                                 <div className="flex justify-between items-center">
-                                    <span className="flex-grow pr-2">{p.name} ({p.projectId})</span>
+                                    <div>
+                                      <p>{p.name} ({p.projectId})</p>
+                                      <p className="text-sm text-gray-500">Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                    </div>
                                     <div className="flex gap-2 flex-shrink-0">
                                         <button onClick={() => handleEdit('project', p)} className="text-blue-600 hover:text-blue-800" disabled={isEditing}>Edit</button>
                                         <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
@@ -1715,7 +1960,7 @@ const GanttConsole = ({ projects, assignments }) => {
     );
 };
 
-const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment, task, detailers, projects }) => {
+const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment }) => {
     const [newComment, setNewComment] = useState('');
     const [author, setAuthor] = useState('');
     const [editingComment, setEditingComment] = useState(null);
@@ -1836,16 +2081,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         if (!newSubTask.name) return;
         
         const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
-        const updatedTaskData = {...taskData, subTasks: [...(taskData.subTasks || []), subTaskToAdd]};
-        setTaskData(updatedTaskData);
-
-        sendEmailNotification({
-            task: updatedTaskData,
-            change: `New sub-task added: "${subTaskToAdd.name}"`,
-            detailers,
-            projects
-        });
-        
+        setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
         setNewSubTask({ name: '', detailerId: '', dueDate: '' });
     };
 
@@ -1866,16 +2102,7 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
     
     const handleUpdateSubTask = () => {
         const updatedSubTasks = taskData.subTasks.map(st => st.id === editingSubTaskId ? editingSubTaskData : st);
-        const updatedTaskData = {...taskData, subTasks: updatedSubTasks};
-        setTaskData(updatedTaskData);
-        
-        sendEmailNotification({
-            task: updatedTaskData,
-            change: `Sub-task updated: "${editingSubTaskData.name}"`,
-            detailers,
-            projects
-        });
-        
+        setTaskData(prev => ({...prev, subTasks: updatedSubTasks}));
         handleCancelEditSubTask();
     };
     
@@ -1886,119 +2113,85 @@ const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMess
         if (completedCount > 0) {
             newStatus = completedCount === updatedSubTasks.length ? taskStatusOptions[2] : taskStatusOptions[1];
         }
-        const updatedTaskData = { ...taskData, subTasks: updatedSubTasks, status: newStatus };
-        setTaskData(updatedTaskData);
-        
-        const toggledSubTask = updatedSubTasks.find(st => st.id === subTaskId);
-        sendEmailNotification({
-            task: updatedTaskData,
-            change: `Sub-task "${toggledSubTask.name}" marked as ${toggledSubTask.isCompleted ? 'complete' : 'incomplete'}.`,
-            detailers,
-            projects
-        });
+        setTaskData(prev => ({ ...prev, subTasks: updatedSubTasks, status: newStatus }));
     };
     
     const handleDeleteSubTask = (subTaskId) => {
-        const subTaskToDelete = taskData.subTasks.find(st => st.id === subTaskId);
-        const updatedTaskData = { ...taskData, subTasks: taskData.subTasks.filter(st => st.id !== subTaskId) };
-        setTaskData(updatedTaskData);
-        sendEmailNotification({
-            task: updatedTaskData,
-            change: `Sub-task deleted: "${subTaskToDelete.name}"`,
-            detailers,
-            projects
-        });
+        setTaskData(prev => ({ ...prev, subTasks: taskData.subTasks.filter(st => st.id !== subTaskId) }));
     };
 
     const handleAddWatcher = () => {
       if (newWatcherId && !taskData.watchers.includes(newWatcherId)) {
-          const updatedTaskData = { ...taskData, watchers: [...taskData.watchers, newWatcherId] };
-          setTaskData(updatedTaskData);
-          const newWatcher = detailers.find(d => d.id === newWatcherId);
-          sendEmailNotification({
-              task: updatedTaskData,
-              change: `Watcher added: ${newWatcher.firstName} ${newWatcher.lastName}`,
-              detailers,
-              projects
-          });
+          setTaskData(prev => ({ ...prev, watchers: [...prev.watchers, newWatcherId] }));
           setNewWatcherId('');
       }
     };
 
     const handleRemoveWatcher = (watcherIdToRemove) => {
-        const watcher = detailers.find(d => d.id === watcherIdToRemove);
-        const updatedTaskData = {
-            ...taskData,
-            watchers: taskData.watchers.filter(id => id !== watcherIdToRemove)
-        };
-        setTaskData(updatedTaskData);
-        sendEmailNotification({
-            task: updatedTaskData,
-            change: `Watcher removed: ${watcher.firstName} ${watcher.lastName}`,
-            detailers,
-            projects
-        });
+        setTaskData(prev => ({
+            ...prev,
+            watchers: prev.watchers.filter(id => id !== watcherIdToRemove)
+        }));
     };
-    
-    const handleCommentAction = (action, payload) => {
-        const { comment, subTaskId } = payload;
-
-        const updateComments = (comments, newCommentData) => {
-            switch (action) {
-                case 'ADD':
-                    return [...(comments || []), newCommentData];
-                case 'UPDATE':
-                    return comments.map(c => c.id === newCommentData.id ? { ...c, text: newCommentData.text, timestamp: new Date().toISOString() } : c);
-                case 'DELETE':
-                    return comments.filter(c => c.id !== newCommentData.id);
-                default:
-                    return comments;
-            }
-        }
-
-        let updatedTaskData;
-        if (subTaskId) {
-            updatedTaskData = {
-                ...taskData,
-                subTasks: taskData.subTasks.map(st => st.id === subTaskId ? { ...st, comments: updateComments(st.comments, comment) } : st)
-            };
-        } else {
-            updatedTaskData = { ...taskData, comments: updateComments(taskData.comments, comment) };
-        }
-        setTaskData(updatedTaskData);
-        
-        // Send email for new comments
-        if(action === 'ADD') {
-            const subTask = subTaskId ? updatedTaskData.subTasks.find(st => st.id === subTaskId) : null;
-            const change = subTask 
-                ? `New comment on sub-task "${subTask.name}"`
-                : "New comment on task";
-
-            sendEmailNotification({
-                task: updatedTaskData,
-                change,
-                comment,
-                detailers,
-                projects
-            });
-        }
-    };
-
 
     const handleAddComment = (commentData, subTaskId = null) => {
         if (!commentData.text.trim() || !commentData.author || commentData.author.trim().length !== 3) {
             onSetMessage({ text: "A comment and 3-letter initials are required.", isError: true });
             return;
         }
-        handleCommentAction('ADD', { comment: commentData, subTaskId });
+
+        let updatedTaskData;
+        if (subTaskId) {
+            updatedTaskData = {
+                ...taskData,
+                subTasks: taskData.subTasks.map(st => st.id === subTaskId ? { ...st, comments: [...(st.comments || []), commentData] } : st)
+            };
+        } else {
+            updatedTaskData = { ...taskData, comments: [...(taskData.comments || []), commentData] };
+        }
+        setTaskData(updatedTaskData);
     };
 
     const handleUpdateComment = (commentId, newText, subTaskId = null) => {
-        handleCommentAction('UPDATE', { comment: { id: commentId, text: newText }, subTaskId });
+        let updatedTaskData;
+        if (subTaskId) {
+             updatedTaskData = {
+                ...taskData,
+                subTasks: taskData.subTasks.map(st => {
+                    if (st.id === subTaskId) {
+                        return { ...st, comments: st.comments.map(c => c.id === commentId ? {...c, text: newText} : c) }
+                    }
+                    return st;
+                })
+             }
+        } else {
+             updatedTaskData = {
+                ...taskData,
+                comments: taskData.comments.map(c => c.id === commentId ? {...c, text: newText} : c)
+             }
+        }
+        setTaskData(updatedTaskData);
     };
 
     const handleDeleteComment = (commentId, subTaskId = null) => {
-        handleCommentAction('DELETE', { comment: { id: commentId }, subTaskId });
+        let updatedTaskData;
+        if (subTaskId) {
+             updatedTaskData = {
+                ...taskData,
+                subTasks: taskData.subTasks.map(st => {
+                    if (st.id === subTaskId) {
+                        return { ...st, comments: st.comments.filter(c => c.id !== commentId) }
+                    }
+                    return st;
+                })
+             }
+        } else {
+             updatedTaskData = {
+                ...taskData,
+                comments: taskData.comments.filter(c => c.id !== commentId)
+             }
+        }
+        setTaskData(updatedTaskData);
     };
     
     if (!taskData) return null;
@@ -2237,25 +2430,12 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
                 }
                 const { id, ...data } = taskData;
                 data.laneId = newRequestsLane.id;
-                const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-                const newTask = { id: docRef.id, ...data };
-                sendEmailNotification({
-                    task: newTask,
-                    change: 'Task Created',
-                    detailers,
-                    projects
-                });
+                await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
                 showNotification("Task created!");
             } else {
                 const { id, ...data } = taskData;
                 const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
                 await updateDoc(taskRef, data);
-                sendEmailNotification({
-                    task: taskData,
-                    change: 'Task Details Updated',
-                    detailers,
-                    projects
-                });
                 showNotification("Task updated successfully!");
             }
             handleCloseModal();
@@ -2275,21 +2455,8 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
 
     const handleDrop = async (e, targetLaneId) => {
         const taskId = e.dataTransfer.getData("taskId");
-        const task = tasks.find(t => t.id === taskId);
-        const sourceLane = taskLanes.find(l => l.id === task.laneId);
-        const targetLane = taskLanes.find(l => l.id === targetLaneId);
-
-        if (sourceLane.id !== targetLane.id) {
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
-            await updateDoc(taskRef, { laneId: targetLaneId });
-
-            sendEmailNotification({
-                task,
-                change: `Task moved from "${sourceLane.name}" to "${targetLane.name}"`,
-                detailers,
-                projects
-            });
-        }
+        const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
+        await updateDoc(taskRef, { laneId: targetLaneId });
     };
 
     const handleAddLane = async () => {
