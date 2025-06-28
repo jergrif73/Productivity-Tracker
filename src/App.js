@@ -210,6 +210,7 @@ const App = () => {
     const [tasks, setTasks] = useState([]);
     const [taskLanes, setTaskLanes] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [authError, setAuthError] = useState(null);
 
     // Authentication state
     const [isPrivilegedUser, setIsPrivilegedUser] = useState(false);
@@ -217,29 +218,41 @@ const App = () => {
 
 
     useEffect(() => {
-        if (!auth) {
-            console.error("Firebase is not initialized. Check your configuration.");
+        if (!firebaseConfig.apiKey) {
+            setAuthError("Firebase configuration is missing. The app cannot start.");
             setLoading(false);
+            setIsAuthReady(true); 
             return;
-        };
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        }
+
+        if (!auth) {
+            setAuthError("Firebase could not be initialized. Please check the console for errors.");
+            setLoading(false);
+            setIsAuthReady(true);
+            return;
+        }
+
+        const unsubscribe = onAuthStateChanged(auth, user => {
             if (user) {
                 setUserId(user.uid);
                 setIsAuthReady(true);
             } else {
-                 try {
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
+                (async () => {
+                    try {
+                        if (initialAuthToken) {
+                           await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                           await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Anonymous sign-in failed", error);
+                        setAuthError("Could not authenticate. Please refresh the page.");
+                        setIsAuthReady(true); 
                     }
-                } catch (error) {
-                    console.error("Authentication failed:", error);
-                } finally {
-                     setIsAuthReady(true);
-                }
+                })();
             }
         });
+
         return () => unsubscribe();
     }, []);
 
@@ -427,7 +440,13 @@ const App = () => {
                     </div>
                 </header>
                 <main className={`flex-grow overflow-y-auto ${view === 'tasks' ? 'bg-gray-800' : 'p-4 bg-gray-50'}`}>
-                    {isAuthReady ? renderView() : <div className="text-center p-10">Authenticating...</div>}
+                    {authError ? (
+                        <div className="text-center p-10 text-red-500">{authError}</div>
+                    ) : isAuthReady ? (
+                         renderView()
+                    ) : (
+                        <div className="text-center p-10">Authenticating...</div>
+                    )}
                 </main>
                  <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-gray-400' : 'text-gray-500'}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
@@ -1135,7 +1154,7 @@ const ProjectDetailView = ({ project, projectId }) => {
                             )})}
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
-                            <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className="p-2 border rounded-md col-span-2" />
+                             <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className="p-2 border rounded-md col-span-2" />
                             <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className="p-2 border rounded-md">
                                 <option value="">Select Activity...</option>
                                 {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
