@@ -4,11 +4,31 @@ import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, q
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import * as d3 from 'd3';
 
-// --- Helper Functions & Initial Data ---
+// --- Firebase Configuration ---
+const firebaseConfig = {
+  apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
+  authDomain: "productivity-tracker-3017d.firebaseapp.com",
+  projectId: "productivity-tracker-3017d",
+  storageBucket: "productivity-tracker-3017d.appspot.com",
+  messagingSenderId: "489412895343",
+  appId: "1:489412895343:web:780e7717db122a2b99639a",
+  measurementId: "G-LGTREWPTGJ"
+};
 
+// --- Firebase Initialization ---
+let db, auth;
+try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+} catch (e) {
+    console.error("Error initializing Firebase:", e);
+}
+
+
+// --- Helper Functions & Initial Data ---
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
-const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {};
 
 const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
@@ -103,17 +123,6 @@ const initialActivityData = [
     { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0 },
     { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0 },
 ];
-
-let db, auth;
-try {
-  if (firebaseConfig.apiKey) {
-      const app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-      auth = getAuth(app);
-  }
-} catch (e) {
-    console.error("Error initializing Firebase:", e);
-}
 
 // --- React Components ---
 
@@ -211,24 +220,17 @@ const App = () => {
     const [taskLanes, setTaskLanes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
-
+    
     // Authentication state
     const [isPrivilegedUser, setIsPrivilegedUser] = useState(false);
     const [loginError, setLoginError] = useState('');
 
 
     useEffect(() => {
-        if (!firebaseConfig.apiKey) {
-            setAuthError("Firebase configuration is missing. The app cannot start.");
-            setLoading(false);
-            setIsAuthReady(true); 
-            return;
-        }
-
         if (!auth) {
-            setAuthError("Firebase could not be initialized. Please check the console for errors.");
-            setLoading(false);
+            setAuthError("Firebase configuration is missing or invalid. The app cannot start.");
             setIsAuthReady(true);
+            setLoading(false);
             return;
         }
 
@@ -244,10 +246,13 @@ const App = () => {
                         } else {
                            await signInAnonymously(auth);
                         }
+                        if (auth.currentUser) {
+                           setIsAuthReady(true);
+                        }
                     } catch (error) {
-                        console.error("Anonymous sign-in failed", error);
+                        console.error("Authentication failed", error);
                         setAuthError("Could not authenticate. Please refresh the page.");
-                        setIsAuthReady(true); 
+                        setIsAuthReady(true);
                     }
                 })();
             }
@@ -256,7 +261,7 @@ const App = () => {
         return () => unsubscribe();
     }, []);
 
-    const seedInitialData = async () => {
+    const seedInitialData = useCallback(async () => {
         if (!db) return;
         const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
         const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
@@ -305,7 +310,7 @@ const App = () => {
             });
             await batch.commit();
         }
-    };
+    }, []);
 
     useEffect(() => {
         if (!isAuthReady || !db) return;
@@ -337,7 +342,7 @@ const App = () => {
             unsubTasks();
             unsubTaskLanes();
         };
-    }, [isAuthReady]);
+    }, [isAuthReady, seedInitialData]);
 
     // --- Authentication and Navigation Handlers ---
     const protectedViews = ['detailers', 'skills', 'admin'];
@@ -387,21 +392,21 @@ const App = () => {
 
         switch (view) {
             case 'detailers':
-                return <DetailerConsole detailers={detailers} projects={projects} assignments={assignments} />;
+                return <DetailerConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
             case 'projects':
-                return <ProjectConsole detailers={detailers} projects={projects} assignments={assignments} />;
+                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
             case 'workloader':
                 return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} />;
             case 'tasks':
-                return <TaskConsole tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} />;
+                return <TaskConsole db={db} tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} />;
              case 'gantt':
                 return <GanttConsole projects={projects} assignments={assignments} />;
             case 'skills':
-                return <SkillsConsole detailers={detailers} />;
+                return <SkillsConsole db={db} detailers={detailers} />;
             case 'admin':
-                return <AdminConsole detailers={detailers} projects={projects} />;
+                return <AdminConsole db={db} detailers={detailers} projects={projects} />;
             default:
-                return <ProjectConsole detailers={detailers} projects={projects} assignments={assignments} />;
+                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
         }
     };
 
@@ -458,7 +463,7 @@ const App = () => {
 
 
 // --- Console Components ---
-const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onUpdate, onDelete }) => {
+const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete }) => {
     const sortedProjects = useMemo(() => {
         return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
     }, [projects]);
@@ -503,7 +508,7 @@ const InlineAssignmentEditor = ({ assignment, projects, detailerDisciplines, onU
     );
 };
 
-const DetailerConsole = ({ detailers, projects, assignments }) => {
+const DetailerConsole = ({ db, detailers, projects, assignments }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [newAssignments, setNewAssignments] = useState({}); // { detailerId: [newAssignmentObj, ...] }
@@ -658,10 +663,10 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
                                         <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
                                             <h4 className="font-semibold text-gray-700 mb-2">All Project Assignments</h4>
                                             {detailerAssignments.length > 0 ? detailerAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
                                             )) : <p className="text-sm text-gray-500">No assignments to display.</p>}
                                              {detailerNewAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(d.id, upd)} onDelete={() => handleDeleteNewAssignment(d.id, asn.id)} />
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(d.id, upd)} onDelete={() => handleDeleteNewAssignment(d.id, asn.id)} />
                                             ))}
                                             <button onClick={() => handleAddNewAssignment(d.id)} className="text-sm text-blue-600 hover:underline">+ Add Project/Trade</button>
                                         </div>
@@ -679,7 +684,7 @@ const DetailerConsole = ({ detailers, projects, assignments }) => {
 
             {viewingSkillsFor && (
                 <Modal onClose={() => setViewingSkillsFor(null)}>
-                    <SkillsConsole detailers={[viewingSkillsFor]} singleDetailerMode={true} />
+                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} />
                 </Modal>
             )}
         </div>
@@ -716,13 +721,6 @@ const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete,
 
 
 const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project }) => {
-    const calculateProjectedHours = (activity) => {
-        const hoursUsed = Number(activity.hoursUsed) || 0;
-        const percentComplete = Number(activity.percentComplete) || 0;
-        if (!percentComplete || percentComplete === 0) return 0;
-        return (hoursUsed / percentComplete) * 100;
-    };
-    
     return (
         <div className="border-b">
             <button
@@ -759,7 +757,6 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                                     index={index}
                                     onChange={onChange}
                                     onDelete={onDelete}
-                                    calculateProjectedHours={calculateProjectedHours}
                                     project={project}
                                 />
                             ))}
@@ -775,7 +772,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
 });
 
 const FinancialSummary = ({ project, activityTotals }) => {
-    if (!project) return null;
+    if (!project || !activityTotals) return null;
 
     const initialBudget = project.initialBudget || 0;
     const contingency = project.contingency || 0;
@@ -823,7 +820,7 @@ const FinancialSummary = ({ project, activityTotals }) => {
 }
 
 const HourSummary = ({ project, activityTotals }) => {
-    if (!project) return null;
+    if (!project || !activityTotals) return null;
 
     const totalBudgetHours = (project.initialBudget || 0) / (project.blendedRate || 1);
     const allocatedHours = activityTotals.estimated;
@@ -847,7 +844,7 @@ const HourSummary = ({ project, activityTotals }) => {
     )
 }
 
-const ProjectDetailView = ({ project, projectId }) => {
+const ProjectDetailView = ({ db, project, projectId }) => {
     const [draftData, setDraftData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
@@ -861,7 +858,7 @@ const ProjectDetailView = ({ project, projectId }) => {
         bim: true
     });
 
-    const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId]);
+    const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db]);
 
     const allActivitiesList = useMemo(() => {
         if (!draftData) return [];
@@ -1062,7 +1059,7 @@ const ProjectDetailView = ({ project, projectId }) => {
     };
 
     const activityTotals = useMemo(() => {
-        if (!draftData) return { estimated: 0, used: 0 };
+        if (!draftData) return null;
         const allActivities = Object.values(draftData.activities).flat();
         return allActivities.reduce((acc, activity) => {
             acc.estimated += Number(activity.estimatedHours || 0);
@@ -1071,7 +1068,7 @@ const ProjectDetailView = ({ project, projectId }) => {
         }, { estimated: 0, used: 0 });
     }, [draftData]);
 
-    if (loading || !draftData) return <div className="p-4 text-center">Loading Project Details...</div>;
+    if (loading || !draftData || !project || !activityTotals) return <div className="p-4 text-center">Loading Project Details...</div>;
     
     return (
         <div className="space-y-6 mt-4 border-t pt-4">
@@ -1248,7 +1245,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
                                     </ul>
                                 )}
                             </div>
-                            {isExpanded && <ProjectDetailView project={project} projectId={p.id} />}
+                            {isExpanded && <ProjectDetailView db={db} project={project} projectId={p.id} />}
                         </div>
                     );
                 })}
@@ -1257,7 +1254,7 @@ const ProjectConsole = ({ detailers, projects, assignments }) => {
     );
 };
 
-const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
+const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
     const [selectedDetailerId, setSelectedDetailerId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableDetailer, setEditableDetailer] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
@@ -1396,7 +1393,7 @@ const SkillsConsole = ({ detailers, singleDetailerMode = false }) => {
 };
 
 
-const AdminConsole = ({ detailers, projects }) => {
+const AdminConsole = ({ db, detailers, projects }) => {
     const [newDetailer, setNewDetailer] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
 
@@ -2063,7 +2060,7 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
 };
 
 
-const TaskDetailModal = ({ task, projects, detailers, onSave, onClose, onSetMessage, onDelete }) => {
+const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
@@ -2401,7 +2398,7 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
 };
 
 
-const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
+const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
     const [notification, setNotification] = useState(null);
@@ -2574,6 +2571,7 @@ const TaskConsole = ({ tasks, detailers, projects, taskLanes }) => {
              </div>
             {isModalOpen && (
                 <TaskDetailModal
+                    db={db}
                     task={editingTask}
                     detailers={detailers}
                     projects={projects}

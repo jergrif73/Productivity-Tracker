@@ -1,5 +1,5 @@
 git add .
-git commit -m "Enhanced Activity Tracker"
+git commit -m "Updated Activity Tracker"
 git push origin main
 
 
