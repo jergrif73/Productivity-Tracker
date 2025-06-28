@@ -441,7 +441,7 @@ const App = () => {
             case 'detailers':
                 return <DetailerConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
             case 'projects':
-                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
+                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} />;
             case 'workloader':
                 return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} />;
             case 'tasks':
@@ -776,6 +776,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
             <button
                 onClick={onToggle}
                 className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}
+                disabled={onToggle === null}
             >
                 <span>{title}</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -894,7 +895,7 @@ const HourSummary = ({ project, activityTotals }) => {
     )
 }
 
-const ProjectDetailView = ({ db, project, projectId }) => {
+const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
     const [draftData, setDraftData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
@@ -1120,6 +1121,8 @@ const ProjectDetailView = ({ db, project, projectId }) => {
 
     if (loading || !draftData || !project || !activityTotals) return <div className="p-4 text-center">Loading Project Details...</div>;
     
+    const isPCL = accessLevel === 'pcl';
+
     return (
         <div className="space-y-6 mt-4 border-t pt-4">
              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1226,10 +1229,10 @@ const ProjectDetailView = ({ db, project, projectId }) => {
                         Save All Changes
                     </button>
                  </div>
-                <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={() => handleToggleCollapse('sheetmetal')} project={project}/>
-                <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={() => handleToggleCollapse('piping')} project={project}/>
-                <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={() => handleToggleCollapse('plumbing')} project={project}/>
-                <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={() => handleToggleCollapse('bim')} project={project}/>
+                <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.sheetmetal} onToggle={isPCL ? null : () => handleToggleCollapse('sheetmetal')} project={project}/>
+                <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.piping} onToggle={isPCL ? null : () => handleToggleCollapse('piping')} project={project}/>
+                <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.plumbing} onToggle={isPCL ? null : () => handleToggleCollapse('plumbing')} project={project}/>
+                <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.bim} onToggle={isPCL ? null : () => handleToggleCollapse('bim')} project={project}/>
                  <div className="bg-gray-100 font-bold p-2 flex justify-end gap-x-6">
                     <span className="text-right">Totals:</span>
                     <span>Est: {activityTotals.estimated.toFixed(2)}</span>
@@ -1241,7 +1244,7 @@ const ProjectDetailView = ({ db, project, projectId }) => {
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
 
     const sortedProjects = useMemo(() => {
@@ -1295,7 +1298,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments }) => {
                                     </ul>
                                 )}
                             </div>
-                            {isExpanded && <ProjectDetailView db={db} project={project} projectId={p.id} />}
+                            {isExpanded && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />}
                         </div>
                     );
                 })}
