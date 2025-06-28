@@ -129,20 +129,27 @@ const initialActivityData = [
 const LoginInline = ({ onLogin, error }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [localError, setLocalError] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if(password !== confirmPassword) {
+            setLocalError('Passwords do not match.');
+            return;
+        }
+        setLocalError('');
         onLogin(username, password);
     };
 
     return (
-        <form onSubmit={handleSubmit} className="flex items-center gap-2 p-2 bg-gray-100 rounded-lg">
-            <input
+        <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4 p-6 bg-slate-800/50 rounded-lg shadow-xl w-full max-w-sm backdrop-blur-sm">
+             <input
                 type="text"
                 placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="px-2 py-1 border rounded-md text-sm"
+                className="w-full px-4 py-2 border rounded-md text-sm text-gray-800 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 required
             />
             <input
@@ -150,16 +157,44 @@ const LoginInline = ({ onLogin, error }) => {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="px-2 py-1 border rounded-md text-sm"
+                className="w-full px-4 py-2 border rounded-md text-sm text-gray-800 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 required
             />
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm">
+             <input
+                type="password"
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2 border rounded-md text-sm text-gray-800 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+            />
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors">
                 Login
             </button>
-            {error && <p className="text-red-500 text-xs ml-2">{error}</p>}
+            {localError && <p className="text-red-400 text-xs mt-2">{localError}</p>}
+            {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
         </form>
     );
 };
+
+const SplashScreen = ({ onLogin, error }) => {
+    return (
+        <div className="relative h-screen w-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-700 overflow-hidden">
+            {/* Abstract Shapes */}
+            <div className="absolute top-0 -left-1/4 w-96 h-96 bg-blue-400/30 rounded-full filter blur-3xl opacity-50 animate-pulse"></div>
+            <div className="absolute bottom-0 -right-1/4 w-96 h-96 bg-gray-500/30 rounded-full filter blur-3xl opacity-50 animate-pulse" style={{animationDelay: '2s'}}></div>
+            <div className="absolute -bottom-1/2 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full filter blur-3xl opacity-40 animate-pulse" style={{animationDelay: '4s'}}></div>
+
+            <div className="relative z-10 flex flex-col items-center justify-center text-center p-8">
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-8" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.7)'}}>
+                    NW Detailing Productivity Tracker
+                </h1>
+                <LoginInline onLogin={onLogin} error={error} />
+            </div>
+        </div>
+    );
+};
+
 
 const BubbleRating = ({ score, onScoreChange }) => {
     return (
@@ -210,7 +245,7 @@ const Tooltip = ({ text, children }) => {
 
 // --- Main Application Component ---
 const App = () => {
-    const [view, setView] = useState('projects'); // Default to a non-protected view
+    const [view, setView] = useState('projects');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
     const [detailers, setDetailers] = useState([]);
@@ -221,10 +256,9 @@ const App = () => {
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     
-    // Authentication state
-    const [isPrivilegedUser, setIsPrivilegedUser] = useState(false);
+    const [accessLevel, setAccessLevel] = useState('default');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
-
 
     useEffect(() => {
         if (!auth) {
@@ -345,25 +379,35 @@ const App = () => {
     }, [isAuthReady, seedInitialData]);
 
     // --- Authentication and Navigation Handlers ---
-    const protectedViews = ['detailers', 'skills', 'admin'];
-
-    const handleNavClick = (viewId) => {
-        setView(viewId);
-    };
-
     const handleLoginAttempt = (username, password) => {
         if (username === 'Taskmaster' && password === 'Taskmaster1234') {
-            setIsPrivilegedUser(true);
+            setAccessLevel('taskmaster');
+            setView('detailers');
+            setIsLoggedIn(true);
             setLoginError('');
-            setView('detailers'); // Navigate to a protected view after login
+        } else if (username === 'PCL' && password === 'PCL1234') {
+            setAccessLevel('pcl');
+            setView('projects');
+            setIsLoggedIn(true);
+            setLoginError('');
+        } else if (username === 'Viewer' && password === 'Viewer8765') {
+            setAccessLevel('viewer');
+            setView('workloader');
+            setIsLoggedIn(true);
+            setLoginError('');
         } else {
             setLoginError('Invalid username or password.');
         }
     };
 
     const handleLogout = () => {
-        setIsPrivilegedUser(false);
-        setView('projects'); // Redirect to a safe, public view
+        setAccessLevel('default');
+        setIsLoggedIn(false);
+        setView('projects');
+    };
+
+    const handleNavClick = (viewId) => {
+        setView(viewId);
     };
     
     const navButtons = [
@@ -376,21 +420,24 @@ const App = () => {
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
     ];
     
-    const visibleNavButtons = isPrivilegedUser
-        ? navButtons
-        : navButtons.filter(button => !protectedViews.includes(button.id));
+    const navConfig = {
+        taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'skills', 'admin'],
+        pcl: ['projects', 'workloader', 'tasks', 'gantt'],
+        viewer: ['workloader', 'tasks'],
+        default: [] // No nav buttons when not logged in
+    };
 
+    const visibleNavButtons = navButtons.filter(button => 
+        navConfig[accessLevel]?.includes(button.id)
+    );
 
     const renderView = () => {
         if (loading) return <div className="text-center p-10">Loading data...</div>;
-        if (!db || !auth) return <div className="text-center p-10 text-red-500">Error: Firebase not initialized. Please check your configuration.</div>;
         
-        // If view is protected and user is not privileged, show the public project view instead.
-        if (protectedViews.includes(view) && !isPrivilegedUser) {
-            return <ProjectConsole detailers={detailers} projects={projects} assignments={assignments} />;
-        }
-
-        switch (view) {
+        const allowedViews = navConfig[accessLevel];
+        const currentView = allowedViews?.includes(view) ? view : allowedViews[0];
+        
+        switch (currentView) {
             case 'detailers':
                 return <DetailerConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
             case 'projects':
@@ -406,9 +453,22 @@ const App = () => {
             case 'admin':
                 return <AdminConsole db={db} detailers={detailers} projects={projects} />;
             default:
-                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
+                 // This should not be reached if logged in, but provides a safe fallback.
+                 return <div className="text-center p-10">Select a view from the navigation.</div>
         }
     };
+
+    if (!isAuthReady) {
+        return <div className="text-center p-10">Authenticating...</div>;
+    }
+
+    if (authError) {
+         return <div className="text-center p-10 text-red-500">{authError}</div>;
+    }
+    
+    if (!isLoggedIn) {
+        return <SplashScreen onLogin={handleLoginAttempt} error={loginError} />;
+    }
 
     return (
         <div style={{ fontFamily: 'Arial, sans-serif' }} className="bg-gray-100 min-h-screen">
@@ -432,26 +492,16 @@ const App = () => {
                         </nav>
                     </div>
                     <div className="flex justify-center items-center">
-                        {isPrivilegedUser ? (
-                            <button
+                         <button
                                 onClick={handleLogout}
                                 className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-red-600 transition-colors"
                             >
-                                Logout
+                                Logout ({accessLevel})
                             </button>
-                        ) : (
-                            <LoginInline onLogin={handleLoginAttempt} error={loginError} />
-                        )}
                     </div>
                 </header>
                 <main className={`flex-grow overflow-y-auto ${view === 'tasks' ? 'bg-gray-800' : 'p-4 bg-gray-50'}`}>
-                    {authError ? (
-                        <div className="text-center p-10 text-red-500">{authError}</div>
-                    ) : isAuthReady ? (
-                         renderView()
-                    ) : (
-                        <div className="text-center p-10">Authenticating...</div>
-                    )}
+                   {renderView()}
                 </main>
                  <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-gray-400' : 'text-gray-500'}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
@@ -1191,7 +1241,7 @@ const ProjectDetailView = ({ db, project, projectId }) => {
 };
 
 
-const ProjectConsole = ({ detailers, projects, assignments }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
 
     const sortedProjects = useMemo(() => {
