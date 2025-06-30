@@ -411,7 +411,7 @@ const App = () => {
     };
     
     const navButtons = [
-        { id: 'detailers', label: 'Detailer', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
+        { id: 'detailers', label: 'Team', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
         { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
@@ -439,7 +439,7 @@ const App = () => {
         
         switch (currentView) {
             case 'detailers':
-                return <DetailerConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
+                return <TeamConsole db={db} employees={detailers} projects={projects} assignments={assignments} />;
             case 'projects':
                 return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} />;
             case 'workloader':
@@ -449,9 +449,9 @@ const App = () => {
              case 'gantt':
                 return <GanttConsole projects={projects} assignments={assignments} />;
             case 'skills':
-                return <SkillsConsole db={db} detailers={detailers} />;
+                return <SkillsConsole db={db} employees={detailers} />;
             case 'admin':
-                return <AdminConsole db={db} detailers={detailers} projects={projects} />;
+                return <AdminConsole db={db} employees={detailers} projects={projects} />;
             default:
                  // This should not be reached if logged in, but provides a safe fallback.
                  return <div className="text-center p-10">Select a view from the navigation.</div>
@@ -558,11 +558,11 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const DetailerConsole = ({ db, detailers, projects, assignments }) => {
+const TeamConsole = ({ db, employees, projects, assignments }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
-    const [newAssignments, setNewAssignments] = useState({}); // { detailerId: [newAssignmentObj, ...] }
-    const [expandedDetailerId, setExpandedDetailerId] = useState(null);
+    const [newAssignments, setNewAssignments] = useState({}); // { employeeId: [newAssignmentObj, ...] }
+    const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
 
     const getMostRecentMonday = () => {
         const today = new Date();
@@ -572,14 +572,14 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
         return monday.toISOString().split('T')[0];
     };
     
-    const sortedDetailers = useMemo(() => {
-        return [...detailers].sort((a, b) => {
+    const sortedEmployees = useMemo(() => {
+        return [...employees].sort((a, b) => {
             if (sortBy === 'firstName') return a.firstName.localeCompare(b.firstName);
             return a.lastName.localeCompare(b.lastName);
         });
-    }, [detailers, sortBy]);
+    }, [employees, sortBy]);
 
-    const handleAddNewAssignment = (detailerId) => {
+    const handleAddNewAssignment = (employeeId) => {
         const newAsn = {
             id: `new_${Date.now()}`, // temp id
             projectId: '',
@@ -591,32 +591,32 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
         };
         setNewAssignments(prev => ({
             ...prev,
-            [detailerId]: [...(prev[detailerId] || []), newAsn],
+            [employeeId]: [...(prev[employeeId] || []), newAsn],
         }));
     };
     
-    const handleUpdateNewAssignment = (detailerId, updatedAsn) => {
-        const toUpdate = (newAssignments[detailerId] || []).map(asn => asn.id === updatedAsn.id ? updatedAsn : asn);
-        setNewAssignments(prev => ({ ...prev, [detailerId]: toUpdate }));
+    const handleUpdateNewAssignment = (employeeId, updatedAsn) => {
+        const toUpdate = (newAssignments[employeeId] || []).map(asn => asn.id === updatedAsn.id ? updatedAsn : asn);
+        setNewAssignments(prev => ({ ...prev, [employeeId]: toUpdate }));
 
         // Check if ready to save
         if(updatedAsn.projectId && updatedAsn.startDate && updatedAsn.endDate && updatedAsn.trade && updatedAsn.activity && updatedAsn.allocation) {
             const { id, ...payload } = updatedAsn;
-            const finalPayload = { ...payload, detailerId, allocation: Number(payload.allocation) };
+            const finalPayload = { ...payload, detailerId: employeeId, allocation: Number(payload.allocation) };
 
             addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload)
                 .then(() => {
                     // remove from new assignments state
-                    const remaining = (newAssignments[detailerId] || []).filter(a => a.id !== updatedAsn.id);
-                    setNewAssignments(prev => ({ ...prev, [detailerId]: remaining }));
+                    const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== updatedAsn.id);
+                    setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
                 })
                 .catch(e => console.error("Error saving new assignment:", e));
         }
     };
     
-    const handleDeleteNewAssignment = (detailerId, assignmentId) => {
-        const remaining = (newAssignments[detailerId] || []).filter(a => a.id !== assignmentId);
-        setNewAssignments(prev => ({ ...prev, [detailerId]: remaining }));
+    const handleDeleteNewAssignment = (employeeId, assignmentId) => {
+        const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== assignmentId);
+        setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
     };
 
     const handleUpdateExistingAssignment = async (assignment) => {
@@ -636,8 +636,8 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
     }
     
-    const toggleDetailer = (detailerId) => {
-        setExpandedDetailerId(prevId => prevId === detailerId ? null : detailerId);
+    const toggleEmployee = (employeeId) => {
+        setExpandedEmployeeId(prevId => prevId === employeeId ? null : employeeId);
     };
 
     return (
@@ -650,12 +650,12 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
             
             <div className="bg-white rounded-lg p-4 space-y-2">
                 <div className="hidden md:grid grid-cols-12 gap-4 font-bold text-sm text-gray-600 px-4 py-2">
-                    <div className="col-span-3">DETAILER</div>
+                    <div className="col-span-3">EMPLOYEE</div>
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
                 </div>
-                {sortedDetailers.map(d => {
-                    const detailerAssignments = assignments.filter(a => a.detailerId === d.id);
+                {sortedEmployees.map(employee => {
+                    const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
                     
                     const today = new Date();
                     const dayOfWeek = today.getDay();
@@ -667,7 +667,7 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
                     weekEnd.setDate(weekStart.getDate() + 6);
                     weekEnd.setHours(23, 59, 59, 999);
                     
-                    const weeklyAssignments = detailerAssignments.filter(a => {
+                    const weeklyAssignments = employeeAssignments.filter(a => {
                         if (!a.startDate || !a.endDate) return false;
                         const assignStart = new Date(a.startDate);
                         const assignEnd = new Date(a.endDate);
@@ -675,26 +675,26 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
                     });
 
                     const weeklyAllocation = weeklyAssignments.reduce((sum, a) => sum + Number(a.allocation || 0), 0);
-                    const detailerNewAssignments = newAssignments[d.id] || [];
-                    const isExpanded = expandedDetailerId === d.id;
+                    const employeeNewAssignments = newAssignments[employee.id] || [];
+                    const isExpanded = expandedEmployeeId === employee.id;
 
                     return (
-                        <div key={d.id} className="bg-white rounded-lg shadow">
+                        <div key={employee.id} className="bg-white rounded-lg shadow">
                             <div 
                                 className="grid grid-cols-12 gap-4 items-center p-4 cursor-pointer"
-                                onClick={() => toggleDetailer(d.id)}
+                                onClick={() => toggleEmployee(employee.id)}
                             >
                                 <div className="col-span-11 md:col-span-3">
-                                    <p className="font-bold">{d.firstName} {d.lastName}</p>
-                                    <p className="text-sm text-gray-600">{d.title || 'N/A'}</p>
-                                    <p className="text-xs text-gray-500">ID: {d.employeeId}</p>
-                                    <a href={`mailto:${d.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-600 hover:underline">{d.email}</a>
-                                    <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(d);}} className="text-sm text-blue-600 hover:underline mt-2 block">View Skills</button>
+                                    <p className="font-bold">{employee.firstName} {employee.lastName}</p>
+                                    <p className="text-sm text-gray-600">{employee.title || 'N/A'}</p>
+                                    <p className="text-xs text-gray-500">ID: {employee.employeeId}</p>
+                                    <a href={`mailto:${employee.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-600 hover:underline">{employee.email}</a>
+                                    <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(employee);}} className="text-sm text-blue-600 hover:underline mt-2 block">View Skills</button>
                                 </div>
                                 <div className="hidden md:col-span-7 md:block">
                                     {!isExpanded && (
                                         <p className="text-sm text-gray-500">
-                                            {detailerAssignments.length > 0 ? `${detailerAssignments.length} total assignment(s)` : 'No assignments'}
+                                            {employeeAssignments.length > 0 ? `${employeeAssignments.length} total assignment(s)` : 'No assignments'}
                                         </p>
                                     )}
                                 </div>
@@ -712,13 +712,13 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
                                     <div className="grid grid-cols-12 gap-4 items-start">
                                         <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
                                             <h4 className="font-semibold text-gray-700 mb-2">All Project Assignments</h4>
-                                            {detailerAssignments.length > 0 ? detailerAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
+                                            {employeeAssignments.length > 0 ? employeeAssignments.map(asn => (
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
                                             )) : <p className="text-sm text-gray-500">No assignments to display.</p>}
-                                             {detailerNewAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={d.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(d.id, upd)} onDelete={() => handleDeleteNewAssignment(d.id, asn.id)} />
+                                             {employeeNewAssignments.map(asn => (
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} />
                                             ))}
-                                            <button onClick={() => handleAddNewAssignment(d.id)} className="text-sm text-blue-600 hover:underline">+ Add Project/Trade</button>
+                                            <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-600 hover:underline">+ Add Project/Trade</button>
                                         </div>
                                          <div className="col-span-12 md:col-span-2 text-right md:hidden">
                                             <p className="font-semibold">Current Week %</p>
@@ -734,7 +734,7 @@ const DetailerConsole = ({ db, detailers, projects, assignments }) => {
 
             {viewingSkillsFor && (
                 <Modal onClose={() => setViewingSkillsFor(null)}>
-                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} />
+                    <SkillsConsole db={db} employees={[viewingSkillsFor]} singleDetailerMode={true} />
                 </Modal>
             )}
         </div>
@@ -1160,7 +1160,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                 {!collapsedSections.projectBreakdown && (
                     <div className="p-4">
                         <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
-                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
+                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-4' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
                                 <span className="col-span-2">Name</span>
                                 <span className="col-span-1">Activity</span>
                                 {!isPCL && <span className="col-span-1">Budget ($)</span>}
@@ -1181,7 +1181,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                                 const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
                                 const productivity = actual > 0 ? earned / actual : 0;
                                 return (
-                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-5' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 bg-gray-50 rounded-md`}>
+                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-4' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 bg-gray-50 rounded-md`}>
                                         {editingSubsetId === subset.id && !isPCL ? (
                                             <>
                                                 <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className="p-1 border rounded col-span-2"/>
@@ -1349,33 +1349,33 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
     );
 };
 
-const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
-    const [selectedDetailerId, setSelectedDetailerId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
-    const [editableDetailer, setEditableDetailer] = useState(null);
+const SkillsConsole = ({ db, employees, singleDetailerMode = false }) => {
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && employees[0] ? employees[0].id : '');
+    const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
     const [saveMessage, setSaveMessage] = useState('');
 
     useEffect(() => {
-        const detailer = detailers.find(d => d.id === selectedDetailerId);
-        if (detailer) {
-            setEditableDetailer({ ...detailer });
+        const employee = employees.find(d => d.id === selectedEmployeeId);
+        if (employee) {
+            setEditableEmployee({ ...employee });
         } else {
-            setEditableDetailer(null);
+            setEditableEmployee(null);
         }
-    }, [selectedDetailerId, detailers]);
+    }, [selectedEmployeeId, employees]);
 
     const handleSkillChange = (skillName, score) => {
-        setEditableDetailer(prev => ({
+        setEditableEmployee(prev => ({
             ...prev,
             skills: { ...prev.skills, [skillName]: score }
         }));
     };
     
     const handleAddDiscipline = () => {
-        if (newDiscipline && editableDetailer) {
-            const currentDisciplines = editableDetailer.disciplineSkillsets || {};
+        if (newDiscipline && editableEmployee) {
+            const currentDisciplines = editableEmployee.disciplineSkillsets || {};
             if (!currentDisciplines.hasOwnProperty(newDiscipline)) {
-                setEditableDetailer(prev => ({
+                setEditableEmployee(prev => ({
                     ...prev,
                     disciplineSkillsets: { ...(prev.disciplineSkillsets || {}), [newDiscipline]: 0 }
                 }));
@@ -1385,14 +1385,14 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
     };
     
     const handleRemoveDiscipline = (disciplineToRemove) => {
-        setEditableDetailer(prev => {
+        setEditableEmployee(prev => {
             const { [disciplineToRemove]: _, ...remaining } = prev.disciplineSkillsets;
             return { ...prev, disciplineSkillsets: remaining };
         });
     };
     
     const handleDisciplineRatingChange = (name, score) => {
-        setEditableDetailer(prev => ({
+        setEditableEmployee(prev => ({
             ...prev,
             disciplineSkillsets: {
                 ...prev.disciplineSkillsets,
@@ -1402,43 +1402,43 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
     };
 
     const handleSaveChanges = async () => {
-        if (!db || !editableDetailer) return;
-        const detailerRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableDetailer.id);
-        const { id, ...dataToSave } = editableDetailer;
-        await setDoc(detailerRef, dataToSave, { merge: true });
+        if (!db || !editableEmployee) return;
+        const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableEmployee.id);
+        const { id, ...dataToSave } = editableEmployee;
+        await setDoc(employeeRef, dataToSave, { merge: true });
         setSaveMessage("Changes saved successfully!");
         setTimeout(() => setSaveMessage(''), 3000);
     };
     
     return (
         <div>
-            <h2 className="text-xl font-bold mb-4">Modify Detailer Skills & Info</h2>
+            <h2 className="text-xl font-bold mb-4">Modify Employee Skills & Info</h2>
             {!singleDetailerMode && (
                 <div className="mb-4">
-                    <select onChange={e => setSelectedDetailerId(e.target.value)} value={selectedDetailerId} className="w-full max-w-xs p-2 border rounded-md">
-                        <option value="" disabled>Select a detailer...</option>
-                        {detailers.map(d => (
-                            <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>
+                    <select onChange={e => setSelectedEmployeeId(e.target.value)} value={selectedEmployeeId} className="w-full max-w-xs p-2 border rounded-md">
+                        <option value="" disabled>Select an employee...</option>
+                        {employees.map(e => (
+                            <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
                         ))}
                     </select>
                 </div>
             )}
 
-            {editableDetailer && (
+            {editableEmployee && (
                 <div className="bg-white p-4 rounded-lg border space-y-6 shadow-sm">
                     <div>
-                        <h3 className="text-lg font-semibold mb-2">Basic Info for {editableDetailer.firstName} {editableDetailer.lastName}</h3>
+                        <h3 className="text-lg font-semibold mb-2">Basic Info for {editableEmployee.firstName} {editableEmployee.lastName}</h3>
                         <div className="space-y-2">
-                            <input value={editableDetailer.firstName} onChange={e => setEditableDetailer({...editableDetailer, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" />
-                            <input value={editableDetailer.lastName} onChange={e => setEditableDetailer({...editableDetailer, lastName: e.target.value})} placeholder="Last Name" className="w-full p-2 border rounded-md" />
-                            <input type="email" value={editableDetailer.email || ''} onChange={e => setEditableDetailer({...editableDetailer, email: e.target.value})} placeholder="Email" className="w-full p-2 border rounded-md" />
-                             <select value={editableDetailer.title || ''} onChange={e => setEditableDetailer({...editableDetailer, title: e.target.value})} className="w-full p-2 border rounded-md">
+                            <input value={editableEmployee.firstName} onChange={e => setEditableEmployee({...editableEmployee, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" />
+                            <input value={editableEmployee.lastName} onChange={e => setEditableEmployee({...editableEmployee, lastName: e.target.value})} placeholder="Last Name" className="w-full p-2 border rounded-md" />
+                            <input type="email" value={editableEmployee.email || ''} onChange={e => setEditableEmployee({...editableEmployee, email: e.target.value})} placeholder="Email" className="w-full p-2 border rounded-md" />
+                             <select value={editableEmployee.title || ''} onChange={e => setEditableEmployee({...editableEmployee, title: e.target.value})} className="w-full p-2 border rounded-md">
                                 <option value="" disabled>Select a Title</option>
                                 {titleOptions.map(title => (
                                     <option key={title} value={title}>{title}</option>
                                 ))}
                             </select>
-                            <input value={editableDetailer.employeeId} onChange={e => setEditableDetailer({...editableDetailer, employeeId: e.target.value})} placeholder="Employee ID" className="w-full p-2 border rounded-md" />
+                            <input value={editableEmployee.employeeId} onChange={e => setEditableEmployee({...editableEmployee, employeeId: e.target.value})} placeholder="Employee ID" className="w-full p-2 border rounded-md" />
                         </div>
                     </div>
                     
@@ -1449,7 +1449,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
                                 <div key={skill}>
                                     <label className="font-medium">{skill}</label>
                                     <BubbleRating 
-                                        score={editableDetailer.skills?.[skill] || 0}
+                                        score={editableEmployee.skills?.[skill] || 0}
                                         onScoreChange={(score) => handleSkillChange(skill, score)}
                                     />
                                 </div>
@@ -1467,7 +1467,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
                             <button onClick={handleAddDiscipline} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Add Discipline</button>
                         </div>
                         <div className="space-y-4">
-                            {Object.entries(editableDetailer.disciplineSkillsets || {}).map(([name, score]) => (
+                            {Object.entries(editableEmployee.disciplineSkillsets || {}).map(([name, score]) => (
                                 <div key={name} className="p-3 bg-white rounded-md border">
                                     <div className="flex justify-between items-start">
                                        <span className="font-medium">{name}</span>
@@ -1488,27 +1488,27 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
 };
 
 
-const AdminConsole = ({ db, detailers, projects }) => {
-    const [newDetailer, setNewDetailer] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
+const AdminConsole = ({ db, employees, projects }) => {
+    const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
 
-    const [editingDetailerId, setEditingDetailerId] = useState(null);
-    const [editingDetailerData, setEditingDetailerData] = useState(null);
+    const [editingEmployeeId, setEditingEmployeeId] = useState(null);
+    const [editingEmployeeData, setEditingEmployeeData] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectData, setEditingProjectData] = useState(null);
     const [message, setMessage] = useState('');
 
     const handleAdd = async (type) => {
         if (!db) return;
-        if (type === 'detailer') {
-            if (!newDetailer.firstName || !newDetailer.lastName || !newDetailer.employeeId) {
-                setMessage('Please fill all detailer fields.');
+        if (type === 'employee') {
+            if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.employeeId) {
+                setMessage('Please fill all employee fields.');
                 setTimeout(()=> setMessage(''), 3000);
                 return;
             }
-            await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newDetailer, skills: {}, disciplineSkillsets: {} });
-            setNewDetailer({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-            setMessage('Detailer added.');
+            await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, skills: {}, disciplineSkillsets: {} });
+            setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
+            setMessage('Employee added.');
         } else {
             if (!newProject.name || !newProject.projectId) {
                 setMessage('Please fill all project fields.');
@@ -1528,17 +1528,17 @@ const AdminConsole = ({ db, detailers, projects }) => {
     };
 
     const handleDelete = async (type, id) => {
-        const collectionName = type === 'detailer' ? 'detailers' : 'projects';
+        const collectionName = type === 'employee' ? 'detailers' : 'projects';
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
     };
     
     const handleEdit = (type, item) => {
-        if (type === 'detailer') {
+        if (type === 'employee') {
             setEditingProjectId(null); 
-            setEditingDetailerId(item.id);
-            setEditingDetailerData({ ...item });
+            setEditingEmployeeId(item.id);
+            setEditingEmployeeData({ ...item });
         } else {
-            setEditingDetailerId(null);
+            setEditingEmployeeId(null);
             setEditingProjectId(item.id);
             setEditingProjectData({ 
                 initialBudget: 0,
@@ -1550,16 +1550,16 @@ const AdminConsole = ({ db, detailers, projects }) => {
     };
 
     const handleCancel = () => {
-        setEditingDetailerId(null);
+        setEditingEmployeeId(null);
         setEditingProjectId(null);
     };
 
     const handleUpdate = async (type) => {
         try {
-            if (type === 'detailer') {
-                const { id, ...data } = editingDetailerData;
-                const detailerRef = doc(db, `artifacts/${appId}/public/data/detailers`, id);
-                await updateDoc(detailerRef, data);
+            if (type === 'employee') {
+                const { id, ...data } = editingEmployeeData;
+                const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, id);
+                await updateDoc(employeeRef, data);
             } else {
                 const { id, ...data } = editingProjectData;
                 const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, id);
@@ -1580,64 +1580,64 @@ const AdminConsole = ({ db, detailers, projects }) => {
     
     const handleEditDataChange = (e, type) => {
         const { name, value } = e.target;
-        if (type === 'detailer') {
-            setEditingDetailerData(prev => ({ ...prev, [name]: value }));
+        if (type === 'employee') {
+            setEditingEmployeeData(prev => ({ ...prev, [name]: value }));
         } else {
             setEditingProjectData(prev => ({ ...prev, [name]: value }));
         }
     };
     
-    const isEditing = editingDetailerId || editingProjectId;
+    const isEditing = editingEmployeeId || editingProjectId;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-                <h2 className="text-xl font-bold mb-4">Manage Detailers</h2>
+                <h2 className="text-xl font-bold mb-4">Manage Employees</h2>
                 <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                    <h3 className="font-semibold mb-2">Add New Detailer</h3>
+                    <h3 className="font-semibold mb-2">Add New Employee</h3>
                     <div className="space-y-2 mb-4">
-                        <input value={newDetailer.firstName} onChange={e => setNewDetailer({...newDetailer, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <input value={newDetailer.lastName} onChange={e => setNewDetailer({...newDetailer, lastName: e.target.value})} placeholder="Last Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <input type="email" value={newDetailer.email} onChange={e => setNewDetailer({...newDetailer, email: e.target.value})} placeholder="Email" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <select value={newDetailer.title} onChange={e => setNewDetailer({...newDetailer, title: e.target.value})} className="w-full p-2 border rounded-md" disabled={isEditing}>
+                        <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className="w-full p-2 border rounded-md" disabled={isEditing}>
                             {titleOptions.map(title => (
                                 <option key={title} value={title}>{title}</option>
                             ))}
                         </select>
-                        <input value={newDetailer.employeeId} onChange={e => setNewDetailer({...newDetailer, employeeId: e.target.value})} placeholder="Employee ID" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className="w-full p-2 border rounded-md" disabled={isEditing} />
                     </div>
-                    <button onClick={() => handleAdd('detailer')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Detailer</button>
+                    <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
                 </div>
                 {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
-                    {detailers.map(d => (
-                        <div key={d.id} className="bg-white p-3 border rounded-md shadow-sm">
-                            {editingDetailerId === d.id ? (
+                    {employees.map(e => (
+                        <div key={e.id} className="bg-white p-3 border rounded-md shadow-sm">
+                            {editingEmployeeId === e.id ? (
                                 <div className="space-y-2">
-                                    <input name="firstName" value={editingDetailerData.firstName} onChange={e => handleEditDataChange(e, 'detailer')} className="w-full p-2 border rounded-md"/>
-                                    <input name="lastName" value={editingDetailerData.lastName} onChange={e => handleEditDataChange(e, 'detailer')} className="w-full p-2 border rounded-md"/>
-                                    <input type="email" name="email" value={editingDetailerData.email} onChange={e => handleEditDataChange(e, 'detailer')} placeholder="Email" className="w-full p-2 border rounded-md"/>
-                                    <select name="title" value={editingDetailerData.title} onChange={e => handleEditDataChange(e, 'detailer')} className="w-full p-2 border rounded-md">
+                                    <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
+                                    <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
+                                    <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className="w-full p-2 border rounded-md"/>
+                                    <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md">
                                         {titleOptions.map(title => (
                                             <option key={title} value={title}>{title}</option>
                                         ))}
                                     </select>
-                                    <input name="employeeId" value={editingDetailerData.employeeId} onChange={e => handleEditDataChange(e, 'detailer')} className="w-full p-2 border rounded-md"/>
+                                    <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleUpdate('detailer')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                        <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
                                         <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="flex justify-between items-center">
                                     <div>
-                                        <p>{d.firstName} {d.lastName}</p>
-                                        <p className="text-sm text-gray-500">{d.title || 'N/A'} ({d.employeeId})</p>
-                                        <a href={`mailto:${d.email}`} className="text-xs text-blue-500 hover:underline">{d.email}</a>
+                                        <p>{e.firstName} {e.lastName}</p>
+                                        <p className="text-sm text-gray-500">{e.title || 'N/A'} ({e.employeeId})</p>
+                                        <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleEdit('detailer', d)} className="text-blue-600 hover:text-blue-800" disabled={isEditing}>Edit</button>
-                                        <button onClick={() => handleDelete('detailer', d.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                        <button onClick={() => handleEdit('employee', e)} className="text-blue-600 hover:text-blue-800" disabled={isEditing}>Edit</button>
+                                        <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
                                     </div>
                                 </div>
                             )}
