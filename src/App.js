@@ -1160,7 +1160,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                 {!collapsedSections.projectBreakdown && (
                     <div className="p-4">
                         <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
-                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-4' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
+                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
                                 <span className="col-span-2">Name</span>
                                 <span className="col-span-1">Activity</span>
                                 {!isPCL && <span className="col-span-1">Budget ($)</span>}
@@ -1181,7 +1181,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                                 const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
                                 const productivity = actual > 0 ? earned / actual : 0;
                                 return (
-                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-4' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 bg-gray-50 rounded-md`}>
+                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-5' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 bg-gray-50 rounded-md`}>
                                         {editingSubsetId === subset.id && !isPCL ? (
                                             <>
                                                 <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className="p-1 border rounded col-span-2"/>
