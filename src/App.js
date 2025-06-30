@@ -1159,7 +1159,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                 </button>
                 {!collapsedSections.projectBreakdown && (
                     <div className="p-4">
-                        <div className="space-y-2 mb-4">
+                        <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
                             <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
                                 <span className="col-span-2">Name</span>
                                 <span className="col-span-1">Activity</span>
