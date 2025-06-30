@@ -902,12 +902,13 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
     const [editingSubsetId, setEditingSubsetId] = useState(null);
     const [editingSubsetData, setEditingSubsetData] = useState(null);
     const [collapsedSections, setCollapsedSections] = useState({
-        projectBreakdown: true,
+        projectBreakdown: false, // Start expanded
         sheetmetal: true,
         piping: true,
         plumbing: true,
         bim: true
     });
+    const isPCL = accessLevel === 'pcl';
 
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db]);
 
@@ -1020,12 +1021,27 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
         }
 
         await setDoc(docRef, dataToSave, { merge: true });
-        alert("Changes saved!");
+        if (!isPCL) { // Only show alert for non-PCL users who have a save button
+          alert("Changes saved!");
+        }
     };
     
     const handleEditingSubsetChange = (field, value) => {
         setEditingSubsetData(prev => ({ ...prev, [field]: value }));
     };
+
+    const handleSubsetFieldChange = useCallback((subsetId, field, value) => {
+        setDraftData(prevDraft => {
+            const newSubsets = prevDraft.subsets.map(s => {
+                if (s.id === subsetId) {
+                    const numericValue = Number(value);
+                    return { ...s, [field]: isNaN(numericValue) ? 0 : numericValue };
+                }
+                return s;
+            });
+            return { ...prevDraft, subsets: newSubsets };
+        });
+    }, []);
 
 
     const handleAddNewSubset = () => {
@@ -1121,14 +1137,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 
     if (loading || !draftData || !project || !activityTotals) return <div className="p-4 text-center">Loading Project Details...</div>;
     
-    const isPCL = accessLevel === 'pcl';
-
     return (
         <div className="space-y-6 mt-4 border-t pt-4">
-             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <FinancialSummary project={project} activityTotals={activityTotals} />
-                <HourSummary project={project} activityTotals={activityTotals} />
-             </div>
+             {!isPCL && (
+                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <FinancialSummary project={project} activityTotals={activityTotals} />
+                    <HourSummary project={project} activityTotals={activityTotals} />
+                 </div>
+             )}
             
             {/* --- Project Subsets Section --- */}
             <div className="bg-white rounded-lg border shadow-sm">
@@ -1144,25 +1160,29 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                 {!collapsedSections.projectBreakdown && (
                     <div className="p-4">
                         <div className="space-y-2 mb-4">
-                            <div className="hidden sm:grid grid-cols-11 gap-x-4 font-bold text-xs text-gray-600 px-2">
+                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
                                 <span className="col-span-2">Name</span>
                                 <span className="col-span-1">Activity</span>
-                                <span className="col-span-1">Budget ($)</span>
+                                {!isPCL && <span className="col-span-1">Budget ($)</span>}
                                 <span className="col-span-1">% of Project</span>
                                 <span className="col-span-1">% Complete</span>
-                                <span className="col-span-1">Hours Used</span>
-                                <span className="col-span-1">Earned ($)</span>
-                                <span className="col-span-1">Actual ($)</span>
-                                <span className="col-span-1">Productivity</span>
-                                <span className="col-span-1">Actions</span>
+                                {!isPCL && (
+                                    <>
+                                        <span className="col-span-1">Hours Used</span>
+                                        <span className="col-span-1">Earned ($)</span>
+                                        <span className="col-span-1">Actual ($)</span>
+                                        <span className="col-span-1">Productivity</span>
+                                        <span className="col-span-1">Actions</span>
+                                    </>
+                                )}
                             </div>
                             {(draftData.subsets || []).map((subset, index) => {
                                 const earned = (subset.budget || 0) * (subset.percentComplete || 0) / 100;
                                 const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
                                 const productivity = actual > 0 ? earned / actual : 0;
                                 return (
-                                    <div key={subset.id} className="grid grid-cols-1 sm:grid-cols-11 gap-x-4 items-center p-2 bg-gray-50 rounded-md">
-                                        {editingSubsetId === subset.id ? (
+                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-5' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 bg-gray-50 rounded-md`}>
+                                        {editingSubsetId === subset.id && !isPCL ? (
                                             <>
                                                 <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className="p-1 border rounded col-span-2"/>
                                                 <select value={editingSubsetData.activityId} onChange={e => handleEditingSubsetChange('activityId', e.target.value)} className="p-1 border rounded w-full">
@@ -1182,63 +1202,85 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                                         ) : (
                                             <>
                                                 <span className="font-medium col-span-2">{subset.name}</span>
-                                                <span className="text-sm text-gray-600">{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
-                                                <span className="text-sm text-gray-600">{formatCurrency(subset.budget || 0)}</span>
-                                                <span className="text-sm text-gray-600">{subset.percentageOfProject}%</span>
-                                                <span className="text-sm text-gray-600">{subset.percentComplete}%</span>
-                                                <span className="text-sm text-gray-600">{subset.hoursUsed}</span>
-                                                <span className="text-sm text-gray-600 font-semibold">{formatCurrency(earned)}</span>
-                                                <span className="text-sm text-gray-600 font-semibold">{formatCurrency(actual)}</span>
-                                                <span className={`text-sm font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => {setEditingSubsetId(subset.id); setEditingSubsetData({...subset});}} className="text-blue-500 hover:text-blue-700">Edit</button>
-                                                    <button onClick={() => handleDeleteSubset(subset.id)} className="text-red-500 hover:text-red-700">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
+                                                <span className="text-sm text-gray-600 col-span-1">{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
+                                                {!isPCL && <span className="text-sm text-gray-600 col-span-1">{formatCurrency(subset.budget || 0)}</span>}
+                                                <span className="text-sm text-gray-600 col-span-1">{subset.percentageOfProject}%</span>
+                                                
+                                                {isPCL ? (
+                                                    <div className="col-span-1">
+                                                        <input
+                                                            type="number"
+                                                            value={subset.percentComplete}
+                                                            onChange={(e) => handleSubsetFieldChange(subset.id, 'percentComplete', e.target.value)}
+                                                            onBlur={handleSaveChanges}
+                                                            className="p-1 border rounded w-full bg-yellow-100"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-600 col-span-1">{subset.percentComplete}%</span>
+                                                )}
+
+                                                {!isPCL && (
+                                                    <>
+                                                        <span className="text-sm text-gray-600 col-span-1">{subset.hoursUsed}</span>
+                                                        <span className="text-sm text-gray-600 font-semibold col-span-1">{formatCurrency(earned)}</span>
+                                                        <span className="text-sm text-gray-600 font-semibold col-span-1">{formatCurrency(actual)}</span>
+                                                        <span className={`text-sm font-bold col-span-1 ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</span>
+                                                        <div className="flex items-center gap-2 col-span-1">
+                                                            <button onClick={() => {setEditingSubsetId(subset.id); setEditingSubsetData({...subset});}} className="text-blue-500 hover:text-blue-700">Edit</button>
+                                                            <button onClick={() => handleDeleteSubset(subset.id)} className="text-red-500 hover:text-red-700">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </>
                                         )}
                                     </div>
                             )})}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
-                             <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className="p-2 border rounded-md col-span-2" />
-                            <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className="p-2 border rounded-md">
-                                <option value="">Select Activity...</option>
-                                {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
-                            </select>
-                             <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className="p-2 border rounded-md" />
-                            <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className="p-2 border rounded-md" />
-                            <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className="p-2 border rounded-md" />
-                            <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className="p-2 border rounded-md" />
+                        {!isPCL && (
+                            <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
+                                <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className="p-2 border rounded-md col-span-2" />
+                                <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className="p-2 border rounded-md">
+                                    <option value="">Select Activity...</option>
+                                    {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
+                                </select>
+                                <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className="p-2 border rounded-md" />
+                                <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className="p-2 border rounded-md" />
+                                <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className="p-2 border rounded-md" />
+                                <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className="p-2 border rounded-md" />
 
-                            <button onClick={handleAddNewSubset} className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 col-span-2">Add Subset</button>
-                        </div>
+                                <button onClick={handleAddNewSubset} className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 col-span-2">Add Subset</button>
+                            </div>
+                        )}
                     </div>
                  )}
             </div>
 
 
             {/* --- Activity Tracker Section --- */}
-            <div className="bg-white p-4 rounded-lg border shadow-sm">
-                 <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-semibold">Activity Tracker</h3>
-                    <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
-                        Save All Changes
-                    </button>
-                 </div>
-                <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.sheetmetal} onToggle={isPCL ? null : () => handleToggleCollapse('sheetmetal')} project={project}/>
-                <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.piping} onToggle={isPCL ? null : () => handleToggleCollapse('piping')} project={project}/>
-                <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.plumbing} onToggle={isPCL ? null : () => handleToggleCollapse('plumbing')} project={project}/>
-                <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={isPCL || collapsedSections.bim} onToggle={isPCL ? null : () => handleToggleCollapse('bim')} project={project}/>
-                 <div className="bg-gray-100 font-bold p-2 flex justify-end gap-x-6">
-                    <span className="text-right">Totals:</span>
-                    <span>Est: {activityTotals.estimated.toFixed(2)}</span>
-                    <span>Used: {activityTotals.used.toFixed(2)}</span>
-                 </div>
-            </div>
+            {!isPCL && (
+                <div className="bg-white p-4 rounded-lg border shadow-sm">
+                     <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-lg font-semibold">Activity Tracker</h3>
+                        <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
+                            Save All Changes
+                        </button>
+                     </div>
+                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={() => handleToggleCollapse('sheetmetal')} project={project}/>
+                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={() => handleToggleCollapse('piping')} project={project}/>
+                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={() => handleToggleCollapse('plumbing')} project={project}/>
+                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={() => handleToggleCollapse('bim')} project={project}/>
+                     <div className="bg-gray-100 font-bold p-2 flex justify-end gap-x-6">
+                        <span className="text-right">Totals:</span>
+                        <span>Est: {activityTotals.estimated.toFixed(2)}</span>
+                        <span>Used: {activityTotals.used.toFixed(2)}</span>
+                     </div>
+                </div>
+            )}
         </div>
     );
 };
