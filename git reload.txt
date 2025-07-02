@@ -1,8 +1,11 @@
 git add .
-git commit -m "Tightened up PCL Restrictions"
+git commit -m "Fixed PCL Column alignment issue"
 git push origin main
 
 
+Push Functions/Index.js
+
+firebase deploy --only functions
 
 Things to come -
 Reformatting the task console to create "lanes" for the different kinds or requests

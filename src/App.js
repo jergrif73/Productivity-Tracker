@@ -1287,60 +1287,75 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 
 
 const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) => {
-    const [expandedProjectId, setExpandedProjectId] = useState(null);
+    const [hoveredProjectId, setHoveredProjectId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
-    const sortedProjects = useMemo(() => {
-        return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
-    }, [projects]);
-    
-    const toggleProjectDetail = (projectId) => {
-        setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
-    };
+    const filteredProjects = useMemo(() => {
+        return projects.filter(p => {
+            const query = searchQuery.toLowerCase();
+            return p.name.toLowerCase().includes(query) || p.projectId.includes(query);
+        }).sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
+    }, [projects, searchQuery]);
 
     return (
         <div>
-            <h2 className="text-xl font-bold mb-4">Project Overview</h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Project Overview</h2>
+                <div className="w-1/3">
+                    <input
+                        type="text"
+                        placeholder="Search by project name or ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full p-2 border rounded-md"
+                    />
+                </div>
+            </div>
             <div className="space-y-4">
-                {sortedProjects.map(p => {
+                {filteredProjects.map(p => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
-                    const isExpanded = expandedProjectId === p.id;
+                    const isExpanded = hoveredProjectId === p.id;
                     const project = projects.find(proj => proj.id === p.id)
 
                     return (
-                        <div key={p.id} className="bg-white p-4 rounded-lg border shadow-sm">
+                        <div 
+                            key={p.id} 
+                            className="bg-white p-4 rounded-lg border shadow-sm transition-all duration-300 ease-in-out"
+                            onMouseEnter={() => setHoveredProjectId(p.id)}
+                            onMouseLeave={() => setHoveredProjectId(null)}
+                        >
                             <div className="flex justify-between items-start">
                                 <div>
                                     <h3 className="text-lg font-semibold">{p.name}</h3>
                                     <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
                                 </div>
-                                <button
-                                    onClick={() => toggleProjectDetail(p.id)}
-                                    className="text-sm text-blue-600 hover:underline flex items-center"
-                                >
-                                    Details
-                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ml-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div className="mt-2 pl-4 border-l-2 border-blue-200">
-                                <h4 className="text-sm font-semibold mb-1">Assigned Detailers:</h4>
-                                {projectAssignments.length === 0 ? (
-                                    <p className="text-sm text-gray-500">None</p>
-                                ) : (
-                                    <ul className="list-disc list-inside text-sm space-y-1">
-                                        {projectAssignments.map(a => {
-                                            const detailer = detailers.find(d => d.id === a.detailerId);
-                                            return (
-                                                <li key={a.id}>
-                                                    {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade}/{a.activity})
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
+                                {!isExpanded && (
+                                     <span className="text-xs text-gray-500">Hover to expand</span>
                                 )}
                             </div>
-                            {isExpanded && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />}
+                           
+                            {isExpanded && (
+                                <>
+                                 <div className="mt-2 pl-4 border-l-2 border-blue-200">
+                                    <h4 className="text-sm font-semibold mb-1">Assigned Detailers:</h4>
+                                    {projectAssignments.length === 0 ? (
+                                        <p className="text-sm text-gray-500">None</p>
+                                    ) : (
+                                        <ul className="list-disc list-inside text-sm space-y-1">
+                                            {projectAssignments.map(a => {
+                                                const detailer = detailers.find(d => d.id === a.detailerId);
+                                                return (
+                                                    <li key={a.id}>
+                                                        {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade}/{a.activity})
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+                                <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />
+                                </>
+                            )}
                         </div>
                     );
                 })}
