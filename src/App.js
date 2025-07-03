@@ -88,9 +88,9 @@ const templateProjectRoles = [
 
 
 const initialProjects = [
-    { name: "Brandt Interco", projectId: "5800005", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles },
-    { name: "PRECON / Estimating 2022", projectId: "5818022", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles },
-    { name: "RLSB 7th Floor Buildout", projectId: "5820526", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles },
+    { name: "Brandt Interco", projectId: "5800005", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles, archived: false },
+    { name: "PRECON / Estimating 2022", projectId: "5818022", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles, archived: false },
+    { name: "RLSB 7th Floor Buildout", projectId: "5820526", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles, archived: false },
 ];
 
 const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
@@ -1347,6 +1347,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
 
     const filteredProjects = useMemo(() => {
         return projects
+            .filter(p => !p.archived)
             .filter(p => {
                 const query = searchQuery.toLowerCase();
                 return p.name.toLowerCase().includes(query) || p.projectId.includes(query);
@@ -1613,6 +1614,30 @@ const AdminConsole = ({ db, employees, projects }) => {
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectData, setEditingProjectData] = useState(null);
     const [message, setMessage] = useState('');
+    const [employeeSortBy, setEmployeeSortBy] = useState('firstName');
+    const [projectSortBy, setProjectSortBy] = useState('projectId');
+    const [showArchived, setShowArchived] = useState(false);
+
+    const sortedEmployees = useMemo(() => {
+        return [...employees].sort((a, b) => {
+            if (employeeSortBy === 'lastName') {
+                return a.lastName.localeCompare(b.lastName);
+            }
+            return a.firstName.localeCompare(b.firstName);
+        });
+    }, [employees, employeeSortBy]);
+
+    const sortedProjects = useMemo(() => {
+        return [...projects]
+            .filter(p => showArchived ? p.archived : !p.archived)
+            .sort((a, b) => {
+                if (projectSortBy === 'name') {
+                    return a.name.localeCompare(b.name);
+                }
+                return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
+            });
+    }, [projects, projectSortBy, showArchived]);
+
 
     const handleAdd = async (type) => {
         if (!db) return;
@@ -1636,7 +1661,8 @@ const AdminConsole = ({ db, employees, projects }) => {
                 initialBudget: Number(newProject.initialBudget),
                 blendedRate: Number(newProject.blendedRate),
                 contingency: Number(newProject.contingency),
-                roles: templateProjectRoles.map(role => ({ ...role })), // Add default roles to new project
+                roles: templateProjectRoles.map(role => ({ ...role })),
+                archived: false,
             });
             setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
             setMessage('Project added.');
@@ -1715,13 +1741,27 @@ const AdminConsole = ({ db, employees, projects }) => {
         updatedRoles.splice(index, 1);
         setEditingProjectData(prev => ({ ...prev, roles: updatedRoles }));
     };
+
+    const handleToggleArchive = async (projectId, isArchived) => {
+        const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, projectId);
+        await updateDoc(projectRef, {
+            archived: !isArchived
+        });
+    };
     
     const isEditing = editingEmployeeId || editingProjectId;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-                <h2 className="text-xl font-bold mb-4">Manage Employees</h2>
+                 <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Manage Employees</h2>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm">Sort by:</span>
+                        <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>First Name</button>
+                        <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Last Name</button>
+                    </div>
+                </div>
                 <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Employee</h3>
                     <div className="space-y-2 mb-4">
@@ -1739,7 +1779,7 @@ const AdminConsole = ({ db, employees, projects }) => {
                 </div>
                 {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
-                    {employees.map(e => (
+                    {sortedEmployees.map(e => (
                         <div key={e.id} className="bg-white p-3 border rounded-md shadow-sm">
                             {editingEmployeeId === e.id ? (
                                 <div className="space-y-2">
@@ -1776,7 +1816,26 @@ const AdminConsole = ({ db, employees, projects }) => {
             </div>
 
             <div>
-                <h2 className="text-xl font-bold mb-4">Manage Projects</h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Manage Projects</h2>
+                    <div className="flex items-center gap-4">
+                         <div className="flex items-center gap-2">
+                            <span className="text-sm">Sort by:</span>
+                            <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Alphabetical</button>
+                            <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Project ID</button>
+                        </div>
+                        <div className="flex items-center">
+                            <span className="text-sm mr-2">{showArchived ? 'Showing Archived' : 'Showing Active'}</span>
+                            <label htmlFor="archiveToggle" className="flex items-center cursor-pointer">
+                                <div className="relative">
+                                <input type="checkbox" id="archiveToggle" className="sr-only" checked={showArchived} onChange={() => setShowArchived(!showArchived)} />
+                                <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                                <div className="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition"></div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
                  <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Project</h3>
                     <div className="space-y-2 mb-4">
@@ -1798,7 +1857,7 @@ const AdminConsole = ({ db, employees, projects }) => {
                     <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                 </div>
                 <div className="space-y-2 mb-8">
-                    {projects.map(p => (
+                    {sortedProjects.map(p => (
                          <div key={p.id} className="bg-white p-3 border rounded-md shadow-sm">
                             {editingProjectId === p.id ? (
                                 <div className="space-y-2">
@@ -1886,6 +1945,7 @@ const AdminConsole = ({ db, employees, projects }) => {
                                       <p className="text-sm text-gray-500">Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
                                     </div>
                                     <div className="flex gap-2 flex-shrink-0">
+                                        <button onClick={() => handleToggleArchive(p.id, p.archived || false)} className={`text-xs px-2 py-1 rounded-md ${p.archived ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`} disabled={isEditing}>{p.archived ? 'Unarchive' : 'Archive'}</button>
                                         <button onClick={() => handleEdit('project', p)} className="text-blue-600 hover:text-blue-800" disabled={isEditing}>Edit</button>
                                         <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
                                     </div>
@@ -1925,6 +1985,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
         }, {});
 
         return projects
+            .filter(p => !p.archived)
             .map(project => {
                 const projectAssignments = (assignmentsByProject[project.id] || []).map(ass => {
                     const detailer = detailers.find(d => d.id === ass.detailerId);
@@ -2071,8 +2132,13 @@ const GanttConsole = ({ projects, assignments }) => {
 
     const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
 
+    const activeProjects = useMemo(() => projects.filter(p => !p.archived), [projects]);
+    const activeProjectIds = useMemo(() => new Set(activeProjects.map(p => p.id)), [activeProjects]);
+    const activeAssignments = useMemo(() => assignments.filter(a => activeProjectIds.has(a.projectId)), [assignments, activeProjectIds]);
+
+
     const projectData = useMemo(() => {
-        const dataByProject = assignments.reduce((acc, assignment) => {
+        const dataByProject = activeAssignments.reduce((acc, assignment) => {
             if (!acc[assignment.projectId]) {
                 acc[assignment.projectId] = [];
             }
@@ -2081,7 +2147,7 @@ const GanttConsole = ({ projects, assignments }) => {
         }, {});
 
         return Object.entries(dataByProject).map(([projectId, projectAssignments]) => {
-            const project = projects.find(p => p.id === projectId);
+            const project = activeProjects.find(p => p.id === projectId);
             const weeklyHours = weekDates.map(weekStart => {
                 let totalHours = 0;
                 const weekEnd = new Date(weekStart);
@@ -2103,7 +2169,7 @@ const GanttConsole = ({ projects, assignments }) => {
                 values: weeklyHours
             };
         });
-    }, [projects, assignments, weekDates]);
+    }, [activeProjects, activeAssignments, weekDates]);
 
     const totalData = useMemo(() => {
         const totalWeeklyHours = weekDates.map(weekStart => {
@@ -2111,7 +2177,7 @@ const GanttConsole = ({ projects, assignments }) => {
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
 
-            assignments.forEach(ass => {
+            activeAssignments.forEach(ass => {
                 const assignStart = new Date(ass.startDate);
                 const assignEnd = new Date(ass.endDate);
                 if (assignStart <= weekEnd && assignEnd >= weekStart) {
@@ -2121,7 +2187,7 @@ const GanttConsole = ({ projects, assignments }) => {
             return { date: weekStart, hours: totalHours };
         });
         return [{ projectId: 'total', projectName: 'Total Hours', values: totalWeeklyHours }];
-    }, [assignments, weekDates]);
+    }, [activeAssignments, weekDates]);
 
 
     useEffect(() => {
@@ -2852,7 +2918,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                  </div>
              </div>
             {isModalOpen && (
-                <TaskDetailModal
+                <Modal
                     db={db}
                     task={editingTask}
                     detailers={detailers}
