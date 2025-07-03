@@ -271,10 +271,69 @@ const App = () => {
     const [taskLanes, setTaskLanes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
+    const [theme, setTheme] = useState('dark'); // 'light', 'grey', 'dark'
     
     const [accessLevel, setAccessLevel] = useState('default');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
+
+    const themeClasses = {
+        light: {
+            mainBg: 'bg-gray-100',
+            headerBg: 'bg-white',
+            cardBg: 'bg-white',
+            textColor: 'text-gray-800',
+            subtleText: 'text-gray-600',
+            borderColor: 'border-gray-200',
+            altRowBg: 'bg-blue-50',
+            navBg: 'bg-gray-200',
+            navBtn: 'text-gray-600 hover:bg-gray-300',
+            navBtnActive: 'bg-white text-blue-600 shadow',
+            consoleBg: 'p-4 bg-gray-50',
+            inputBg: 'bg-white',
+            inputText: 'text-gray-900',
+            inputBorder: 'border-gray-300',
+            buttonBg: 'bg-gray-200',
+            buttonText: 'text-gray-800'
+        },
+        grey: {
+            mainBg: 'bg-gray-300',
+            headerBg: 'bg-gray-400',
+            cardBg: 'bg-gray-200',
+            textColor: 'text-black',
+            subtleText: 'text-gray-700',
+            borderColor: 'border-gray-400',
+            altRowBg: 'bg-gray-300',
+            navBg: 'bg-gray-300',
+            navBtn: 'text-gray-800 hover:bg-gray-400',
+            navBtnActive: 'bg-white text-blue-700 shadow',
+            consoleBg: 'p-4 bg-gray-200',
+            inputBg: 'bg-gray-100',
+            inputText: 'text-black',
+            inputBorder: 'border-gray-400',
+            buttonBg: 'bg-gray-400',
+            buttonText: 'text-black'
+        },
+        dark: {
+            mainBg: 'bg-gray-900',
+            headerBg: 'bg-gray-800',
+            cardBg: 'bg-gray-700',
+            textColor: 'text-gray-200',
+            subtleText: 'text-gray-400',
+            borderColor: 'border-gray-600',
+            altRowBg: 'bg-gray-800',
+            navBg: 'bg-gray-700',
+            navBtn: 'text-gray-400 hover:bg-gray-600',
+            navBtnActive: 'bg-gray-900 text-white shadow',
+            consoleBg: 'bg-gray-800',
+            inputBg: 'bg-gray-800',
+            inputText: 'text-gray-200',
+            inputBorder: 'border-gray-600',
+            buttonBg: 'bg-gray-600',
+            buttonText: 'text-gray-200'
+        }
+    };
+    const currentTheme = themeClasses[theme];
 
     useEffect(() => {
         if (!auth) {
@@ -483,23 +542,24 @@ const App = () => {
         if (loading) return <div className="text-center p-10">Loading data...</div>;
         
         const allowedViews = navConfig[accessLevel];
-        const currentView = allowedViews?.includes(view) ? view : allowedViews[0];
+        // Ensure currentView is valid, otherwise default to the first allowed view
+        const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
         
         switch (currentView) {
             case 'detailers':
-                return <TeamConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
+                return <TeamConsole db={db} detailers={detailers} projects={projects} assignments={assignments} currentTheme={currentTheme} />;
             case 'projects':
-                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} />;
+                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} currentTheme={currentTheme} />;
             case 'workloader':
-                return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} />;
+                return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} theme={theme} setTheme={setTheme} />;
             case 'tasks':
-                return <TaskConsole db={db} tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} />;
+                return <TaskConsole db={db} tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} theme={theme} />;
              case 'gantt':
-                return <GanttConsole projects={projects} assignments={assignments} />;
+                return <GanttConsole projects={projects} assignments={assignments} currentTheme={currentTheme} />;
             case 'skills':
-                return <SkillsConsole db={db} detailers={detailers} />;
+                return <SkillsConsole db={db} detailers={detailers} theme={theme} />;
             case 'admin':
-                return <AdminConsole db={db} detailers={detailers} projects={projects} />;
+                return <AdminConsole db={db} detailers={detailers} projects={projects} currentTheme={currentTheme} />;
             default:
                  // This should not be reached if logged in, but provides a safe fallback.
                  return <div className="text-center p-10">Select a view from the navigation.</div>
@@ -519,18 +579,18 @@ const App = () => {
     }
 
     return (
-        <div style={{ fontFamily: 'Arial, sans-serif' }} className="bg-gray-100 min-h-screen">
-            <div className="w-full h-screen flex flex-col bg-white">
-                 <header className={`p-4 border-b space-y-4 flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-white' : ''}`}>
+        <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen`}>
+            <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
+                 <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
                      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <h1 className={`text-2xl font-bold ${view === 'tasks' ? 'text-white' : 'text-gray-800'}`}>Workforce Productivity Tracker</h1>
-                        <nav className="bg-gray-200 p-1 rounded-lg">
+                        <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Workforce Productivity Tracker</h1>
+                        <nav className={`${currentTheme.navBg} p-1 rounded-lg`}>
                             <div className="flex items-center space-x-1 flex-wrap justify-center">
                                 {visibleNavButtons.map(button => (
                                     <button
                                         key={button.id}
                                         onClick={() => handleNavClick(button.id)}
-                                        className={`flex items-center px-4 py-2 text-sm font-semibold rounded-md transition-colors ${view === button.id ? 'bg-white text-blue-600 shadow' : 'text-gray-600 hover:bg-gray-300'}`}
+                                        className={`flex items-center px-4 py-2 text-sm font-semibold rounded-md transition-colors ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
                                     >
                                         {button.icon}
                                         {button.label}
@@ -548,10 +608,10 @@ const App = () => {
                             </button>
                     </div>
                 </header>
-                <main className={`flex-grow overflow-y-auto ${view === 'tasks' ? 'bg-gray-800' : 'p-4 bg-gray-50'}`}>
+                <main className={`flex-grow overflow-y-auto ${currentTheme.consoleBg}`}>
                    {renderView()}
                 </main>
-                 <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${view === 'tasks' ? 'bg-gray-800 text-gray-400' : 'text-gray-500'}`}>
+                 <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
                 </footer>
             </div>
@@ -606,7 +666,7 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const TeamConsole = ({ db, detailers, projects, assignments }) => {
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [newAssignments, setNewAssignments] = useState({});
@@ -691,20 +751,20 @@ const TeamConsole = ({ db, detailers, projects, assignments }) => {
     return (
         <div>
             <div className="flex justify-end items-center mb-4 gap-2">
-                <span className="mr-2 text-sm font-medium">Sort by:</span>
-                <button onClick={() => setSortBy('firstName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>First Name</button>
-                <button onClick={() => setSortBy('lastName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Last Name</button>
+                <span className={`mr-2 text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                <button onClick={() => setSortBy('firstName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                <button onClick={() => setSortBy('lastName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
             </div>
             
-            <div className="bg-white rounded-lg p-4 space-y-2">
-                <div className="hidden md:grid grid-cols-12 gap-4 font-bold text-sm text-gray-600 px-4 py-2">
+            <div className={`${currentTheme.cardBg} rounded-lg p-4 space-y-2`}>
+                <div className={`hidden md:grid grid-cols-12 gap-4 font-bold text-sm ${currentTheme.subtleText} px-4 py-2`}>
                     <div className="col-span-3">EMPLOYEE</div>
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
                 </div>
                 {sortedEmployees.map((employee, index) => {
                     const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
-                    const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                    const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                     
                     const today = new Date();
                     const dayOfWeek = today.getDay();
@@ -735,14 +795,14 @@ const TeamConsole = ({ db, detailers, projects, assignments }) => {
                             >
                                 <div className="col-span-11 md:col-span-3">
                                     <p className="font-bold">{employee.firstName} {employee.lastName}</p>
-                                    <p className="text-sm text-gray-600">{employee.title || 'N/A'}</p>
-                                    <p className="text-xs text-gray-500">ID: {employee.employeeId}</p>
-                                    <a href={`mailto:${employee.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-600 hover:underline">{employee.email}</a>
-                                    <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(employee);}} className="text-sm text-blue-600 hover:underline mt-2 block">View Skills</button>
+                                    <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
+                                    <p className={`text-xs ${currentTheme.subtleText}`}>ID: {employee.employeeId}</p>
+                                    <a href={`mailto:${employee.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-500 hover:underline">{employee.email}</a>
+                                    <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(employee);}} className="text-sm text-blue-500 hover:underline mt-2 block">View Skills</button>
                                 </div>
                                 <div className="hidden md:col-span-7 md:block">
                                     {!isExpanded && (
-                                        <p className="text-sm text-gray-500">
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>
                                             {employeeAssignments.length > 0 ? `${employeeAssignments.length} total assignment(s)` : 'No assignments'}
                                         </p>
                                     )}
@@ -757,17 +817,17 @@ const TeamConsole = ({ db, detailers, projects, assignments }) => {
                                 </div>
                             </div>
                             {isExpanded && (
-                                <div className="p-4 border-t border-gray-200">
+                                <div className={`p-4 border-t ${currentTheme.borderColor}`}>
                                     <div className="grid grid-cols-12 gap-4 items-start">
                                         <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
-                                            <h4 className="font-semibold text-gray-700 mb-2">All Project Assignments</h4>
+                                            <h4 className="font-semibold mb-2">All Project Assignments</h4>
                                             {employeeAssignments.length > 0 ? employeeAssignments.map(asn => (
                                                 <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
-                                            )) : <p className="text-sm text-gray-500">No assignments to display.</p>}
+                                            )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
                                              {employeeNewAssignments.map(asn => (
                                                 <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} />
                                             ))}
-                                            <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-600 hover:underline">+ Add Project/Trade</button>
+                                            <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
                                         </div>
                                          <div className="col-span-12 md:col-span-2 text-right md:hidden">
                                             <p className="font-semibold">Current Week %</p>
@@ -1337,7 +1397,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('projectId');
@@ -1367,18 +1427,18 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
         <div>
             <div className="flex justify-between items-center mb-4">
                  <div className="flex items-center gap-4">
-                    <h2 className="text-xl font-bold">Project Overview</h2>
+                    <h2 className={`text-xl font-bold ${currentTheme.textColor}`}>Project Overview</h2>
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-600">Sort by:</span>
+                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setSortBy('name'); }}
-                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                         >
                             Alphabetical
                         </button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setSortBy('projectId'); }}
-                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                         >
                             Project ID
                         </button>
@@ -1390,7 +1450,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
                         placeholder="Search by project name or ID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full p-2 border rounded-md"
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                     />
                 </div>
             </div>
@@ -1399,21 +1459,21 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     const isExpanded = expandedProjectId === p.id;
                     const project = projects.find(proj => proj.id === p.id);
-                    const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                    const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
 
                     return (
                         <div 
                             key={p.id} 
-                            className={`${bgColor} p-4 rounded-lg border shadow-sm transition-all duration-300 ease-in-out`}
+                            className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm transition-all duration-300 ease-in-out`}
                             onClick={() => handleProjectClick(p.id)}
                         >
                             <div className="flex justify-between items-start cursor-pointer">
                                 <div>
                                     <h3 className="text-lg font-semibold">{p.name}</h3>
-                                    <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
+                                    <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
                                 </div>
                                 {!isExpanded && (
-                                     <span className="text-xs text-gray-500">Click to expand</span>
+                                     <span className={`text-xs ${currentTheme.subtleText}`}>Click to expand</span>
                                 )}
                             </div>
                            
@@ -1423,7 +1483,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
                                         <div className="lg:col-span-1">
                                             <h4 className="text-md font-semibold mb-2 border-b pb-1">Assigned Detailers:</h4>
                                             {projectAssignments.length === 0 ? (
-                                                <p className="text-sm text-gray-500">None</p>
+                                                <p className={`text-sm ${currentTheme.subtleText}`}>None</p>
                                             ) : (
                                                 <ul className="list-disc list-inside text-sm space-y-1">
                                                     {projectAssignments.map(a => {
@@ -1449,9 +1509,9 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
                                                 {(p.roles || []).map((role, index) => (
                                                     <div key={index} className="grid grid-cols-12 gap-x-4 text-sm py-1 border-b border-gray-100 items-center">
                                                         <p className="col-span-4 font-semibold">{role.role}</p>
-                                                        <p className="col-span-3 text-gray-700">{role.name || <span className="text-gray-400 italic">Name</span>}</p>
-                                                        <p className="col-span-3 text-gray-700">{role.company || <span className="text-gray-400 italic">Company</span>}</p>
-                                                        <p className="col-span-2 text-gray-700">{role.phoneNumber || <span className="text-gray-400 italic">Phone #</span>}</p>
+                                                        <p className="col-span-3">{role.name || <span className="text-gray-400 italic">Name</span>}</p>
+                                                        <p className="col-span-3">{role.company || <span className="text-gray-400 italic">Company</span>}</p>
+                                                        <p className="col-span-2">{role.phoneNumber || <span className="text-gray-400 italic">Phone #</span>}</p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1607,7 +1667,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
 };
 
 
-const AdminConsole = ({ db, detailers, projects }) => {
+const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
     
@@ -1752,7 +1812,7 @@ const AdminConsole = ({ db, detailers, projects }) => {
     };
     
     const isEditing = editingEmployeeId || editingProjectId;
-
+    
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
@@ -1760,42 +1820,42 @@ const AdminConsole = ({ db, detailers, projects }) => {
                     <h2 className="text-xl font-bold">Manage Employees</h2>
                     <div className="flex items-center gap-2">
                         <span className="text-sm">Sort by:</span>
-                        <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>First Name</button>
-                        <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Last Name</button>
+                        <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                        <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
                     </div>
                 </div>
-                <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Employee</h3>
                     <div className="space-y-2 mb-4">
-                        <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className="w-full p-2 border rounded-md" disabled={isEditing}>
+                        <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
                             {titleOptions.map(title => (
                                 <option key={title} value={title}>{title}</option>
                             ))}
                         </select>
-                        <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                     </div>
                     <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
                 </div>
                 {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
                     {sortedEmployees.map((e, index) => {
-                        const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                         return (
-                        <div key={e.id} className={`${bgColor} p-3 border rounded-md shadow-sm`}>
+                        <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
                             {editingEmployeeId === e.id ? (
                                 <div className="space-y-2">
-                                    <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
-                                    <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
-                                    <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className="w-full p-2 border rounded-md"/>
-                                    <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md">
+                                    <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                         {titleOptions.map(title => (
                                             <option key={title} value={title}>{title}</option>
                                         ))}
                                     </select>
-                                    <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
+                                    <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     <div className="flex gap-2">
                                         <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
                                         <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
@@ -1805,11 +1865,11 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                 <div className="flex justify-between items-center">
                                     <div>
                                         <p>{e.firstName} {e.lastName}</p>
-                                        <p className="text-sm text-gray-500">{e.title || 'N/A'} ({e.employeeId})</p>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
                                         <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleEdit('employee', e)} className="text-blue-600 hover:text-blue-800" disabled={isEditing}>Edit</button>
+                                        <button onClick={() => handleEdit('employee', e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
                                         <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
                                     </div>
                                 </div>
@@ -1825,8 +1885,8 @@ const AdminConsole = ({ db, detailers, projects }) => {
                     <div className="flex items-center gap-4">
                          <div className="flex items-center gap-2">
                             <span className="text-sm">Sort by:</span>
-                            <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Alphabetical</button>
-                            <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>Project ID</button>
+                            <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                            <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
                         </div>
                         <div className="flex items-center">
                             <span className="text-sm mr-2">{showArchived ? 'Showing Archived' : 'Showing Active'}</span>
@@ -1834,57 +1894,57 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                 <div className="relative">
                                 <input type="checkbox" id="archiveToggle" className="sr-only" checked={showArchived} onChange={() => setShowArchived(!showArchived)} />
                                 <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
-                                <div className="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition"></div>
+                                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${showArchived ? 'translate-x-6' : ''}`}></div>
                                 </div>
                             </label>
                         </div>
                     </div>
                 </div>
-                 <div className={`bg-white p-4 rounded-lg border shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                 <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
                     <h3 className="font-semibold mb-2">Add New Project</h3>
                     <div className="space-y-2 mb-4">
-                        <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className="w-full p-2 border rounded-md" disabled={isEditing} />
-                        <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                        <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                          <div className="flex items-center gap-2">
                             <label className="w-32">Initial Budget ($):</label>
-                            <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                            <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                         </div>
                          <div className="flex items-center gap-2">
                             <label className="w-32">Blended Rate ($/hr):</label>
-                            <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                            <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                         </div>
                          <div className="flex items-center gap-2">
                             <label className="w-32">Contingency ($):</label>
-                            <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className="w-full p-2 border rounded-md" disabled={isEditing} />
+                            <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                         </div>
                     </div>
                     <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                 </div>
                 <div className="space-y-2 mb-8">
                     {sortedProjects.map((p, index) => {
-                        const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                         return (
-                         <div key={p.id} className={`${bgColor} p-3 border rounded-md shadow-sm`}>
+                         <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
                             {editingProjectId === p.id ? (
                                 <div className="space-y-2">
-                                    <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
-                                    <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
+                                    <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     <div className="flex items-center gap-2">
                                         <label className="w-32">Initial Budget ($):</label>
-                                        <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className="w-full p-2 border rounded-md"/>
+                                        <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <label className="w-32">Blended Rate ($/hr):</label>
-                                        <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className="w-full p-2 border rounded-md"/>
+                                        <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
                                      <div className="flex items-center gap-2">
                                         <label className="w-32">Contingency ($):</label>
-                                        <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className="w-full p-2 border rounded-md"/>
+                                        <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
 
                                     {/* --- Roles Management UI --- */}
                                     <div className="pt-4 mt-4 border-t">
-                                        <h4 className="font-semibold mb-2 text-gray-700">Project Roles & Contacts</h4>
+                                        <h4 className="font-semibold mb-2">Project Roles & Contacts</h4>
                                         <div className="grid grid-cols-12 gap-2 font-bold text-xs text-gray-500 mb-2 px-1">
                                             <div className="col-span-4">Role</div>
                                             <div className="col-span-3">Name</div>
@@ -1899,7 +1959,7 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                                         <input 
                                                             value={role.role} 
                                                             onChange={(e) => handleRoleChange(index, 'role', e.target.value)}
-                                                            className="w-full p-2 border rounded-md text-sm"
+                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                             placeholder="Role Title"
                                                         />
                                                     </div>
@@ -1907,7 +1967,7 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                                         <input 
                                                             value={role.name} 
                                                             onChange={(e) => handleRoleChange(index, 'name', e.target.value)}
-                                                            className="w-full p-2 border rounded-md text-sm"
+                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                             placeholder="Name"
                                                         />
                                                     </div>
@@ -1915,7 +1975,7 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                                         <input 
                                                             value={role.company} 
                                                             onChange={(e) => handleRoleChange(index, 'company', e.target.value)}
-                                                            className="w-full p-2 border rounded-md text-sm"
+                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                             placeholder="Company"
                                                         />
                                                     </div>
@@ -1923,7 +1983,7 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                                         <input 
                                                             value={role.phoneNumber} 
                                                             onChange={(e) => handleRoleChange(index, 'phoneNumber', e.target.value)}
-                                                            className="w-full p-2 border rounded-md text-sm"
+                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                             placeholder="Phone #"
                                                         />
                                                     </div>
@@ -1948,11 +2008,11 @@ const AdminConsole = ({ db, detailers, projects }) => {
                                 <div className="flex justify-between items-center">
                                     <div>
                                       <p>{p.name} ({p.projectId})</p>
-                                      <p className="text-sm text-gray-500">Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                      <p className={`text-sm ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
                                     </div>
                                     <div className="flex gap-2 flex-shrink-0">
                                         <button onClick={() => handleToggleArchive(p.id, p.archived || false)} className={`text-xs px-2 py-1 rounded-md ${p.archived ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`} disabled={isEditing}>{p.archived ? 'Unarchive' : 'Archive'}</button>
-                                        <button onClick={() => handleEdit('project', p)} className="text-blue-600 hover:text-blue-800" disabled={isEditing}>Edit</button>
+                                        <button onClick={() => handleEdit('project', p)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
                                         <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
                                     </div>
                                 </div>
@@ -1965,7 +2025,7 @@ const AdminConsole = ({ db, detailers, projects }) => {
     );
 };
 
-const WorkloaderConsole = ({ detailers, projects, assignments }) => {
+const WorkloaderConsole = ({ detailers, projects, assignments, theme, setTheme }) => {
     const [startDate, setStartDate] = useState(new Date());
 
     const getWeekDates = (from) => {
@@ -2024,39 +2084,79 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
         return `${start.getMonth()+1}/${start.getDate()}/${start.getFullYear()} - ${end.getMonth()+1}/${end.getDate()}/${end.getFullYear()}`;
     }
 
+    const themeClasses = {
+        light: {
+            stickyNavBg: 'bg-gray-50',
+            tableWrapperBg: 'bg-white',
+            tableHeadBg: 'bg-gray-50',
+            projectRowBg: 'bg-gray-100',
+            assignmentRowHover: 'hover:bg-gray-50',
+            borderColor: 'border-gray-300',
+            textColor: 'text-gray-700',
+            subtleTextColor: 'text-gray-500'
+        },
+        grey: {
+            stickyNavBg: 'bg-gray-200',
+            tableWrapperBg: 'bg-gray-300',
+            tableHeadBg: 'bg-gray-200',
+            projectRowBg: 'bg-gray-400',
+            assignmentRowHover: 'hover:bg-gray-400',
+            borderColor: 'border-gray-500',
+            textColor: 'text-black',
+            subtleTextColor: 'text-gray-800'
+        },
+        dark: {
+            stickyNavBg: 'bg-gray-800',
+            tableWrapperBg: 'bg-gray-900',
+            tableHeadBg: 'bg-gray-800',
+            projectRowBg: 'bg-gray-700',
+            assignmentRowHover: 'hover:bg-gray-600',
+            borderColor: 'border-gray-600',
+            textColor: 'text-gray-200',
+            subtleTextColor: 'text-gray-400'
+        }
+    };
+    const currentTheme = themeClasses[theme];
+
+
     return (
         <div className="space-y-4 h-full flex flex-col">
-             <div className="sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border shadow-sm gap-4">
+             <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.stickyNavBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
                  <div className="flex items-center gap-2">
-                     <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
-                     <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
-                     <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
-                     <span className="font-semibold text-sm ml-4">{getWeekDisplay(weekDates[0])}</span>
+                     <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}>{'<'}</button>
+                     <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.borderColor} ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}>Today</button>
+                     <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}>{'>'}</button>
+                     <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>Light</button>
+                    <button onClick={() => setTheme('grey')} className={`px-3 py-1 text-sm rounded-md ${theme === 'grey' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>Grey</button>
+                    <button onClick={() => setTheme('dark')} className={`px-3 py-1 text-sm rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : 'bg-gray-900 text-white'}`}>Dark</button>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                      {Object.entries(legendColorMapping).map(([trade, color]) => (
                          <div key={trade} className="flex items-center gap-2">
                              <div className={`w-4 h-4 rounded-sm ${color}`}></div>
-                             <span>{trade}</span>
+                             <span className={currentTheme.textColor}>{trade}</span>
                          </div>
                      ))}
                  </div>
              </div>
 
-            <div className="overflow-auto border rounded-lg bg-white shadow-sm flex-grow">
+            <div className={`overflow-auto border rounded-lg ${currentTheme.tableWrapperBg} ${currentTheme.borderColor} shadow-sm flex-grow`}>
                 <table className="min-w-full text-sm text-left border-collapse">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
+                    <thead className={`${currentTheme.tableHeadBg} sticky top-0 z-10`}>
                         <tr>
-                            <th className="p-1 font-semibold w-16 min-w-[64px] border border-gray-300">DETAILER</th>
-                            <th className="p-1 font-semibold w-11 min-w-[44px] border border-gray-300">TRADE</th>
-                            <th className="p-1 font-semibold w-9 min-w-[36px] border border-gray-300">% ALLOCATED</th>
+                            <th className={`p-1 font-semibold w-16 min-w-[64px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>DETAILER</th>
+                            <th className={`p-1 font-semibold w-11 min-w-[44px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>TRADE</th>
+                            <th className={`p-1 font-semibold w-9 min-w-[36px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>% ALLOCATED</th>
                             {weekDates.map(date => {
                                 const weekStart = new Date(date);
                                 const weekEnd = new Date(weekStart);
                                 weekEnd.setDate(weekEnd.getDate() + 6);
                                 const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
                                 return (
-                                <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border border-gray-300 ${isCurrentWeek ? 'bg-blue-200' : ''}`}>
+                                <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border ${currentTheme.borderColor} ${currentTheme.textColor} ${isCurrentWeek ? 'bg-blue-200 text-black' : ''}`}>
                                     {`${date.getMonth() + 1}/${date.getDate()}`}
                                 </th>
                             )})}
@@ -2065,18 +2165,18 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                     <tbody>
                         {groupedData.map(project => (
                             <React.Fragment key={project.id}>
-                                <tr className="bg-gray-100 sticky top-10">
-                                    <th colSpan={3 + weekDates.length} className="p-1 text-left font-bold text-gray-700 border border-gray-300">
+                                <tr className={`${currentTheme.projectRowBg} sticky top-10`}>
+                                    <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor}`}>
                                         {project.name} ({project.projectId})
                                     </th>
                                 </tr>
                                 {project.assignments.map(assignment => {
                                     const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
                                     return (
-                                        <tr key={assignment.id} className="hover:bg-gray-50 h-8">
-                                            <td className="p-1 font-medium border border-gray-300">{assignment.detailerName}</td>
-                                            <td className="p-1 border border-gray-300">{assignment.trade}</td>
-                                            <td className="p-1 font-semibold border border-gray-300">{assignment.allocation}%</td>
+                                        <tr key={assignment.id} className={`${currentTheme.assignmentRowHover} h-8`}>
+                                            <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
+                                            <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
+                                            <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
                                             {weekDates.map(weekStart => {
                                                 const weekEnd = new Date(weekStart);
                                                 weekEnd.setDate(weekStart.getDate() + 6);
@@ -2088,7 +2188,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                                                 const tooltipText = isAssigned ? `Activity: ${assignment.activity || 'N/A'}` : '';
 
                                                 return (
-                                                    <td key={weekStart.toISOString()} className="p-0 border border-gray-300">
+                                                    <td key={weekStart.toISOString()} className={`p-0 border ${currentTheme.borderColor}`}>
                                                         {isAssigned ? (
                                                           <Tooltip text={tooltipText}>
                                                               <div className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded`}>
@@ -2113,7 +2213,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
     );
 };
 
-const GanttConsole = ({ projects, assignments }) => {
+const GanttConsole = ({ projects, assignments, currentTheme }) => {
     const svgRef = useRef(null);
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects'); // 'projects' or 'totals'
@@ -2197,7 +2297,7 @@ const GanttConsole = ({ projects, assignments }) => {
 
 
     useEffect(() => {
-        if (!svgRef.current) return;
+        if (!svgRef.current || !currentTheme) return;
         const dataToRender = ganttView === 'projects' ? projectData : totalData;
         if(dataToRender.length === 0) return;
 
@@ -2228,28 +2328,36 @@ const GanttConsole = ({ projects, assignments }) => {
         const tooltip = d3.select("body").append("div")
             .attr("class", "absolute opacity-0 transition-opacity duration-300 bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg")
 
-
-        g.append("g")
+        // X-Axis
+        const xAxis = g.append("g")
             .attr("transform", `translate(0,${boundedHeight})`)
             .call(d3.axisBottom(x).ticks(d3.timeWeek.every(1)).tickFormat(d3.timeFormat("%m/%d")));
+        
+        xAxis.selectAll("text").style("fill", currentTheme.textColor);
+        xAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
 
-        g.append("g")
-            .call(d3.axisLeft(y))
-            .append("text")
-            .attr("fill", "#000")
+        // Y-Axis
+        const yAxis = g.append("g")
+            .call(d3.axisLeft(y));
+            
+        yAxis.selectAll("text").style("fill", currentTheme.textColor);
+        yAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
+
+        // Y-Axis Label
+        g.append("text")
+            .attr("fill", currentTheme.textColor)
             .attr("transform", "rotate(-90)")
-            .attr("y", 6)
-            .attr("dy", "0.71em")
-            .attr("text-anchor", "end")
+            .attr("y", -margin.left + 20)
+            .attr("x", -(boundedHeight / 2))
+            .attr("text-anchor", "middle")
             .text("Total Weekly Hours");
 
-        // Manually create an array of 40-hour intervals for the reference lines
+        // Horizontal reference lines
         const fortyHourTicks = [];
         for (let i = 40; i <= yMax; i += 40) {
             fortyHourTicks.push(i);
         }
 
-        // Add horizontal reference lines
         g.append("g")
             .attr("class", "grid")
             .selectAll("line")
@@ -2259,9 +2367,9 @@ const GanttConsole = ({ projects, assignments }) => {
                 .attr("x2", boundedWidth)
                 .attr("y1", d => y(d))
                 .attr("y2", d => y(d))
-                .attr("stroke", "red")
-                .attr("stroke-opacity", 0.6)
-                .attr("stroke-width", .5);
+                .attr("stroke", "rgba(255, 82, 82, 0.5)")
+                .attr("stroke-width", .5)
+                .attr("stroke-dasharray", "4");
         
         const project = g.selectAll(".project")
             .data(dataToRender)
@@ -2290,7 +2398,7 @@ const GanttConsole = ({ projects, assignments }) => {
 
         return () => { tooltip.remove() };
 
-    }, [projectData, totalData, ganttView, boundedHeight, boundedWidth, margin.left, margin.top, weekDates, color]);
+    }, [projectData, totalData, ganttView, boundedHeight, boundedWidth, margin.left, margin.top, weekDates, color, currentTheme]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -2301,19 +2409,19 @@ const GanttConsole = ({ projects, assignments }) => {
     };
 
     return (
-        <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
+        <div className="p-4 space-y-4">
+            <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
-                    <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
-                    <button onClick={() => handleDateNav(7)} className="p-2 rounded-md hover:bg-gray-200">{'>'}</button>
+                    <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
+                    <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
+                    <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'>'}</button>
                 </div>
-                 <div className="flex items-center gap-2 bg-gray-200 p-1 rounded-lg">
-                    <button onClick={() => setGanttView('projects')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'projects' ? 'bg-white shadow' : ''}`}>Projects</button>
-                    <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? 'bg-white shadow' : ''}`}>Totals</button>
+                 <div className={`flex items-center gap-2 ${currentTheme.altRowBg} p-1 rounded-lg`}>
+                    <button onClick={() => setGanttView('projects')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'projects' ? `${currentTheme.cardBg} shadow` : ''}`}>Projects</button>
+                    <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? `${currentTheme.cardBg} shadow` : ''}`}>Totals</button>
                 </div>
             </div>
-            <div className="bg-white p-4 rounded-lg border shadow-sm overflow-x-auto">
+            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm overflow-x-auto`}>
                 <svg ref={svgRef} width={width} height={height}></svg>
             </div>
             {ganttView === 'projects' && (
@@ -2321,7 +2429,7 @@ const GanttConsole = ({ projects, assignments }) => {
                     {projectData.map(p => (
                         <div key={p.projectId} className="flex flex-col items-center">
                             <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
-                            <span className="transform -rotate-90 whitespace-nowrap mt-4">{p.projectNumber}</span>
+                            <span className={`transform -rotate-90 whitespace-nowrap mt-4 ${currentTheme.textColor}`}>{p.projectNumber}</span>
                         </div>
                     ))}
                 </div>
