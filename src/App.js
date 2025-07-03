@@ -2924,7 +2924,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                  </div>
              </div>
             {isModalOpen && (
-                <Modal
+                <TaskDetailModal
                     db={db}
                     task={editingTask}
                     detailers={detailers}
