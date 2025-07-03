@@ -832,7 +832,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                 </svg>
             </button>
             {!isCollapsed && (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto" onClick={e => e.stopPropagation()}>
                     <table className="min-w-full text-sm">
                         <thead>
                             <tr className="bg-gray-100">
@@ -1049,7 +1049,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
         });
     }, []);
     
-    const handleSaveChanges = async () => {
+    const handleSaveChanges = async (e) => {
+        e.stopPropagation();
         const dataToSave = JSON.parse(JSON.stringify(draftData));
 
         // Sanitize subset data before saving
@@ -1169,7 +1170,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
         });
     }, []);
 
-    const handleToggleCollapse = (section) => {
+    const handleToggleCollapse = (e, section) => {
+        e.stopPropagation();
         setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
@@ -1188,7 +1190,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
     return (
         <div className="space-y-6 mt-4 border-t pt-4">
              {!isPCL && (
-                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" onClick={e => e.stopPropagation()}>
                     <FinancialSummary project={project} activityTotals={activityTotals} />
                     <HourSummary project={project} activityTotals={activityTotals} />
                  </div>
@@ -1197,7 +1199,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
             {/* --- Project Subsets Section --- */}
             <div className="bg-white rounded-lg border shadow-sm">
                  <button
-                    onClick={() => handleToggleCollapse('projectBreakdown')}
+                    onClick={(e) => handleToggleCollapse(e, 'projectBreakdown')}
                     className="w-full p-3 text-left font-bold flex justify-between items-center bg-gray-200 hover:bg-gray-300 transition-colors"
                 >
                     <h3 className="text-lg font-semibold">Project Breakdown</h3>
@@ -1206,7 +1208,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                     </svg>
                 </button>
                 {!collapsedSections.projectBreakdown && (
-                    <div className="p-4">
+                    <div className="p-4" onClick={e => e.stopPropagation()}>
                         <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
                             <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
                                 <span className="col-span-2">Name</span>
@@ -1311,17 +1313,17 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 
             {/* --- Activity Tracker Section --- */}
             {!isPCL && (
-                <div className="bg-white p-4 rounded-lg border shadow-sm">
+                <div className="bg-white p-4 rounded-lg border shadow-sm" onClick={e => e.stopPropagation()}>
                      <div className="flex justify-between items-center mb-3">
                         <h3 className="text-lg font-semibold">Activity Tracker</h3>
                         <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
                             Save All Changes
                         </button>
                      </div>
-                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={() => handleToggleCollapse('sheetmetal')} project={project}/>
-                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={() => handleToggleCollapse('piping')} project={project}/>
-                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={() => handleToggleCollapse('plumbing')} project={project}/>
-                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={() => handleToggleCollapse('bim')} project={project}/>
+                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project}/>
+                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project}/>
+                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project}/>
+                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project}/>
                      <div className="bg-gray-100 font-bold p-2 flex justify-end gap-x-6">
                         <span className="text-right">Totals:</span>
                         <span>Est: {activityTotals.estimated.toFixed(2)}</span>
@@ -1337,24 +1339,49 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState('projectId');
 
     const handleProjectClick = (projectId) => {
         setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
     };
 
     const filteredProjects = useMemo(() => {
-        return projects.filter(p => {
-            const query = searchQuery.toLowerCase();
-            return p.name.toLowerCase().includes(query) || p.projectId.includes(query);
-        }).sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
-    }, [projects, searchQuery]);
+        return projects
+            .filter(p => {
+                const query = searchQuery.toLowerCase();
+                return p.name.toLowerCase().includes(query) || p.projectId.includes(query);
+            })
+            .sort((a, b) => {
+                if (sortBy === 'name') {
+                    return a.name.localeCompare(b.name);
+                }
+                return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
+            });
+    }, [projects, searchQuery, sortBy]);
 
     const isViewer = accessLevel === 'viewer';
 
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Project Overview</h2>
+                 <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-bold">Project Overview</h2>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">Sort by:</span>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setSortBy('name'); }}
+                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                        >
+                            Alphabetical
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setSortBy('projectId'); }}
+                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+                        >
+                            Project ID
+                        </button>
+                    </div>
+                </div>
                 <div className="w-1/3">
                     <input
                         type="text"
@@ -1388,47 +1415,47 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
                             </div>
                            
                             {isExpanded && (
-                                <>
-                                <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                    <div className="lg:col-span-1">
-                                        <h4 className="text-md font-semibold mb-2 border-b pb-1">Assigned Detailers:</h4>
-                                        {projectAssignments.length === 0 ? (
-                                            <p className="text-sm text-gray-500">None</p>
-                                        ) : (
-                                            <ul className="list-disc list-inside text-sm space-y-1">
-                                                {projectAssignments.map(a => {
-                                                    const detailer = detailers.find(d => d.id === a.detailerId);
-                                                    return (
-                                                        <li key={a.id}>
-                                                            {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade}/{a.activity})
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        )}
-                                    </div>
-                                    <div className="lg:col-span-2">
-                                        <h4 className="text-md font-semibold mb-2 border-b pb-1">Project Roles & Contacts</h4>
-                                        <div className="grid grid-cols-12 gap-x-4 font-bold text-xs text-gray-500 py-1">
-                                            <div className="col-span-4">ROLE</div>
-                                            <div className="col-span-3">NAME</div>
-                                            <div className="col-span-3">COMPANY</div>
-                                            <div className="col-span-2">PHONE NUMBER</div>
+                                <div onClick={e => e.stopPropagation()}>
+                                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        <div className="lg:col-span-1">
+                                            <h4 className="text-md font-semibold mb-2 border-b pb-1">Assigned Detailers:</h4>
+                                            {projectAssignments.length === 0 ? (
+                                                <p className="text-sm text-gray-500">None</p>
+                                            ) : (
+                                                <ul className="list-disc list-inside text-sm space-y-1">
+                                                    {projectAssignments.map(a => {
+                                                        const detailer = detailers.find(d => d.id === a.detailerId);
+                                                        return (
+                                                            <li key={a.id}>
+                                                                {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade}/{a.activity})
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            )}
                                         </div>
-                                        <div className="space-y-1">
-                                            {(p.roles || []).map((role, index) => (
-                                                <div key={index} className="grid grid-cols-12 gap-x-4 text-sm py-1 border-b border-gray-100 items-center">
-                                                    <p className="col-span-4 font-semibold">{role.role}</p>
-                                                    <p className="col-span-3 text-gray-700">{role.name || <span className="text-gray-400 italic">Name</span>}</p>
-                                                    <p className="col-span-3 text-gray-700">{role.company || <span className="text-gray-400 italic">Company</span>}</p>
-                                                    <p className="col-span-2 text-gray-700">{role.phoneNumber || <span className="text-gray-400 italic">Phone #</span>}</p>
-                                                </div>
-                                            ))}
+                                        <div className="lg:col-span-2">
+                                            <h4 className="text-md font-semibold mb-2 border-b pb-1">Project Roles & Contacts</h4>
+                                            <div className="grid grid-cols-12 gap-x-4 font-bold text-xs text-gray-500 py-1">
+                                                <div className="col-span-4">ROLE</div>
+                                                <div className="col-span-3">NAME</div>
+                                                <div className="col-span-3">COMPANY</div>
+                                                <div className="col-span-2">PHONE NUMBER</div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {(p.roles || []).map((role, index) => (
+                                                    <div key={index} className="grid grid-cols-12 gap-x-4 text-sm py-1 border-b border-gray-100 items-center">
+                                                        <p className="col-span-4 font-semibold">{role.role}</p>
+                                                        <p className="col-span-3 text-gray-700">{role.name || <span className="text-gray-400 italic">Name</span>}</p>
+                                                        <p className="col-span-3 text-gray-700">{role.company || <span className="text-gray-400 italic">Company</span>}</p>
+                                                        <p className="col-span-2 text-gray-700">{role.phoneNumber || <span className="text-gray-400 italic">Phone #</span>}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
+                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />}
                                 </div>
-                                {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />}
-                                </>
                             )}
                         </div>
                     );

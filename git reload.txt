@@ -1,35 +1,12 @@
 git add .
-git commit -m "Enhanced Project Console and Added Contact Roles"
+git commit -m "Enhanced Project Console with Expand upon Click"
 git push origin main
 
 
 Push Functions/Index.js
-
 firebase deploy --only functions
 
-Things to come -
-Reformatting the task console to create "lanes" for the different kinds or requests
-Adding instructions in how to use it
-Adding an Action Tracker interface to use all of the Productivity Tracker data
-It will operate much like the one that Tim has built.
-Repair email notifications for the Task Console.
- 
 
 w-full h-4
 
 
-I would like to build out an activity tracker for each project listed in the project console. this activity tracker would be a drop down in any given project.
-I will tell you how to build out the activity tracker. first we need a drop down.
-Attached it the activity tracker layout information. Make Estimated hour, percent complete and hours used fillable by the user. 
-Projected hours should be percent complete divided by hours used mupltiplied by 100. and totals should be all the above cells added up.
-
-Break Activity Tracker up into 4 subsets: Sheetmetal (Activities that start with SM), Plumbing (Activities that start with PL), Piping (Activities that start with PF) and BIM (the remainder of the activity line items). 
-Allow user to add, delete and/or modify activity descriptions and charge codes. 
-Color the sheet metal background yellow with a 70 percent transparency. (color to match "duct" color on workloader view)
-Color the plumbing background brown with a 70 percent transparency. (color to match "plumbing" color on workloader view)
-Color the piping background yellow with a 70 percent transparency. (color to match "piping" color on workloader view)
-Color the BIM background Purple with a 70 percent transparency. (color to match "BIM" color on workloader view)
-
-In the Project view, allow the activity tracker table to live in each project under the default heading "Area/Floor/Phase".
-Allow the user to change heading title.
-Allow user to add or delete an activity tracker "Area/Floor/Phase" table under each project (with all of the default activities and charge codes populated).
