@@ -96,7 +96,7 @@ const initialProjects = [
 const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
 const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
 const activityOptions = ["Modeling", "Coordination", "Spooling", "Deliverables", "Miscellaneous"];
-const taskStatusOptions = ["Not Started", "In Progress", "Completed"];
+const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
 const subsetTypes = ["Phase", "Building", "Area", "Level", "System", "Other"];
 
 
@@ -2680,7 +2680,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                     </div>
 
                     <div className="flex justify-end gap-4 pt-4">
-                        {!isNewTask && (!taskData.subTasks || taskData.subTasks.length === 0) && (
+                        {!isNewTask && (
                             <button
                                 onClick={onDelete}
                                 className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 mr-auto"
@@ -2780,9 +2780,10 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
         setEditingTask(null);
     };
     
-    const handleDeleteTask = async (taskId) => {
+    const handleSoftDeleteTask = async (taskId) => {
         if (!taskId) return;
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
+        const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
+        await updateDoc(taskRef, { status: 'Deleted' });
         showNotification("Task deleted successfully!");
         handleCloseModal(); 
         setTaskToDelete(null); 
@@ -2860,7 +2861,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
 
 
     const handleDeleteLane = (lane) => {
-        const tasksInLane = tasks.filter(t => t.laneId === lane.id);
+        const tasksInLane = tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted');
         if (tasksInLane.length > 0) {
             showNotification({ text: "Cannot delete a lane that contains tasks.", isError: true });
             return;
@@ -2898,7 +2899,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                                ) : (
                                    <h2 className="font-semibold cursor-pointer" onClick={() => { setEditingLaneId(lane.id); setEditingLaneName(lane.name); }}>{lane.name}</h2>
                                )}
-                                <button onClick={() => handleDeleteLane(lane)} className="text-gray-400 hover:text-red-500 disabled:opacity-20" disabled={tasks.some(t => t.laneId === lane.id)}>&times;</button>
+                                <button onClick={() => handleDeleteLane(lane)} className="text-gray-400 hover:text-red-500 disabled:opacity-20" disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
                             </div>
 
                              {lane.name === "New Requests" && (
@@ -2906,7 +2907,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                              )}
 
                              <div className="flex-grow overflow-y-auto pr-2">
-                                 {tasks.filter(t => t.laneId === lane.id).map(task => (
+                                 {tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted').map(task => (
                                      <TaskCard
                                          key={task.id}
                                          task={task}
@@ -2951,10 +2952,10 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                 <Modal onClose={() => setTaskToDelete(null)} customClasses="max-w-md">
                     <div className="text-center p-4">
                         <h3 className="text-lg font-bold mb-4">Confirm Task Deletion</h3>
-                        <p className="mb-6">Are you sure you want to delete the task "{taskToDelete.taskName}"? This action cannot be undone.</p>
+                        <p className="mb-6">Are you sure you want to delete the task "{taskToDelete.taskName}"? This will hide it from all active views.</p>
                         <div className="flex justify-center gap-4">
                             <button onClick={() => setTaskToDelete(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                            <button onClick={() => handleDeleteTask(taskToDelete.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+                            <button onClick={() => handleSoftDeleteTask(taskToDelete.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
                         </div>
                     </div>
                 </Modal>
