@@ -2565,6 +2565,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     };
     
     if (!taskData) return null;
+    
+    const hasSubtasks = taskData.subTasks && taskData.subTasks.length > 0;
 
     return (
         <Modal onClose={onClose}>
@@ -2681,12 +2683,17 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
 
                     <div className="flex justify-end gap-4 pt-4">
                         {!isNewTask && (
-                            <button
-                                onClick={onDelete}
-                                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 mr-auto"
-                            >
-                                Delete Task
-                            </button>
+                           <Tooltip text={hasSubtasks ? "Delete all sub-tasks first" : ""}>
+                                <div className="mr-auto"> {/* Wrapper div for tooltip positioning */}
+                                    <button
+                                        onClick={onDelete}
+                                        disabled={hasSubtasks}
+                                        className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                    >
+                                        Delete Task
+                                    </button>
+                                </div>
+                            </Tooltip>
                         )}
                         <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
                         <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
