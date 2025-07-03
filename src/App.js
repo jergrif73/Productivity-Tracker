@@ -487,7 +487,7 @@ const App = () => {
         
         switch (currentView) {
             case 'detailers':
-                return <TeamConsole db={db} employees={detailers} projects={projects} assignments={assignments} />;
+                return <TeamConsole db={db} detailers={detailers} projects={projects} assignments={assignments} />;
             case 'projects':
                 return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} />;
             case 'workloader':
@@ -497,9 +497,9 @@ const App = () => {
              case 'gantt':
                 return <GanttConsole projects={projects} assignments={assignments} />;
             case 'skills':
-                return <SkillsConsole db={db} employees={detailers} />;
+                return <SkillsConsole db={db} detailers={detailers} />;
             case 'admin':
-                return <AdminConsole db={db} employees={detailers} projects={projects} />;
+                return <AdminConsole db={db} detailers={detailers} projects={projects} />;
             default:
                  // This should not be reached if logged in, but provides a safe fallback.
                  return <div className="text-center p-10">Select a view from the navigation.</div>
@@ -606,10 +606,10 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const TeamConsole = ({ db, employees, projects, assignments }) => {
+const TeamConsole = ({ db, detailers, projects, assignments }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
-    const [newAssignments, setNewAssignments] = useState({}); // { employeeId: [newAssignmentObj, ...] }
+    const [newAssignments, setNewAssignments] = useState({});
     const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
 
     const getMostRecentMonday = () => {
@@ -621,11 +621,11 @@ const TeamConsole = ({ db, employees, projects, assignments }) => {
     };
     
     const sortedEmployees = useMemo(() => {
-        return [...employees].sort((a, b) => {
+        return [...detailers].sort((a, b) => {
             if (sortBy === 'firstName') return a.firstName.localeCompare(b.firstName);
             return a.lastName.localeCompare(b.lastName);
         });
-    }, [employees, sortBy]);
+    }, [detailers, sortBy]);
 
     const handleAddNewAssignment = (employeeId) => {
         const newAsn = {
@@ -702,8 +702,9 @@ const TeamConsole = ({ db, employees, projects, assignments }) => {
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
                 </div>
-                {sortedEmployees.map(employee => {
+                {sortedEmployees.map((employee, index) => {
                     const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
+                    const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
                     
                     const today = new Date();
                     const dayOfWeek = today.getDay();
@@ -727,7 +728,7 @@ const TeamConsole = ({ db, employees, projects, assignments }) => {
                     const isExpanded = expandedEmployeeId === employee.id;
 
                     return (
-                        <div key={employee.id} className="bg-white rounded-lg shadow">
+                        <div key={employee.id} className={`${bgColor} rounded-lg shadow-sm`}>
                             <div 
                                 className="grid grid-cols-12 gap-4 items-center p-4 cursor-pointer"
                                 onClick={() => toggleEmployee(employee.id)}
@@ -782,7 +783,7 @@ const TeamConsole = ({ db, employees, projects, assignments }) => {
 
             {viewingSkillsFor && (
                 <Modal onClose={() => setViewingSkillsFor(null)}>
-                    <SkillsConsole db={db} employees={[viewingSkillsFor]} singleDetailerMode={true} />
+                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} />
                 </Modal>
             )}
         </div>
@@ -1394,15 +1395,16 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
                 </div>
             </div>
             <div className="space-y-4">
-                {filteredProjects.map(p => {
+                {filteredProjects.map((p, index) => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     const isExpanded = expandedProjectId === p.id;
                     const project = projects.find(proj => proj.id === p.id);
+                    const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
 
                     return (
                         <div 
                             key={p.id} 
-                            className="bg-white p-4 rounded-lg border shadow-sm transition-all duration-300 ease-in-out"
+                            className={`${bgColor} p-4 rounded-lg border shadow-sm transition-all duration-300 ease-in-out`}
                             onClick={() => handleProjectClick(p.id)}
                         >
                             <div className="flex justify-between items-start cursor-pointer">
@@ -1466,20 +1468,20 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
     );
 };
 
-const SkillsConsole = ({ db, employees, singleDetailerMode = false }) => {
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && employees[0] ? employees[0].id : '');
+const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
     const [saveMessage, setSaveMessage] = useState('');
 
     useEffect(() => {
-        const employee = employees.find(d => d.id === selectedEmployeeId);
+        const employee = detailers.find(d => d.id === selectedEmployeeId);
         if (employee) {
             setEditableEmployee({ ...employee });
         } else {
             setEditableEmployee(null);
         }
-    }, [selectedEmployeeId, employees]);
+    }, [selectedEmployeeId, detailers]);
 
     const handleSkillChange = (skillName, score) => {
         setEditableEmployee(prev => ({
@@ -1534,7 +1536,7 @@ const SkillsConsole = ({ db, employees, singleDetailerMode = false }) => {
                 <div className="mb-4">
                     <select onChange={e => setSelectedEmployeeId(e.target.value)} value={selectedEmployeeId} className="w-full max-w-xs p-2 border rounded-md">
                         <option value="" disabled>Select an employee...</option>
-                        {employees.map(e => (
+                        {detailers.map(e => (
                             <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
                         ))}
                     </select>
@@ -1605,7 +1607,7 @@ const SkillsConsole = ({ db, employees, singleDetailerMode = false }) => {
 };
 
 
-const AdminConsole = ({ db, employees, projects }) => {
+const AdminConsole = ({ db, detailers, projects }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
     
@@ -1619,13 +1621,13 @@ const AdminConsole = ({ db, employees, projects }) => {
     const [showArchived, setShowArchived] = useState(false);
 
     const sortedEmployees = useMemo(() => {
-        return [...employees].sort((a, b) => {
+        return [...detailers].sort((a, b) => {
             if (employeeSortBy === 'lastName') {
                 return a.lastName.localeCompare(b.lastName);
             }
             return a.firstName.localeCompare(b.firstName);
         });
-    }, [employees, employeeSortBy]);
+    }, [detailers, employeeSortBy]);
 
     const sortedProjects = useMemo(() => {
         return [...projects]
@@ -1779,8 +1781,10 @@ const AdminConsole = ({ db, employees, projects }) => {
                 </div>
                 {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
-                    {sortedEmployees.map(e => (
-                        <div key={e.id} className="bg-white p-3 border rounded-md shadow-sm">
+                    {sortedEmployees.map((e, index) => {
+                        const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                        return (
+                        <div key={e.id} className={`${bgColor} p-3 border rounded-md shadow-sm`}>
                             {editingEmployeeId === e.id ? (
                                 <div className="space-y-2">
                                     <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className="w-full p-2 border rounded-md"/>
@@ -1811,7 +1815,7 @@ const AdminConsole = ({ db, employees, projects }) => {
                                 </div>
                             )}
                         </div>
-                    ))}
+                    )})}
                 </div>
             </div>
 
@@ -1857,8 +1861,10 @@ const AdminConsole = ({ db, employees, projects }) => {
                     <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                 </div>
                 <div className="space-y-2 mb-8">
-                    {sortedProjects.map(p => (
-                         <div key={p.id} className="bg-white p-3 border rounded-md shadow-sm">
+                    {sortedProjects.map((p, index) => {
+                        const bgColor = index % 2 === 0 ? 'bg-white' : 'bg-blue-50';
+                        return (
+                         <div key={p.id} className={`${bgColor} p-3 border rounded-md shadow-sm`}>
                             {editingProjectId === p.id ? (
                                 <div className="space-y-2">
                                     <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className="w-full p-2 border rounded-md"/>
@@ -1952,7 +1958,7 @@ const AdminConsole = ({ db, employees, projects }) => {
                                 </div>
                             )}
                         </div>
-                    ))}
+                    )})}
                 </div>
             </div>
         </div>
