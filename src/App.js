@@ -1335,8 +1335,12 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 
 
 const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) => {
-    const [hoveredProjectId, setHoveredProjectId] = useState(null);
+    const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+
+    const handleProjectClick = (projectId) => {
+        setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
+    };
 
     const filteredProjects = useMemo(() => {
         return projects.filter(p => {
@@ -1364,23 +1368,22 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel }) =
             <div className="space-y-4">
                 {filteredProjects.map(p => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
-                    const isExpanded = hoveredProjectId === p.id;
+                    const isExpanded = expandedProjectId === p.id;
                     const project = projects.find(proj => proj.id === p.id);
 
                     return (
                         <div 
                             key={p.id} 
                             className="bg-white p-4 rounded-lg border shadow-sm transition-all duration-300 ease-in-out"
-                            onMouseEnter={() => setHoveredProjectId(p.id)}
-                            onMouseLeave={() => setHoveredProjectId(null)}
+                            onClick={() => handleProjectClick(p.id)}
                         >
-                            <div className="flex justify-between items-start">
+                            <div className="flex justify-between items-start cursor-pointer">
                                 <div>
                                     <h3 className="text-lg font-semibold">{p.name}</h3>
                                     <p className="text-sm text-gray-600">Project ID: {p.projectId}</p>
                                 </div>
                                 {!isExpanded && (
-                                     <span className="text-xs text-gray-500">Hover to expand</span>
+                                     <span className="text-xs text-gray-500">Click to expand</span>
                                 )}
                             </div>
                            
