@@ -2019,8 +2019,8 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
     }
 
     return (
-        <div className="space-y-4">
-             <div className="flex flex-col sm:flex-row justify-between items-center p-2 bg-white rounded-lg border shadow-sm gap-4">
+        <div className="space-y-4 h-full flex flex-col">
+             <div className="sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-gray-50 rounded-lg border shadow-sm gap-4">
                  <div className="flex items-center gap-2">
                      <button onClick={() => handleDateNav(-7)} className="p-2 rounded-md hover:bg-gray-200">{'<'}</button>
                      <button onClick={() => setStartDate(new Date())} className="p-2 px-4 border rounded-md hover:bg-gray-200">Today</button>
@@ -2037,7 +2037,7 @@ const WorkloaderConsole = ({ detailers, projects, assignments }) => {
                  </div>
              </div>
 
-            <div className="overflow-x-auto border rounded-lg bg-white shadow-sm">
+            <div className="overflow-auto border rounded-lg bg-white shadow-sm flex-grow">
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
@@ -2572,7 +2572,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                         <div className="grid grid-cols-2 gap-4">
                             <select name="projectId" value={taskData.projectId} onChange={handleChange} className="w-full p-2 border rounded-md">
                                 <option value="">Select Project...</option>
-                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                             <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className="w-full p-2 border rounded-md">
                                 <option value="">Assign To...</option>
