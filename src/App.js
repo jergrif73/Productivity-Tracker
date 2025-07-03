@@ -71,26 +71,10 @@ const initialDetailers = [
     { firstName: "Tyson", lastName: "Kafentzis", employeeId: "101153", title: "Detailer I", email: "TKafentzis@southlandind.com", skills: {}, disciplineSkillsets: {} }
 ];
 
-const templateProjectRoles = [
-    { role: "SI Project Manager", name: "", company: "Southland", phoneNumber: "" },
-    { role: "SI Project Engineer", name: "", company: "Southland", phoneNumber: "" },
-    { role: "SI Sheet Metal Field Lead", name: "", company: "Southland", phoneNumber: "" },
-    { role: "SI Piping Field Lead", name: "", company: "Southland", phoneNumber: "" },
-    { role: "SI Plumbing Field Lead", name: "", company: "Southland", phoneNumber: "" },
-    { role: "GC Coordinator", name: "", company: "", phoneNumber: "" },
-    { role: "GC Project Manager", name: "", company: "", phoneNumber: "" },
-    { role: "Electrical Coordinator", name: "", company: "", phoneNumber: "" },
-    { role: "Fire Sprinkler Coordinator", name: "", company: "", phoneNumber: "" },
-    { role: "Civil Coordinator", name: "", company: "", phoneNumber: "" },
-    { role: "Steel Coordinator", name: "", company: "", phoneNumber: "" },
-    { role: "Dry Wall Coordinator", name: "", company: "", phoneNumber: "" }
-];
-
-
 const initialProjects = [
-    { name: "Brandt Interco", projectId: "5800005", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles, archived: false },
-    { name: "PRECON / Estimating 2022", projectId: "5818022", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles, archived: false },
-    { name: "RLSB 7th Floor Buildout", projectId: "5820526", initialBudget: 0, blendedRate: 0, contingency: 0, roles: templateProjectRoles, archived: false },
+    { name: "Brandt Interco", projectId: "5800005", initialBudget: 0, blendedRate: 0, contingency: 0, archived: false, dashboardUrl: "" },
+    { name: "PRECON / Estimating 2022", projectId: "5818022", initialBudget: 0, blendedRate: 0, contingency: 0, archived: false, dashboardUrl: "" },
+    { name: "RLSB 7th Floor Buildout", projectId: "5820526", initialBudget: 0, blendedRate: 0, contingency: 0, archived: false, dashboardUrl: "" },
 ];
 
 const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
@@ -434,31 +418,7 @@ const App = () => {
     
         const unsubProjects = onSnapshot(collection(db, `artifacts/${appId}/public/data/projects`), async (snapshot) => {
             const projectsFromDb = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-            // --- One-time Migration Logic for Roles ---
-            const batch = writeBatch(db);
-            let needsUpdate = false;
-            projectsFromDb.forEach(p => {
-                if (!p.roles || !Array.isArray(p.roles) || p.roles.length === 0 || !p.roles[0].hasOwnProperty('role')) {
-                    console.log(`Project ${p.name} needs role structure update. Migrating...`);
-                    const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, p.id);
-                    batch.update(projectRef, { roles: templateProjectRoles.map(role => ({ ...role })) });
-                    needsUpdate = true;
-                }
-            });
-    
-            if (needsUpdate) {
-                console.log("Committing role structure updates...");
-                try {
-                    await batch.commit();
-                    // Firestore will refetch automatically due to the update.
-                } catch (error) {
-                    console.error("Error committing role migration batch:", error);
-                }
-            } else {
-                setProjects(projectsFromDb);
-            }
-            // --- End Migration Logic ---
+            setProjects(projectsFromDb);
         });
     
         const unsubAssignments = onSnapshot(collection(db, `artifacts/${appId}/public/data/assignments`), snapshot => {
@@ -1479,8 +1439,8 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                            
                             {isExpanded && (
                                 <div onClick={e => e.stopPropagation()}>
-                                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                        <div className="lg:col-span-1">
+                                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div>
                                             <h4 className="text-md font-semibold mb-2 border-b pb-1">Assigned Detailers:</h4>
                                             {projectAssignments.length === 0 ? (
                                                 <p className={`text-sm ${currentTheme.subtleText}`}>None</p>
@@ -1497,24 +1457,24 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                                 </ul>
                                             )}
                                         </div>
-                                        <div className="lg:col-span-2">
-                                            <h4 className="text-md font-semibold mb-2 border-b pb-1">Project Roles & Contacts</h4>
-                                            <div className="grid grid-cols-12 gap-x-4 font-bold text-xs text-gray-500 py-1">
-                                                <div className="col-span-4">ROLE</div>
-                                                <div className="col-span-3">NAME</div>
-                                                <div className="col-span-3">COMPANY</div>
-                                                <div className="col-span-2">PHONE NUMBER</div>
-                                            </div>
-                                            <div className="space-y-1">
-                                                {(p.roles || []).map((role, index) => (
-                                                    <div key={index} className="grid grid-cols-12 gap-x-4 text-sm py-1 border-b border-gray-100 items-center">
-                                                        <p className="col-span-4 font-semibold">{role.role}</p>
-                                                        <p className="col-span-3">{role.name || <span className="text-gray-400 italic">Name</span>}</p>
-                                                        <p className="col-span-3">{role.company || <span className="text-gray-400 italic">Company</span>}</p>
-                                                        <p className="col-span-2">{role.phoneNumber || <span className="text-gray-400 italic">Phone #</span>}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                        <div>
+                                            {p.dashboardUrl && (
+                                                <>
+                                                    <h4 className="text-md font-semibold mb-2 border-b pb-1">Dashboard</h4>
+                                                    <a
+                                                        href={p.dashboardUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                                                        </svg>
+                                                        Project Dashboard
+                                                    </a>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />}
@@ -1669,7 +1629,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
 
 const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
+    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '' });
     
     const [editingEmployeeId, setEditingEmployeeId] = useState(null);
     const [editingEmployeeData, setEditingEmployeeData] = useState(null);
@@ -1723,10 +1683,9 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
                 initialBudget: Number(newProject.initialBudget),
                 blendedRate: Number(newProject.blendedRate),
                 contingency: Number(newProject.contingency),
-                roles: templateProjectRoles.map(role => ({ ...role })),
                 archived: false,
             });
-            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0 });
+            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '' });
             setMessage('Project added.');
         }
         setTimeout(()=> setMessage(''), 3000);
@@ -1745,7 +1704,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
         } else if (type === 'project') {
             setEditingEmployeeId(null);
             setEditingProjectId(item.id);
-            setEditingProjectData({ ...item, roles: item.roles || [] }); // Ensure roles is an array
+            setEditingProjectData({ ...item });
         }
     };
 
@@ -1785,23 +1744,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
         } else if (type === 'project') {
             setEditingProjectData(prev => ({ ...prev, [name]: value }));
         }
-    };
-
-    const handleRoleChange = (index, field, value) => {
-        const updatedRoles = [...editingProjectData.roles];
-        updatedRoles[index] = { ...updatedRoles[index], [field]: value };
-        setEditingProjectData(prev => ({ ...prev, roles: updatedRoles }));
-    };
-
-    const handleAddRole = () => {
-        const updatedRoles = [...(editingProjectData.roles || []), { role: '', name: '', company: '', phoneNumber: '' }];
-        setEditingProjectData(prev => ({ ...prev, roles: updatedRoles }));
-    };
-
-    const handleDeleteRole = (index) => {
-        const updatedRoles = [...editingProjectData.roles];
-        updatedRoles.splice(index, 1);
-        setEditingProjectData(prev => ({ ...prev, roles: updatedRoles }));
     };
 
     const handleToggleArchive = async (projectId, isArchived) => {
@@ -1917,6 +1859,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
                             <label className="w-32">Contingency ($):</label>
                             <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                         </div>
+                        <div className="flex items-center gap-2">
+                            <label className="w-32">Project Dashboard:</label>
+                            <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        </div>
                     </div>
                     <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                 </div>
@@ -1941,64 +1887,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
                                         <label className="w-32">Contingency ($):</label>
                                         <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
-
-                                    {/* --- Roles Management UI --- */}
-                                    <div className="pt-4 mt-4 border-t">
-                                        <h4 className="font-semibold mb-2">Project Roles & Contacts</h4>
-                                        <div className="grid grid-cols-12 gap-2 font-bold text-xs text-gray-500 mb-2 px-1">
-                                            <div className="col-span-4">Role</div>
-                                            <div className="col-span-3">Name</div>
-                                            <div className="col-span-2">Company</div>
-                                            <div className="col-span-2">Phone Number</div>
-                                            <div className="col-span-1"></div>
-                                        </div>
-                                        <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-                                            {(editingProjectData.roles || []).map((role, index) => (
-                                                <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                                                    <div className="col-span-4">
-                                                        <input 
-                                                            value={role.role} 
-                                                            onChange={(e) => handleRoleChange(index, 'role', e.target.value)}
-                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                                                            placeholder="Role Title"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-3">
-                                                        <input 
-                                                            value={role.name} 
-                                                            onChange={(e) => handleRoleChange(index, 'name', e.target.value)}
-                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                                                            placeholder="Name"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-2">
-                                                        <input 
-                                                            value={role.company} 
-                                                            onChange={(e) => handleRoleChange(index, 'company', e.target.value)}
-                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                                                            placeholder="Company"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-2">
-                                                        <input 
-                                                            value={role.phoneNumber} 
-                                                            onChange={(e) => handleRoleChange(index, 'phoneNumber', e.target.value)}
-                                                            className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                                                            placeholder="Phone #"
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-1 flex justify-center">
-                                                        <button onClick={() => handleDeleteRole(index)} className="text-red-500 hover:text-red-700 p-1 rounded-full flex-shrink-0">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <button onClick={handleAddRole} className="text-sm text-blue-600 hover:underline mt-3">+ Add New Role</button>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Project Dashboard:</label>
+                                        <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
-
-
                                     <div className="flex gap-2 pt-4">
                                         <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
                                         <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>

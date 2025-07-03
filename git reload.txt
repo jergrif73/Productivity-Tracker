@@ -1,5 +1,5 @@
 git add .
-git commit -m "Enhanced Project Console with Expand upon Click"
+git commit -m "Added Themes"
 git push origin main
 
 
