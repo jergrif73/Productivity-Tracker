@@ -196,14 +196,14 @@ const SplashScreen = ({ onLogin, error }) => {
 };
 
 
-const BubbleRating = ({ score, onScoreChange }) => {
+const BubbleRating = ({ score, onScoreChange, currentTheme }) => {
     return (
         <div className="flex items-center space-x-1 flex-wrap">
             {[...Array(10)].map((_, i) => {
                 const ratingValue = i + 1;
                 return (
                     <div key={ratingValue} className="flex flex-col items-center">
-                        <span className="text-xs">{ratingValue}</span>
+                        <span className={`text-xs ${currentTheme.textColor}`}>{ratingValue}</span>
                         <button
                             type="button"
                             onClick={() => onScoreChange(ratingValue)}
@@ -216,12 +216,13 @@ const BubbleRating = ({ score, onScoreChange }) => {
     );
 };
 
-const Modal = ({ children, onClose, customClasses = 'max-w-4xl' }) => {
+const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
+    const theme = currentTheme || { cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600' };
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
-            <div className={`bg-white p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto`}>
+            <div className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto`}>
                 <div className="flex justify-end">
-                    <button onClick={onClose} className="text-2xl font-bold text-gray-600 hover:text-gray-900">&times;</button>
+                    <button onClick={onClose} className={`text-2xl font-bold ${theme.subtleText} hover:${theme.textColor}`}>&times;</button>
                 </div>
                 {children}
             </div>
@@ -517,7 +518,7 @@ const App = () => {
              case 'gantt':
                 return <GanttConsole projects={projects} assignments={assignments} currentTheme={currentTheme} />;
             case 'skills':
-                return <SkillsConsole db={db} detailers={detailers} theme={theme} />;
+                return <SkillsConsole db={db} detailers={detailers} currentTheme={currentTheme} />;
             case 'admin':
                 return <AdminConsole db={db} detailers={detailers} projects={projects} currentTheme={currentTheme} />;
             default:
@@ -581,7 +582,7 @@ const App = () => {
 
 
 // --- Console Components ---
-const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete }) => {
+const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete, currentTheme }) => {
     const sortedProjects = useMemo(() => {
         return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
     }, [projects]);
@@ -593,12 +594,12 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     };
 
     return (
-        <div className="bg-gray-50 p-3 rounded-lg border space-y-3">
+        <div className={`${currentTheme.altRowBg} p-3 rounded-lg border ${currentTheme.borderColor} space-y-3`}>
              <div className="flex items-center gap-2">
                 <select 
                     value={assignment.projectId} 
                     onChange={e => handleChange('projectId', e.target.value)} 
-                    className="w-full p-2 border rounded-md"
+                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                 >
                     <option value="">Select a Project...</option>
                     {sortedProjects.map(p => <option key={p.id} value={p.id}>{p.projectId} - {p.name}</option>)}
@@ -608,19 +609,19 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
                 </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-                 <input type="date" value={assignment.startDate} onChange={e => handleChange('startDate', e.target.value)} className="w-full p-2 border rounded-md" />
-                 <input type="date" value={assignment.endDate} onChange={e => handleChange('endDate', e.target.value)} className="w-full p-2 border rounded-md" />
+                 <input type="date" value={assignment.startDate} onChange={e => handleChange('startDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                 <input type="date" value={assignment.endDate} onChange={e => handleChange('endDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
             </div>
             <div className="grid grid-cols-3 gap-2">
-                 <select value={assignment.trade} onChange={e => handleChange('trade', e.target.value)} className="w-full p-2 border rounded-md">
+                 <select value={assignment.trade} onChange={e => handleChange('trade', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                     <option value="">Trade...</option>
                     {availableTrades.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
-                <select value={assignment.activity} onChange={e => handleChange('activity', e.target.value)} className="w-full p-2 border rounded-md">
+                <select value={assignment.activity} onChange={e => handleChange('activity', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                     <option value="">Activity...</option>
                     {activityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
-                <input type="number" placeholder="%" value={assignment.allocation} onChange={e => handleChange('allocation', e.target.value)} className="w-full p-2 border rounded-md" />
+                <input type="number" placeholder="%" value={assignment.allocation} onChange={e => handleChange('allocation', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
             </div>
         </div>
     );
@@ -780,12 +781,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
                                 <div className={`p-4 border-t ${currentTheme.borderColor}`}>
                                     <div className="grid grid-cols-12 gap-4 items-start">
                                         <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
-                                            <h4 className="font-semibold mb-2">All Project Assignments</h4>
+                                            <h4 className={`font-semibold ${currentTheme.textColor} mb-2`}>All Project Assignments</h4>
                                             {employeeAssignments.length > 0 ? employeeAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} />
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} currentTheme={currentTheme} />
                                             )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
                                              {employeeNewAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} />
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
                                             ))}
                                             <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
                                         </div>
@@ -802,8 +803,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
             </div>
 
             {viewingSkillsFor && (
-                <Modal onClose={() => setViewingSkillsFor(null)}>
-                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} />
+                <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
+                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} />
                 </Modal>
             )}
         </div>
@@ -1488,7 +1489,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     );
 };
 
-const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
+const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
@@ -1550,11 +1551,11 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
     };
     
     return (
-        <div>
+        <div className={currentTheme.textColor}>
             <h2 className="text-xl font-bold mb-4">Modify Employee Skills & Info</h2>
             {!singleDetailerMode && (
                 <div className="mb-4">
-                    <select onChange={e => setSelectedEmployeeId(e.target.value)} value={selectedEmployeeId} className="w-full max-w-xs p-2 border rounded-md">
+                    <select onChange={e => setSelectedEmployeeId(e.target.value)} value={selectedEmployeeId} className={`w-full max-w-xs p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                         <option value="" disabled>Select an employee...</option>
                         {detailers.map(e => (
                             <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>
@@ -1564,20 +1565,20 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
             )}
 
             {editableEmployee && (
-                <div className="bg-white p-4 rounded-lg border space-y-6 shadow-sm">
+                <div className="space-y-6">
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Basic Info for {editableEmployee.firstName} {editableEmployee.lastName}</h3>
                         <div className="space-y-2">
-                            <input value={editableEmployee.firstName} onChange={e => setEditableEmployee({...editableEmployee, firstName: e.target.value})} placeholder="First Name" className="w-full p-2 border rounded-md" />
-                            <input value={editableEmployee.lastName} onChange={e => setEditableEmployee({...editableEmployee, lastName: e.target.value})} placeholder="Last Name" className="w-full p-2 border rounded-md" />
-                            <input type="email" value={editableEmployee.email || ''} onChange={e => setEditableEmployee({...editableEmployee, email: e.target.value})} placeholder="Email" className="w-full p-2 border rounded-md" />
-                             <select value={editableEmployee.title || ''} onChange={e => setEditableEmployee({...editableEmployee, title: e.target.value})} className="w-full p-2 border rounded-md">
+                            <input value={editableEmployee.firstName} onChange={e => setEditableEmployee({...editableEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                            <input value={editableEmployee.lastName} onChange={e => setEditableEmployee({...editableEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                            <input type="email" value={editableEmployee.email || ''} onChange={e => setEditableEmployee({...editableEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                             <select value={editableEmployee.title || ''} onChange={e => setEditableEmployee({...editableEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 <option value="" disabled>Select a Title</option>
                                 {titleOptions.map(title => (
                                     <option key={title} value={title}>{title}</option>
                                 ))}
                             </select>
-                            <input value={editableEmployee.employeeId} onChange={e => setEditableEmployee({...editableEmployee, employeeId: e.target.value})} placeholder="Employee ID" className="w-full p-2 border rounded-md" />
+                            <input value={editableEmployee.employeeId} onChange={e => setEditableEmployee({...editableEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                         </div>
                     </div>
                     
@@ -1590,6 +1591,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
                                     <BubbleRating 
                                         score={editableEmployee.skills?.[skill] || 0}
                                         onScoreChange={(score) => handleSkillChange(skill, score)}
+                                        currentTheme={currentTheme}
                                     />
                                 </div>
                             ))}
@@ -1599,7 +1601,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
                     <div>
                         <h3 className="text-lg font-semibold mb-2">Discipline Skillsets</h3>
                         <div className="flex items-center gap-2 mb-4 flex-wrap">
-                             <select value={newDiscipline} onChange={(e) => setNewDiscipline(e.target.value)} className="p-2 border rounded-md">
+                             <select value={newDiscipline} onChange={(e) => setNewDiscipline(e.target.value)} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 <option value="">Select a discipline...</option>
                                 {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
@@ -1607,12 +1609,12 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false }) => {
                         </div>
                         <div className="space-y-4">
                             {Object.entries(editableEmployee.disciplineSkillsets || {}).map(([name, score]) => (
-                                <div key={name} className="p-3 bg-white rounded-md border">
+                                <div key={name} className={`p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor}`}>
                                     <div className="flex justify-between items-start">
                                        <span className="font-medium">{name}</span>
                                        <button onClick={() => handleRemoveDiscipline(name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                                     </div>
-                                    <BubbleRating score={score} onScoreChange={(newScore) => handleDisciplineRatingChange(name, newScore)} />
+                                    <BubbleRating score={score} onScoreChange={(newScore) => handleDisciplineRatingChange(name, newScore)} currentTheme={currentTheme} />
                                 </div>
                             ))}
                         </div>
