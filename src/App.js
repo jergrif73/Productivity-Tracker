@@ -511,7 +511,7 @@ const App = () => {
             case 'projects':
                 return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} currentTheme={currentTheme} />;
             case 'workloader':
-                return <WorkloaderConsole detailers={detailers} projects={projects} assignments={assignments} theme={theme} setTheme={setTheme} />;
+                return <WorkloaderConsole db={db} detailers={detailers} projects={projects} assignments={assignments} theme={theme} setTheme={setTheme} accessLevel={accessLevel} />;
             case 'tasks':
                 return <TaskConsole db={db} tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} theme={theme} />;
              case 'gantt':
@@ -1917,8 +1917,12 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
     );
 };
 
-const WorkloaderConsole = ({ detailers, projects, assignments, theme, setTheme }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel }) => {
     const [startDate, setStartDate] = useState(new Date());
+    const [dragFillStart, setDragFillStart] = useState(null); // { assignment, weekIndex }
+    const [dragFillEnd, setDragFillEnd] = useState(null); // { weekIndex }
+
+    const isTaskmaster = accessLevel === 'taskmaster';
 
     const getWeekDates = (from) => {
         const sunday = new Date(from);
@@ -1975,6 +1979,37 @@ const WorkloaderConsole = ({ detailers, projects, assignments, theme, setTheme }
         end.setDate(start.getDate() + 6);
         return `${start.getMonth()+1}/${start.getDate()}/${start.getFullYear()} - ${end.getMonth()+1}/${end.getDate()}/${end.getFullYear()}`;
     }
+
+    const handleMouseUp = async () => {
+        if (!dragFillStart || dragFillEnd === null) return;
+
+        const { assignment, weekIndex: startIndex } = dragFillStart;
+        const { weekIndex: endIndex } = dragFillEnd;
+
+        const newEndDate = new Date(weekDates[endIndex]);
+        newEndDate.setDate(newEndDate.getDate() + 6); // End of that week
+        
+        const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignment.id);
+        try {
+            await updateDoc(assignmentRef, {
+                endDate: newEndDate.toISOString().split('T')[0]
+            });
+        } catch (e) {
+            console.error("Error updating assignment end date:", e);
+        }
+
+        setDragFillStart(null);
+        setDragFillEnd(null);
+    };
+    
+    useEffect(() => {
+        // Add mouseup listener to the window to catch mouse releases outside the table
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [dragFillStart, dragFillEnd]); // Re-add listener if state changes
+
 
     const themeClasses = {
         light: {
@@ -2069,24 +2104,53 @@ const WorkloaderConsole = ({ detailers, projects, assignments, theme, setTheme }
                                             <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
                                             <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
                                             <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
-                                            {weekDates.map(weekStart => {
+                                            {weekDates.map((weekStart, weekIndex) => {
                                                 const weekEnd = new Date(weekStart);
                                                 weekEnd.setDate(weekStart.getDate() + 6);
                                                 
                                                 const assignStart = new Date(assignment.startDate);
                                                 const assignEnd = new Date(assignment.endDate);
 
-                                                const isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
+                                                let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
                                                 const tooltipText = isAssigned ? `Activity: ${assignment.activity || 'N/A'}` : '';
 
+                                                let isFillHighlighted = false;
+                                                if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
+                                                    const startIndex = dragFillStart.weekIndex;
+                                                    const endIndex = dragFillEnd.weekIndex;
+                                                    const minIndex = Math.min(startIndex, endIndex);
+                                                    const maxIndex = Math.max(startIndex, endIndex);
+                                                    if (weekIndex >= minIndex && weekIndex <= maxIndex) {
+                                                        isFillHighlighted = true;
+                                                    }
+                                                }
+
                                                 return (
-                                                    <td key={weekStart.toISOString()} className={`p-0 border ${currentTheme.borderColor}`}>
-                                                        {isAssigned ? (
+                                                    <td key={weekStart.toISOString()} 
+                                                        className={`p-0 border relative ${currentTheme.borderColor}`}
+                                                        onMouseEnter={() => {
+                                                            if (dragFillStart) {
+                                                                setDragFillEnd({ weekIndex });
+                                                            }
+                                                        }}
+                                                    >
+                                                        {(isAssigned || isFillHighlighted) ? (
                                                           <Tooltip text={tooltipText}>
-                                                              <div className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded`}>
+                                                              <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
                                                                   <span>
                                                                     {assignment.allocation}%
                                                                   </span>
+                                                                  {isTaskmaster && isAssigned && (
+                                                                    <div 
+                                                                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                        onMouseDown={(e) => {
+                                                                            e.preventDefault();
+                                                                            setDragFillStart({ assignment, weekIndex });
+                                                                        }}
+                                                                    >
+                                                                        <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                    </div>
+                                                                  )}
                                                               </div>
                                                           </Tooltip>
                                                         ) : <div className="h-full"></div>}
