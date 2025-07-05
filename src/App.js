@@ -5,6 +5,8 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import * as d3 from 'd3';
 
 // --- Firebase Configuration ---
+// It's generally recommended to store this in environment variables
+// rather than hardcoding in the source file.
 const firebaseConfig = {
   apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
   authDomain: "productivity-tracker-3017d.firebaseapp.com",
@@ -36,15 +38,9 @@ const formatCurrency = (value) => {
 }
 
 const titleOptions = [
-    "Detailer I",
-    "Detailer II",
-    "Detailer III",
-    "BIM Specialist",
-    "Programmatic Detailer",
-    "Project Constructability Lead",
-    "Project Constructability Lead, Sr.",
-    "Trade Constructability Lead",
-    "Constructability Manager"
+    "Detailer I", "Detailer II", "Detailer III", "BIM Specialist", "Programmatic Detailer",
+    "Project Constructability Lead", "Project Constructability Lead, Sr.",
+    "Trade Constructability Lead", "Constructability Manager"
 ];
 
 const initialDetailers = [
@@ -81,8 +77,6 @@ const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills"
 const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
 const activityOptions = ["Modeling", "Coordination", "Spooling", "Deliverables", "Miscellaneous"];
 const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
-const subsetTypes = ["Phase", "Building", "Area", "Level", "System", "Other"];
-
 
 const tradeColorMapping = {
     Piping: { bg: 'bg-green-500', text: 'text-white' },
@@ -180,7 +174,6 @@ const LoginInline = ({ onLogin, error }) => {
 const SplashScreen = ({ onLogin, error }) => {
     return (
         <div className="relative h-screen w-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-700 overflow-hidden">
-            {/* Abstract Shapes */}
             <div className="absolute top-0 -left-1/4 w-96 h-96 bg-blue-400/30 rounded-full filter blur-3xl opacity-50 animate-pulse"></div>
             <div className="absolute bottom-0 -right-1/4 w-96 h-96 bg-gray-500/30 rounded-full filter blur-3xl opacity-50 animate-pulse" style={{animationDelay: '2s'}}></div>
             <div className="absolute -bottom-1/2 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full filter blur-3xl opacity-40 animate-pulse" style={{animationDelay: '4s'}}></div>
@@ -256,67 +249,15 @@ const App = () => {
     const [taskLanes, setTaskLanes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
-    const [theme, setTheme] = useState('dark'); // 'light', 'grey', 'dark'
-    
+    const [theme, setTheme] = useState('dark');
     const [accessLevel, setAccessLevel] = useState('default');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
 
     const themeClasses = {
-        light: {
-            mainBg: 'bg-gray-100',
-            headerBg: 'bg-white',
-            cardBg: 'bg-white',
-            textColor: 'text-gray-800',
-            subtleText: 'text-gray-600',
-            borderColor: 'border-gray-200',
-            altRowBg: 'bg-blue-50',
-            navBg: 'bg-gray-200',
-            navBtn: 'text-gray-600 hover:bg-gray-300',
-            navBtnActive: 'bg-white text-blue-600 shadow',
-            consoleBg: 'p-4 bg-gray-50',
-            inputBg: 'bg-white',
-            inputText: 'text-gray-900',
-            inputBorder: 'border-gray-300',
-            buttonBg: 'bg-gray-200',
-            buttonText: 'text-gray-800'
-        },
-        grey: {
-            mainBg: 'bg-gray-300',
-            headerBg: 'bg-gray-400',
-            cardBg: 'bg-gray-200',
-            textColor: 'text-black',
-            subtleText: 'text-gray-700',
-            borderColor: 'border-gray-400',
-            altRowBg: 'bg-gray-300',
-            navBg: 'bg-gray-300',
-            navBtn: 'text-gray-800 hover:bg-gray-400',
-            navBtnActive: 'bg-white text-blue-700 shadow',
-            consoleBg: 'p-4 bg-gray-200',
-            inputBg: 'bg-gray-100',
-            inputText: 'text-black',
-            inputBorder: 'border-gray-400',
-            buttonBg: 'bg-gray-400',
-            buttonText: 'text-black'
-        },
-        dark: {
-            mainBg: 'bg-gray-900',
-            headerBg: 'bg-gray-800',
-            cardBg: 'bg-gray-700',
-            textColor: 'text-gray-200',
-            subtleText: 'text-gray-400',
-            borderColor: 'border-gray-600',
-            altRowBg: 'bg-gray-800',
-            navBg: 'bg-gray-700',
-            navBtn: 'text-gray-400 hover:bg-gray-600',
-            navBtnActive: 'bg-gray-900 text-white shadow',
-            consoleBg: 'bg-gray-800',
-            inputBg: 'bg-gray-800',
-            inputText: 'text-gray-200',
-            inputBorder: 'border-gray-600',
-            buttonBg: 'bg-gray-600',
-            buttonText: 'text-gray-200'
-        }
+        light: { mainBg: 'bg-gray-100', headerBg: 'bg-white', cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600', borderColor: 'border-gray-200', altRowBg: 'bg-blue-50', navBg: 'bg-gray-200', navBtn: 'text-gray-600 hover:bg-gray-300', navBtnActive: 'bg-white text-blue-600 shadow', consoleBg: 'p-4 bg-gray-50', inputBg: 'bg-white', inputText: 'text-gray-900', inputBorder: 'border-gray-300', buttonBg: 'bg-gray-200', buttonText: 'text-gray-800' },
+        grey: { mainBg: 'bg-gray-300', headerBg: 'bg-gray-400', cardBg: 'bg-gray-200', textColor: 'text-black', subtleText: 'text-gray-700', borderColor: 'border-gray-400', altRowBg: 'bg-gray-300', navBg: 'bg-gray-300', navBtn: 'text-gray-800 hover:bg-gray-400', navBtnActive: 'bg-white text-blue-700 shadow', consoleBg: 'p-4 bg-gray-200', inputBg: 'bg-gray-100', inputText: 'text-black', inputBorder: 'border-gray-400', buttonBg: 'bg-gray-400', buttonText: 'text-black' },
+        dark: { mainBg: 'bg-gray-900', headerBg: 'bg-gray-800', cardBg: 'bg-gray-700', textColor: 'text-gray-200', subtleText: 'text-gray-400', borderColor: 'border-gray-600', altRowBg: 'bg-gray-800', navBg: 'bg-gray-700', navBtn: 'text-gray-400 hover:bg-gray-600', navBtnActive: 'bg-gray-900 text-white shadow', consoleBg: 'bg-gray-800', inputBg: 'bg-gray-800', inputText: 'text-gray-200', inputBorder: 'border-gray-600', buttonBg: 'bg-gray-600', buttonText: 'text-gray-200' }
     };
     const currentTheme = themeClasses[theme];
 
@@ -361,92 +302,59 @@ const App = () => {
         const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
         const lanesRef = collection(db, `artifacts/${appId}/public/data/taskLanes`);
         
-        // Seed Detailers
-        const detailerSnapshot = await getDocs(query(detailersRef));
-        if (detailerSnapshot.empty) {
-            console.log("Seeding detailers...");
-            const batch = writeBatch(db);
-            initialDetailers.forEach(d => {
-                const newDocRef = doc(detailersRef);
-                batch.set(newDocRef, d);
-            });
-            await batch.commit();
-        }
+        const seedCollection = async (ref, initialData) => {
+            const snapshot = await getDocs(query(ref));
+            if (snapshot.empty) {
+                console.log(`Seeding ${ref.path}...`);
+                const batch = writeBatch(db);
+                initialData.forEach(item => {
+                    const newDocRef = doc(ref);
+                    batch.set(newDocRef, item);
+                });
+                await batch.commit();
+            }
+        };
 
-        // Seed Projects
-        const projectSnapshot = await getDocs(query(projectsRef));
-        if (projectSnapshot.empty) {
-            console.log("Seeding projects...");
-            const batch = writeBatch(db);
-            initialProjects.forEach(p => {
-                const newDocRef = doc(projectsRef);
-                batch.set(newDocRef, p);
-            });
-            await batch.commit();
-        }
-        
-        // Seed Task Lanes
-        const laneSnapshot = await getDocs(query(lanesRef));
-        if (laneSnapshot.empty) {
-            console.log("Seeding task lanes...");
-            const initialLanes = [
-                { name: "New Requests", order: 0 },
-                { name: "Project Setup Support (VDC)", order: 1 },
-                { name: "Process Improvements (VDC)", order: 2 },
-                { name: "Support Requests (VDC)", order: 3 },
-                { name: "RFA Requests (VDC)", order: 4 },
-                { name: "On Hold", order: 5 },
-            ];
-            const batch = writeBatch(db);
-            initialLanes.forEach(lane => {
-                const newDocRef = doc(lanesRef);
-                batch.set(newDocRef, lane);
-            });
-            await batch.commit();
-        }
-
+        await Promise.all([
+            seedCollection(detailersRef, initialDetailers),
+            seedCollection(projectsRef, initialProjects),
+            seedCollection(lanesRef, [
+                { name: "New Requests", order: 0 }, { name: "Project Setup Support (VDC)", order: 1 },
+                { name: "Process Improvements (VDC)", order: 2 }, { name: "Support Requests (VDC)", order: 3 },
+                { name: "RFA Requests (VDC)", order: 4 }, { name: "On Hold", order: 5 },
+            ])
+        ]);
     }, []);
 
     useEffect(() => {
         if (!isAuthReady || !db) return;
         setLoading(true);
     
-        seedInitialData();
+        seedInitialData().then(() => {
+            const collections = {
+                detailers: setDetailers,
+                projects: setProjects,
+                assignments: setAssignments,
+                tasks: setTasks,
+                taskLanes: (data) => setTaskLanes(data.sort((a, b) => a.order - b.order)),
+            };
     
-        const unsubDetailers = onSnapshot(collection(db, `artifacts/${appId}/public/data/detailers`), snapshot => {
-            setDetailers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            const unsubscribers = Object.entries(collections).map(([name, setter]) => {
+                const collRef = collection(db, `artifacts/${appId}/public/data/${name}`);
+                return onSnapshot(collRef, snapshot => {
+                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setter(data);
+                }, err => console.error(`Error fetching ${name}:`, err));
+            });
+    
+            setLoading(false);
+    
+            return () => {
+                unsubscribers.forEach(unsub => unsub());
+            };
         });
-    
-        const unsubProjects = onSnapshot(collection(db, `artifacts/${appId}/public/data/projects`), async (snapshot) => {
-            const projectsFromDb = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setProjects(projectsFromDb);
-        });
-    
-        const unsubAssignments = onSnapshot(collection(db, `artifacts/${appId}/public/data/assignments`), snapshot => {
-            setAssignments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-    
-        const unsubTasks = onSnapshot(collection(db, `artifacts/${appId}/public/data/tasks`), snapshot => {
-            setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-    
-        const unsubTaskLanes = onSnapshot(collection(db, `artifacts/${appId}/public/data/taskLanes`), snapshot => {
-            const lanes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setTaskLanes(lanes.sort((a, b) => a.order - b.order));
-        });
-        
-        setLoading(false);
-    
-        return () => {
-            unsubDetailers();
-            unsubProjects();
-            unsubAssignments();
-            unsubTasks();
-            unsubTaskLanes();
-        };
     }, [isAuthReady, seedInitialData]);
 
-    // --- Authentication and Navigation Handlers ---
     const handleLoginAttempt = (username, password) => {
         if (username === 'Taskmaster' && password === 'Taskmaster1234') {
             setAccessLevel('taskmaster');
@@ -493,7 +401,7 @@ const App = () => {
         taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'skills', 'reporting', 'admin'],
         pcl: ['projects', 'workloader', 'tasks', 'gantt'],
         viewer: ['projects', 'workloader', 'tasks'],
-        default: [] // No nav buttons when not logged in
+        default: []
     };
 
     const visibleNavButtons = navButtons.filter(button => 
@@ -506,30 +414,22 @@ const App = () => {
         const allowedViews = navConfig[accessLevel];
         const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
         
+        const consoleProps = { db, detailers, projects, assignments, tasks, taskLanes, currentTheme, accessLevel, theme, setTheme, appId };
+
         switch (currentView) {
-            case 'detailers':
-                return <TeamConsole db={db} detailers={detailers} projects={projects} assignments={assignments} currentTheme={currentTheme} />;
-            case 'projects':
-                return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} currentTheme={currentTheme} />;
-            case 'workloader':
-                return <WorkloaderConsole db={db} detailers={detailers} projects={projects} assignments={assignments} theme={theme} setTheme={setTheme} accessLevel={accessLevel} currentTheme={currentTheme} />;
-            case 'tasks':
-                return <TaskConsole db={db} tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} theme={theme} />;
-             case 'gantt':
-                return <GanttConsole projects={projects} assignments={assignments} currentTheme={currentTheme} />;
-            case 'skills':
-                return <SkillsConsole db={db} detailers={detailers} currentTheme={currentTheme} />;
-            case 'reporting':
-                return <ReportingConsole projects={projects} detailers={detailers} assignments={assignments} tasks={tasks} currentTheme={currentTheme} />;
-            case 'admin':
-                return <AdminConsole db={db} detailers={detailers} projects={projects} currentTheme={currentTheme} />;
-            default:
-                 // This should not be reached if logged in, but provides a safe fallback.
-                 return <div className="text-center p-10">Select a view from the navigation.</div>
+            case 'detailers': return <TeamConsole {...consoleProps} />;
+            case 'projects': return <ProjectConsole {...consoleProps} />;
+            case 'workloader': return <WorkloaderConsole {...consoleProps} />;
+            case 'tasks': return <TaskConsole {...consoleProps} />;
+            case 'gantt': return <GanttConsole {...consoleProps} />;
+            case 'skills': return <SkillsConsole {...consoleProps} />;
+            case 'reporting': return <ReportingConsole {...consoleProps} />;
+            case 'admin': return <AdminConsole {...consoleProps} />;
+            default: return <div className="text-center p-10">Select a view from the navigation.</div>;
         }
     };
 
-    if (!isAuthReady) {
+    if (!isAuthReady && !authError) {
         return <div className="text-center p-10">Authenticating...</div>;
     }
 
@@ -584,6 +484,7 @@ const App = () => {
 
 
 // --- Console Components ---
+
 const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete, currentTheme }) => {
     const sortedProjects = useMemo(() => {
         return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
@@ -629,7 +530,7 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => {
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [newAssignments, setNewAssignments] = useState({});
@@ -637,10 +538,9 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
 
     const getMostRecentMonday = () => {
         const today = new Date();
-        const dayOfWeek = today.getDay();
-        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // adjust when day is sunday
-        const monday = new Date(today.setDate(diff));
-        return monday.toISOString().split('T')[0];
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        return new Date(today.setDate(diff)).toISOString().split('T')[0];
     };
     
     const sortedEmployees = useMemo(() => {
@@ -652,7 +552,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
 
     const handleAddNewAssignment = (employeeId) => {
         const newAsn = {
-            id: `new_${Date.now()}`, // temp id
+            id: `new_${Date.now()}`,
             projectId: '',
             startDate: getMostRecentMonday(),
             endDate: '',
@@ -667,24 +567,32 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
     };
     
     const handleUpdateNewAssignment = (employeeId, updatedAsn) => {
-        const toUpdate = (newAssignments[employeeId] || []).map(asn => asn.id === updatedAsn.id ? updatedAsn : asn);
-        setNewAssignments(prev => ({ ...prev, [employeeId]: toUpdate }));
-
-        // Check if ready to save
-        if(updatedAsn.projectId && updatedAsn.startDate && updatedAsn.endDate && updatedAsn.trade && updatedAsn.activity && updatedAsn.allocation) {
-            const { id, ...payload } = updatedAsn;
-            const finalPayload = { ...payload, detailerId: employeeId, allocation: Number(payload.allocation) };
-
-            addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload)
-                .then(() => {
-                    // remove from new assignments state
-                    const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== updatedAsn.id);
-                    setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
-                })
-                .catch(e => console.error("Error saving new assignment:", e));
-        }
+        setNewAssignments(prev => ({
+            ...prev,
+            [employeeId]: (prev[employeeId] || []).map(asn => asn.id === updatedAsn.id ? updatedAsn : asn)
+        }));
     };
     
+    const handleSaveNewAssignment = async (employeeId, assignmentToSave) => {
+        const { projectId, startDate, endDate, trade, activity, allocation } = assignmentToSave;
+        if(!projectId || !startDate || !endDate || !trade || !activity || !allocation) {
+            alert("Please fill all fields before saving.");
+            return;
+        }
+
+        const { id, ...payload } = assignmentToSave;
+        const finalPayload = { ...payload, detailerId: employeeId, allocation: Number(payload.allocation) };
+
+        try {
+            await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload);
+            const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== assignmentToSave.id);
+            setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
+        } catch (e) {
+            console.error("Error saving new assignment:", e);
+            alert("Failed to save assignment.");
+        }
+    };
+
     const handleDeleteNewAssignment = (employeeId, assignmentId) => {
         const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== assignmentId);
         setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
@@ -704,7 +612,9 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
     };
     
     const handleDeleteExistingAssignment = async (id) => {
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
+        if (window.confirm("Are you sure you want to delete this assignment?")) {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
+        }
     }
     
     const toggleEmployee = (employeeId) => {
@@ -730,23 +640,23 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                     
                     const today = new Date();
-                    const dayOfWeek = today.getDay();
-                    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-                    const weekStart = new Date(today.setDate(diff));
+                    const weekStart = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)));
                     weekStart.setHours(0, 0, 0, 0);
 
                     const weekEnd = new Date(weekStart);
                     weekEnd.setDate(weekStart.getDate() + 6);
                     weekEnd.setHours(23, 59, 59, 999);
                     
-                    const weeklyAssignments = employeeAssignments.filter(a => {
-                        if (!a.startDate || !a.endDate) return false;
+                    const weeklyAllocation = employeeAssignments.reduce((sum, a) => {
+                        if (!a.startDate || !a.endDate) return sum;
                         const assignStart = new Date(a.startDate);
                         const assignEnd = new Date(a.endDate);
-                        return assignStart <= weekEnd && assignEnd >= weekStart;
-                    });
+                        if (assignStart <= weekEnd && assignEnd >= weekStart) {
+                            return sum + Number(a.allocation || 0);
+                        }
+                        return sum;
+                    }, 0);
 
-                    const weeklyAllocation = weeklyAssignments.reduce((sum, a) => sum + Number(a.allocation || 0), 0);
                     const employeeNewAssignments = newAssignments[employee.id] || [];
                     const isExpanded = expandedEmployeeId === employee.id;
 
@@ -787,8 +697,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
                                             {employeeAssignments.length > 0 ? employeeAssignments.map(asn => (
                                                 <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} currentTheme={currentTheme} />
                                             )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
-                                             {employeeNewAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
+                                             
+                                            {employeeNewAssignments.map(asn => (
+                                                <div key={asn.id} className="relative">
+                                                    <InlineAssignmentEditor db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
+                                                    <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="absolute -bottom-2 right-2 bg-green-500 text-white px-2 py-1 text-xs rounded">Save</button>
+                                                </div>
                                             ))}
                                             <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
                                         </div>
@@ -806,7 +720,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
 
             {viewingSkillsFor && (
                 <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
-                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} />
+                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} />
                 </Modal>
             )}
         </div>
@@ -968,14 +882,14 @@ const HourSummary = ({ project, activityTotals, currentTheme }) => {
     )
 }
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }) => {
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId }) => {
     const [draftData, setDraftData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
     const [editingSubsetId, setEditingSubsetId] = useState(null);
     const [editingSubsetData, setEditingSubsetData] = useState(null);
     const [collapsedSections, setCollapsedSections] = useState({
-        projectBreakdown: false, // Start expanded
+        projectBreakdown: false,
         sheetmetal: true,
         piping: true,
         plumbing: true,
@@ -983,7 +897,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
     });
     const isPCL = accessLevel === 'pcl';
 
-    const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db]);
+    const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
 
     const allActivitiesList = useMemo(() => {
         if (!draftData) return [];
@@ -1040,7 +954,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
             const rolledUpActivities = calculateRollups(initialData.activities, initialData.subsets);
             const fullData = {...initialData, activities: rolledUpActivities};
             
-            setDraftData(JSON.parse(JSON.stringify(fullData))); // Deep copy for draft
+            setDraftData(JSON.parse(JSON.stringify(fullData)));
             setLoading(false);
         }, (error) => {
             console.error("Error fetching project data:", error);
@@ -1078,7 +992,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
         e.stopPropagation();
         const dataToSave = JSON.parse(JSON.stringify(draftData));
 
-        // Sanitize subset data before saving
         dataToSave.subsets.forEach(subset => {
             subset.percentageOfProject = Number(subset.percentageOfProject) || 0;
             subset.percentComplete = Number(subset.percentComplete) || 0;
@@ -1086,7 +999,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
             subset.budget = Number(subset.budget) || 0;
         });
 
-        // Remove calculated fields from activities before saving
         for (const groupKey of Object.keys(dataToSave.activities)) {
             dataToSave.activities[groupKey].forEach(activity => {
                 delete activity.percentComplete;
@@ -1095,7 +1007,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
         }
 
         await setDoc(docRef, dataToSave, { merge: true });
-        if (!isPCL) { // Only show alert for non-PCL users who have a save button
+        if (!isPCL) {
           alert("Changes saved!");
         }
     };
@@ -1167,8 +1079,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
             description: "New Activity",
             chargeCode: "",
             estimatedHours: 0,
-            percentComplete: 0, // Initialize to prevent error
-            hoursUsed: 0,        // Initialize to prevent error
+            percentComplete: 0,
+            hoursUsed: 0,
         };
         setDraftData(prevDraft => ({
             ...prevDraft,
@@ -1221,7 +1133,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
                  </div>
              )}
             
-            {/* --- Project Subsets Section --- */}
             <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                  <button
                     onClick={(e) => handleToggleCollapse(e, 'projectBreakdown')}
@@ -1335,8 +1246,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
                  )}
             </div>
 
-
-            {/* --- Activity Tracker Section --- */}
             {!isPCL && (
                 <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`} onClick={e => e.stopPropagation()}>
                      <div className="flex justify-between items-center mb-3">
@@ -1361,7 +1270,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState('projectId');
@@ -1481,7 +1390,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                             )}
                                         </div>
                                     </div>
-                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} />}
+                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} />}
                                 </div>
                             )}
                         </div>
@@ -1492,7 +1401,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     );
 };
 
-const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme }) => {
+const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme, appId }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
@@ -1632,7 +1541,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
 };
 
 
-const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
+const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '' });
     
@@ -1987,11 +1896,12 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId }) => {
     const [startDate, setStartDate] = useState(new Date());
-    const [dragFillStart, setDragFillStart] = useState(null); // { assignment, weekIndex }
-    const [dragFillEnd, setDragFillEnd] = useState(null); // { weekIndex }
-    const [editingCell, setEditingCell] = useState(null); // { assignment, position: { top, left }, weekIndex }
+    const [dragFillStart, setDragFillStart] = useState(null);
+    const [dragFillEnd, setDragFillEnd] = useState(null);
+    const [editingCell, setEditingCell] = useState(null);
+    const popupRef = useRef(null);
 
     const isTaskmaster = accessLevel === 'taskmaster';
 
@@ -2024,13 +1934,10 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     const detailer = detailers.find(d => d.id === ass.detailerId);
                     return {
                         ...ass,
-                        detailerName: detailer ? `${detailer.firstName.charAt(0)}. ${detailer.lastName}` : 'Unknown Detailer'
+                        detailerName: detailer ? `${detailer.firstName.charAt(0)}. ${detailer.lastName}` : 'Unknown'
                     };
                 });
-                return {
-                    ...project,
-                    assignments: projectAssignments,
-                };
+                return { ...project, assignments: projectAssignments };
             })
             .filter(p => p.assignments.length > 0)
             .sort((a,b) => a.name.localeCompare(b.name));
@@ -2064,141 +1971,141 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
         const originalAssignment = assignments.find(a => a.id === assignmentId);
         if (!originalAssignment || (originalAssignment.trade === updates.trade && originalAssignment.activity === updates.activity)) {
-            return; 
+            return;
         }
     
         const batch = writeBatch(db);
-        const originalRef = doc(db, `artifacts/${appId}/public/data/assignments`, originalAssignment.id);
+        const assignmentsRef = collection(db, `artifacts/${appId}/public/data/assignments`);
     
         const changeDate = new Date(weekDates[editWeekIndex]);
         const originalStartDate = new Date(originalAssignment.startDate);
         const originalEndDate = new Date(originalAssignment.endDate);
     
-        changeDate.setHours(0, 0, 0, 0);
-        originalStartDate.setHours(0, 0, 0, 0);
-        originalEndDate.setHours(0, 0, 0, 0);
+        batch.delete(doc(assignmentsRef, originalAssignment.id));
     
-        batch.delete(originalRef);
-    
-        const beforeEndDate = new Date(changeDate);
-        beforeEndDate.setDate(beforeEndDate.getDate() - 1);
+        const dayBeforeChange = new Date(changeDate);
+        dayBeforeChange.setDate(changeDate.getDate() - 1);
         if (originalStartDate < changeDate) {
-            const beforeSegment = { ...originalAssignment, endDate: beforeEndDate.toISOString().split('T')[0] };
+            const beforeSegment = { ...originalAssignment, endDate: dayBeforeChange.toISOString().split('T')[0] };
             delete beforeSegment.id;
-            batch.set(doc(collection(db, `artifacts/${appId}/public/data/assignments`)), beforeSegment);
+            batch.set(doc(assignmentsRef), beforeSegment);
         }
     
-        const changedSegmentEndDate = new Date(changeDate);
-        changedSegmentEndDate.setDate(changedSegmentEndDate.getDate() + 6);
+        const changeWeekEndDate = new Date(changeDate);
+        changeWeekEndDate.setDate(changeDate.getDate() + 6);
         const changedSegment = {
             ...originalAssignment,
             ...updates,
             startDate: changeDate.toISOString().split('T')[0],
-            endDate: (changedSegmentEndDate < originalEndDate ? changedSegmentEndDate : originalEndDate).toISOString().split('T')[0]
+            endDate: (changeWeekEndDate < originalEndDate ? changeWeekEndDate : originalEndDate).toISOString().split('T')[0]
         };
         delete changedSegment.id;
-        batch.set(doc(collection(db, `artifacts/${appId}/public/data/assignments`)), changedSegment);
+        batch.set(doc(assignmentsRef), changedSegment);
     
-        const afterStartDate = new Date(changedSegmentEndDate);
-        afterStartDate.setDate(afterStartDate.getDate() + 1);
-        if (originalEndDate > changedSegmentEndDate) {
-            const afterSegment = { ...originalAssignment, startDate: afterStartDate.toISOString().split('T')[0] };
+        const dayAfterChangeWeek = new Date(changeWeekEndDate);
+        dayAfterChangeWeek.setDate(changeWeekEndDate.getDate() + 1);
+        if (originalEndDate > changeWeekEndDate) {
+            const afterSegment = { ...originalAssignment, startDate: dayAfterChangeWeek.toISOString().split('T')[0] };
             delete afterSegment.id;
-            batch.set(doc(collection(db, `artifacts/${appId}/public/data/assignments`)), afterSegment);
+            batch.set(doc(assignmentsRef), afterSegment);
         }
     
         try {
             await batch.commit();
+            await mergeContiguousAssignments(originalAssignment.detailerId, originalAssignment.projectId);
         } catch (e) {
-            console.error("Error during split operation:", e);
-            return;
+            console.error("Error during split-update operation:", e);
         }
-    
-        setTimeout(async () => {
-            const userAssignmentsQuery = query(
-                collection(db, `artifacts/${appId}/public/data/assignments`),
-                where("detailerId", "==", originalAssignment.detailerId),
-                where("projectId", "==", originalAssignment.projectId)
-            );
-            
-            let wasMergedInPass = true;
-            while (wasMergedInPass) {
-                wasMergedInPass = false;
-                const snapshot = await getDocs(userAssignmentsQuery);
-                const allUserAssignments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-                allUserAssignments.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-    
-                for (let i = 0; i < allUserAssignments.length - 1; i++) {
-                    const current = allUserAssignments[i];
-                    const next = allUserAssignments[i + 1];
-    
-                    const dayAfterCurrentEnd = new Date(current.endDate);
-                    dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
-                    dayAfterCurrentEnd.setHours(0, 0, 0, 0);
-    
-                    const nextStartDate = new Date(next.startDate);
-                    nextStartDate.setHours(0, 0, 0, 0);
-    
-                    if (
-                        current.trade === next.trade &&
-                        current.activity === next.activity &&
-                        current.allocation === next.allocation &&
-                        dayAfterCurrentEnd.getTime() === nextStartDate.getTime()
-                    ) {
-                        const mergeBatch = writeBatch(db);
-                        const currentRef = doc(db, `artifacts/${appId}/public/data/assignments`, current.id);
-                        const nextRef = doc(db, `artifacts/${appId}/public/data/assignments`, next.id);
-        
-                        mergeBatch.update(currentRef, { endDate: next.endDate });
-                        mergeBatch.delete(nextRef);
-                        
-                        try {
-                            await mergeBatch.commit();
-                            wasMergedInPass = true;
-                            break; 
-                        } catch(e) {
-                            console.error("Error during merge operation:", e);
-                        }
-                    }
-                }
-            }
-        }, 500);
     };
     
+    const mergeContiguousAssignments = async (detailerId, projectId) => {
+        const q = query(
+            collection(db, `artifacts/${appId}/public/data/assignments`),
+            where("detailerId", "==", detailerId),
+            where("projectId", "==", projectId)
+        );
+    
+        const snapshot = await getDocs(q);
+        const userAssignments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+        if (userAssignments.length < 2) return;
+    
+        userAssignments.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    
+        const batch = writeBatch(db);
+        let wasMerged = false;
+    
+        for (let i = 0; i < userAssignments.length - 1; i++) {
+            const current = userAssignments[i];
+            const next = userAssignments[i+1];
+    
+            const dayAfterCurrentEnd = new Date(current.endDate);
+            dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
+            const nextStartDate = new Date(next.startDate);
+    
+            if (
+                current.trade === next.trade &&
+                current.activity === next.activity &&
+                current.allocation === next.allocation &&
+                dayAfterCurrentEnd.getTime() === nextStartDate.getTime()
+            ) {
+                batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, current.id), { endDate: next.endDate });
+                batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, next.id));
+                wasMerged = true;
+                userAssignments[i+1].startDate = current.startDate;
+            }
+        }
+    
+        if (wasMerged) {
+            try {
+                await batch.commit();
+                await mergeContiguousAssignments(detailerId, projectId);
+            } catch (e) {
+                console.error("Error during merge operation:", e);
+            }
+        }
+    };
 
-    const handleMouseUp = async () => {
+    const handleMouseUp = useCallback(async () => {
         if (!dragFillStart || dragFillEnd === null) return;
 
-        const { assignment, weekIndex: startIndex } = dragFillStart;
+        const { assignment } = dragFillStart;
         const { weekIndex: endIndex } = dragFillEnd;
 
         const newEndDate = new Date(weekDates[endIndex]);
-        newEndDate.setDate(newEndDate.getDate() + 6); // End of that week
+        newEndDate.setDate(newEndDate.getDate() + 6);
         
         const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignment.id);
         try {
             await updateDoc(assignmentRef, {
                 endDate: newEndDate.toISOString().split('T')[0]
             });
+             await mergeContiguousAssignments(assignment.detailerId, assignment.projectId);
         } catch (e) {
             console.error("Error updating assignment end date:", e);
         }
 
         setDragFillStart(null);
         setDragFillEnd(null);
-    };
+    }, [dragFillStart, dragFillEnd, weekDates, appId, db]);
     
     useEffect(() => {
-        // Add mouseup listener to the window to catch mouse releases outside the table
         window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mouseup', handleMouseUp);
+        return () => window.removeEventListener('mouseup', handleMouseUp);
+    }, [handleMouseUp]);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (popupRef.current && !popupRef.current.contains(event.target)) {
+                setEditingCell(null);
+            }
         };
-    }, [dragFillStart, dragFillEnd]); // Re-add listener if state changes
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     return (
         <div className="space-y-4 h-full flex flex-col">
-             <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.stickyNavBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
+             <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
                  <div className="flex items-center gap-2">
                      <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
                      <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
@@ -2220,13 +2127,13 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                  </div>
              </div>
 
-            <div className={`overflow-auto border rounded-lg ${currentTheme.tableWrapperBg} ${currentTheme.borderColor} shadow-sm flex-grow`}>
+            <div className={`overflow-auto border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow`}>
                 <table className="min-w-full text-sm text-left border-collapse">
-                    <thead className={`${currentTheme.tableHeadBg} sticky top-0 z-10`}>
+                    <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                         <tr>
                             <th className={`p-1 font-semibold w-16 min-w-[64px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>DETAILER</th>
                             <th className={`p-1 font-semibold w-11 min-w-[44px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>TRADE</th>
-                            <th className={`p-1 font-semibold w-9 min-w-[36px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>% ALLOCATED</th>
+                            <th className={`p-1 font-semibold w-9 min-w-[36px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>%</th>
                             {weekDates.map(date => {
                                 const weekStart = new Date(date);
                                 const weekEnd = new Date(weekStart);
@@ -2242,7 +2149,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     <tbody>
                         {groupedData.map(project => (
                             <React.Fragment key={project.id}>
-                                <tr className={`${currentTheme.projectRowBg} sticky top-10`}>
+                                <tr className={`${currentTheme.altRowBg} sticky top-10`}>
                                     <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor}`}>
                                         {project.name} ({project.projectId})
                                     </th>
@@ -2250,53 +2157,38 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                 {project.assignments.map(assignment => {
                                     const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
                                     return (
-                                        <tr key={assignment.id} className={`${currentTheme.assignmentRowHover} h-8`}>
+                                        <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
                                             <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
                                             <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
                                             <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
                                             {weekDates.map((weekStart, weekIndex) => {
-                                                const weekEnd = new Date(weekStart);
-                                                weekEnd.setDate(weekStart.getDate() + 6);
-                                                
-                                                const assignStart = new Date(assignment.startDate);
-                                                const assignEnd = new Date(assignment.endDate);
-
+                                                const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+                                                const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
                                                 let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
                                                 const tooltipText = isAssigned ? `Activity: ${assignment.activity || 'N/A'}` : '';
 
                                                 let isFillHighlighted = false;
                                                 if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
-                                                    const startIndex = dragFillStart.weekIndex;
-                                                    const endIndex = dragFillEnd.weekIndex;
-                                                    const minIndex = Math.min(startIndex, endIndex);
-                                                    const maxIndex = Math.max(startIndex, endIndex);
-                                                    if (weekIndex >= minIndex && weekIndex <= maxIndex) {
-                                                        isFillHighlighted = true;
-                                                    }
+                                                    const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
+                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex);
+                                                    if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
                                                 }
 
                                                 return (
                                                     <td key={weekStart.toISOString()} 
                                                         className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
-                                                        onMouseEnter={() => {
-                                                            if (dragFillStart) {
-                                                                setDragFillEnd({ weekIndex });
-                                                            }
-                                                        }}
+                                                        onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
                                                         onClick={(e) => handleCellClick(e, assignment, weekIndex)}
                                                     >
-                                                        {(isAssigned || isFillHighlighted) ? (
+                                                        {(isAssigned || isFillHighlighted) && (
                                                           <Tooltip text={tooltipText}>
                                                               <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
-                                                                  <span>
-                                                                    {assignment.allocation}%
-                                                                  </span>
+                                                                  <span>{assignment.allocation}%</span>
                                                                   {isTaskmaster && isAssigned && (
                                                                     <div 
                                                                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                         onMouseDown={(e) => {
-                                                                            e.preventDefault();
-                                                                            e.stopPropagation();
+                                                                            e.preventDefault(); e.stopPropagation();
                                                                             setDragFillStart({ assignment, weekIndex });
                                                                         }}
                                                                     >
@@ -2305,7 +2197,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                   )}
                                                               </div>
                                                           </Tooltip>
-                                                        ) : <div className="h-full"></div>}
+                                                        )}
                                                     </td>
                                                 )
                                             })}
@@ -2318,15 +2210,17 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                 </table>
             </div>
             {editingCell && (
-                <AssignmentEditPopup 
-                    assignment={editingCell.assignment}
-                    detailer={detailers.find(d => d.id === editingCell.assignment.detailerId)}
-                    position={editingCell.position}
-                    onClose={() => setEditingCell(null)}
-                    onSave={handleSplitAndUpdateAssignment}
-                    currentTheme={currentTheme}
-                    weekIndex={editingCell.weekIndex}
-                />
+                <div ref={popupRef}>
+                    <AssignmentEditPopup 
+                        assignment={editingCell.assignment}
+                        detailer={detailers.find(d => d.id === editingCell.assignment.detailerId)}
+                        position={editingCell.position}
+                        onClose={() => setEditingCell(null)}
+                        onSave={handleSplitAndUpdateAssignment}
+                        currentTheme={currentTheme}
+                        weekIndex={editingCell.weekIndex}
+                    />
+                </div>
             )}
         </div>
     );
@@ -2335,7 +2229,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 const GanttConsole = ({ projects, assignments, currentTheme }) => {
     const svgRef = useRef(null);
     const [startDate, setStartDate] = useState(new Date());
-    const [ganttView, setGanttView] = useState('projects'); // 'projects' or 'totals'
+    const [ganttView, setGanttView] = useState('projects');
     const weekCount = 25;
     const dimensions = { width: 1100, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
     const { width, height, margin } = dimensions;
@@ -2447,7 +2341,6 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
         const tooltip = d3.select("body").append("div")
             .attr("class", "absolute opacity-0 transition-opacity duration-300 bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg")
 
-        // X-Axis
         const xAxis = g.append("g")
             .attr("transform", `translate(0,${boundedHeight})`)
             .call(d3.axisBottom(x).ticks(d3.timeWeek.every(1)).tickFormat(d3.timeFormat("%m/%d")));
@@ -2455,14 +2348,12 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
         xAxis.selectAll("text").style("fill", currentTheme.textColor);
         xAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
 
-        // Y-Axis
         const yAxis = g.append("g")
             .call(d3.axisLeft(y));
             
         yAxis.selectAll("text").style("fill", currentTheme.textColor);
         yAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
 
-        // Y-Axis Label
         g.append("text")
             .attr("fill", currentTheme.textColor)
             .attr("transform", "rotate(-90)")
@@ -2471,7 +2362,6 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
             .attr("text-anchor", "middle")
             .text("Total Weekly Hours");
 
-        // Horizontal reference lines
         const fortyHourTicks = [];
         for (let i = 40; i <= yMax; i += 40) {
             fortyHourTicks.push(i);
@@ -2801,7 +2691,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
                     
-                    {/* --- Main Task Details --- */}
                     <div className="p-4 border rounded-lg space-y-3">
                         <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className="w-full text-lg font-semibold p-2 border rounded-md" />
                         <div className="grid grid-cols-2 gap-4">
@@ -2818,7 +2707,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                         </div>
                     </div>
 
-                    {/* --- Watchers Section --- */}
                     <div className="p-4 border rounded-lg">
                         <h3 className="font-semibold mb-2">Watchers</h3>
                         <div className="flex flex-wrap gap-2 mb-4">
@@ -2851,7 +2739,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                         </div>
                     </div>
 
-                    {/* --- Sub-tasks Section --- */}
                     <div className="p-4 border rounded-lg">
                         <h3 className="font-semibold mb-2">Sub-tasks</h3>
                         <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
@@ -2897,8 +2784,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                         </div>
                     </div>
                     
-                     {/* --- Main Task Comments --- */}
-                    <div className="p-4 border rounded-lg">
+                     <div className="p-4 border rounded-lg">
                          <h3 className="font-semibold mb-2">Task Comments</h3>
                          <CommentSection 
                            comments={taskData.comments}
@@ -2911,7 +2797,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                     <div className="flex justify-end gap-4 pt-4">
                         {!isNewTask && (
                            <Tooltip text={hasSubtasks ? "Delete all sub-tasks first" : ""}>
-                                <div className="mr-auto"> {/* Wrapper div for tooltip positioning */}
+                                <div className="mr-auto">
                                     <button
                                         onClick={onDelete}
                                         disabled={hasSubtasks}
@@ -2986,13 +2872,13 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
 };
 
 
-const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
+const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
     const [notification, setNotification] = useState(null);
     const [editingLaneId, setEditingLaneId] = useState(null);
     const [editingLaneName, setEditingLaneName] = useState('');
-    const [deletingLane, setDeletingLane] = useState(null); // {id, name}
+    const [deletingLane, setDeletingLane] = useState(null);
     const [taskToDelete, setTaskToDelete] = useState(null);
 
     const showNotification = (message) => {
@@ -3232,7 +3118,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
             case 'project-hours':
                 headers = ["Project Name", "Project ID", "Total Allocated Hours"];
                 const hoursByProject = assignments.reduce((acc, ass) => {
-                    if (!sDate || !eDate) return acc; // Need a date range for this report
+                    if (!sDate || !eDate) return acc;
 
                     const assStartDate = new Date(ass.startDate);
                     const assEndDate = new Date(ass.endDate);
@@ -3245,7 +3131,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
                             if (!acc[project.id]) {
                                 acc[project.id] = { name: project.name, id: project.projectId, hours: 0 };
                             }
-                            const dailyHours = (Number(ass.allocation) / 100) * 8; // 40hr week / 5 days
+                            const dailyHours = (Number(ass.allocation) / 100) * 8;
                             acc[project.id].hours += daysInRage * dailyHours;
                         }
                     }
@@ -3284,7 +3170,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
                 headers = ["Task Name", "Project", "Assignee", "Status", "Due Date"];
                 data = tasks
                     .filter(t => {
-                        if (!t.dueDate) return true; // Include tasks without due dates
+                        if (!t.dueDate) return true;
                         const taskDueDate = new Date(t.dueDate);
                         return (!sDate || taskDueDate >= sDate) && (!eDate || taskDueDate <= eDate);
                     })
