@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc, where } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import * as d3 from 'd3';
 
@@ -504,7 +504,6 @@ const App = () => {
         if (loading) return <div className="text-center p-10">Loading data...</div>;
         
         const allowedViews = navConfig[accessLevel];
-        // Ensure currentView is valid, otherwise default to the first allowed view
         const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
         
         switch (currentView) {
@@ -1938,7 +1937,7 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 
     if (!detailer) return null;
 
-    const optionClasses = `bg-gray-800 text-gray-200`; // Explicitly for dark mode options
+    const optionClasses = `${currentTheme.inputBg} ${currentTheme.inputText}`;
 
     return (
         <div
@@ -1948,13 +1947,13 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
         >
             <h4 className="font-semibold mb-3">Edit Assignment</h4>
             <div className="space-y-3">
-                <div>
+                <div className="relative">
                     <label className="block text-sm font-medium mb-1">Discipline (Trade)</label>
-                    <div className="relative">
+                    <div className={`relative ${currentTheme.inputBg} border ${currentTheme.inputBorder} rounded-md`}>
                         <select
                             value={trade}
                             onChange={e => setTrade(e.target.value)}
-                            className={`w-full p-2 border rounded-md appearance-none ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            className={`w-full p-2 appearance-none bg-transparent ${currentTheme.inputText}`}
                         >
                             {availableTrades.map(opt => <option className={optionClasses} key={opt} value={opt}>{opt}</option>)}
                         </select>
@@ -2064,43 +2063,108 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
         const originalAssignment = assignments.find(a => a.id === assignmentId);
-        if (!originalAssignment) return;
-
-        const changeDate = weekDates[editWeekIndex];
-        const originalStartDate = new Date(originalAssignment.startDate);
-        
-        // Adjust for timezone differences by comparing dates only
-        changeDate.setHours(0,0,0,0);
-        originalStartDate.setHours(0,0,0,0);
-
-        if (changeDate.getTime() <= originalStartDate.getTime()) {
-            // Edit is on or before the start date, so just update the whole assignment
-            const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
-            await updateDoc(assignmentRef, updates);
-        } else {
-            // Split the assignment
-            const batch = writeBatch(db);
-
-            // 1. Update the original assignment's end date
-            const originalAssignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
-            const newEndDate = new Date(changeDate);
-            newEndDate.setDate(newEndDate.getDate() - 1);
-            batch.update(originalAssignmentRef, { endDate: newEndDate.toISOString().split('T')[0] });
-
-            // 2. Create the new assignment
-            const newAssignmentRef = doc(collection(db, `artifacts/${appId}/public/data/assignments`));
-            const newAssignment = {
-                ...originalAssignment,
-                ...updates, // new trade and activity
-                startDate: changeDate.toISOString().split('T')[0],
-                // keep original endDate
-            };
-            delete newAssignment.id; // remove old id
-            batch.set(newAssignmentRef, newAssignment);
-
-            await batch.commit();
+        if (!originalAssignment || (originalAssignment.trade === updates.trade && originalAssignment.activity === updates.activity)) {
+            return; 
         }
+    
+        const batch = writeBatch(db);
+        const originalRef = doc(db, `artifacts/${appId}/public/data/assignments`, originalAssignment.id);
+    
+        const changeDate = new Date(weekDates[editWeekIndex]);
+        const originalStartDate = new Date(originalAssignment.startDate);
+        const originalEndDate = new Date(originalAssignment.endDate);
+    
+        changeDate.setHours(0, 0, 0, 0);
+        originalStartDate.setHours(0, 0, 0, 0);
+        originalEndDate.setHours(0, 0, 0, 0);
+    
+        batch.delete(originalRef);
+    
+        const beforeEndDate = new Date(changeDate);
+        beforeEndDate.setDate(beforeEndDate.getDate() - 1);
+        if (originalStartDate < changeDate) {
+            const beforeSegment = { ...originalAssignment, endDate: beforeEndDate.toISOString().split('T')[0] };
+            delete beforeSegment.id;
+            batch.set(doc(collection(db, `artifacts/${appId}/public/data/assignments`)), beforeSegment);
+        }
+    
+        const changedSegmentEndDate = new Date(changeDate);
+        changedSegmentEndDate.setDate(changedSegmentEndDate.getDate() + 6);
+        const changedSegment = {
+            ...originalAssignment,
+            ...updates,
+            startDate: changeDate.toISOString().split('T')[0],
+            endDate: (changedSegmentEndDate < originalEndDate ? changedSegmentEndDate : originalEndDate).toISOString().split('T')[0]
+        };
+        delete changedSegment.id;
+        batch.set(doc(collection(db, `artifacts/${appId}/public/data/assignments`)), changedSegment);
+    
+        const afterStartDate = new Date(changedSegmentEndDate);
+        afterStartDate.setDate(afterStartDate.getDate() + 1);
+        if (originalEndDate > changedSegmentEndDate) {
+            const afterSegment = { ...originalAssignment, startDate: afterStartDate.toISOString().split('T')[0] };
+            delete afterSegment.id;
+            batch.set(doc(collection(db, `artifacts/${appId}/public/data/assignments`)), afterSegment);
+        }
+    
+        try {
+            await batch.commit();
+        } catch (e) {
+            console.error("Error during split operation:", e);
+            return;
+        }
+    
+        setTimeout(async () => {
+            const userAssignmentsQuery = query(
+                collection(db, `artifacts/${appId}/public/data/assignments`),
+                where("detailerId", "==", originalAssignment.detailerId),
+                where("projectId", "==", originalAssignment.projectId)
+            );
+            
+            let wasMergedInPass = true;
+            while (wasMergedInPass) {
+                wasMergedInPass = false;
+                const snapshot = await getDocs(userAssignmentsQuery);
+                const allUserAssignments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                allUserAssignments.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    
+                for (let i = 0; i < allUserAssignments.length - 1; i++) {
+                    const current = allUserAssignments[i];
+                    const next = allUserAssignments[i + 1];
+    
+                    const dayAfterCurrentEnd = new Date(current.endDate);
+                    dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
+                    dayAfterCurrentEnd.setHours(0, 0, 0, 0);
+    
+                    const nextStartDate = new Date(next.startDate);
+                    nextStartDate.setHours(0, 0, 0, 0);
+    
+                    if (
+                        current.trade === next.trade &&
+                        current.activity === next.activity &&
+                        current.allocation === next.allocation &&
+                        dayAfterCurrentEnd.getTime() === nextStartDate.getTime()
+                    ) {
+                        const mergeBatch = writeBatch(db);
+                        const currentRef = doc(db, `artifacts/${appId}/public/data/assignments`, current.id);
+                        const nextRef = doc(db, `artifacts/${appId}/public/data/assignments`, next.id);
+        
+                        mergeBatch.update(currentRef, { endDate: next.endDate });
+                        mergeBatch.delete(nextRef);
+                        
+                        try {
+                            await mergeBatch.commit();
+                            wasMergedInPass = true;
+                            break; 
+                        } catch(e) {
+                            console.error("Error during merge operation:", e);
+                        }
+                    }
+                }
+            }
+        }, 500);
     };
+    
 
     const handleMouseUp = async () => {
         if (!dragFillStart || dragFillEnd === null) return;
@@ -2213,7 +2277,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
                                                 return (
                                                     <td key={weekStart.toISOString()} 
-                                                        className={`p-0 border relative ${currentTheme.borderColor}`}
+                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
                                                         onMouseEnter={() => {
                                                             if (dragFillStart) {
                                                                 setDragFillEnd({ weekIndex });
