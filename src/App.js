@@ -485,11 +485,12 @@ const App = () => {
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
         { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg> },
         { id: 'skills', label: 'Edit', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg> },
+        { id: 'reporting', label: 'Reporting', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg> },
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
     ];
     
     const navConfig = {
-        taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'skills', 'admin'],
+        taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'skills', 'reporting', 'admin'],
         pcl: ['projects', 'workloader', 'tasks', 'gantt'],
         viewer: ['projects', 'workloader', 'tasks'],
         default: [] // No nav buttons when not logged in
@@ -512,13 +513,15 @@ const App = () => {
             case 'projects':
                 return <ProjectConsole db={db} detailers={detailers} projects={projects} assignments={assignments} accessLevel={accessLevel} currentTheme={currentTheme} />;
             case 'workloader':
-                return <WorkloaderConsole db={db} detailers={detailers} projects={projects} assignments={assignments} theme={theme} setTheme={setTheme} accessLevel={accessLevel} />;
+                return <WorkloaderConsole db={db} detailers={detailers} projects={projects} assignments={assignments} theme={theme} setTheme={setTheme} accessLevel={accessLevel} currentTheme={currentTheme} />;
             case 'tasks':
                 return <TaskConsole db={db} tasks={tasks} detailers={detailers} projects={projects} taskLanes={taskLanes} theme={theme} />;
              case 'gantt':
                 return <GanttConsole projects={projects} assignments={assignments} currentTheme={currentTheme} />;
             case 'skills':
                 return <SkillsConsole db={db} detailers={detailers} currentTheme={currentTheme} />;
+            case 'reporting':
+                return <ReportingConsole projects={projects} detailers={detailers} assignments={assignments} tasks={tasks} currentTheme={currentTheme} />;
             case 'admin':
                 return <AdminConsole db={db} detailers={detailers} projects={projects} currentTheme={currentTheme} />;
             default:
@@ -811,7 +814,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme }) => 
     );
 };
 
-const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project }) => {
+const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme }) => {
     const blendedRate = project.blendedRate || 0;
     const earnedValue = (activity.estimatedHours * blendedRate) * (activity.percentComplete / 100);
     const actualCost = activity.hoursUsed * blendedRate;
@@ -826,23 +829,23 @@ const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete,
     
     return (
         <tr key={activity.id}>
-            <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className="w-full p-1 bg-transparent rounded" /></td>
-            <td className="p-1"><input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} className="w-full p-1 bg-transparent rounded" /></td>
-            <td className="p-1 w-24"><input type="text" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} className="w-full p-1 bg-transparent rounded" /></td>
-            <td className="p-1 w-24 bg-gray-100">{activity.percentComplete.toFixed(2)}%</td>
-            <td className="p-1 w-24 bg-gray-100">{activity.hoursUsed.toFixed(2)}</td>
-            <td className="p-1 w-24 bg-gray-100">{formatCurrency(earnedValue)}</td>
-            <td className="p-1 w-24 bg-gray-100">{formatCurrency(actualCost)}</td>
-            <td className="p-1 w-24 bg-gray-100">{projected.toFixed(2)}</td>
+            <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className="p-1"><input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className="p-1 w-24"><input type="text" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{activity.percentComplete.toFixed(2)}%</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{activity.hoursUsed.toFixed(2)}</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{formatCurrency(earnedValue)}</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{formatCurrency(actualCost)}</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{projected.toFixed(2)}</td>
             <td className="p-1 text-center w-12"><button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button></td>
         </tr>
     );
 });
 
 
-const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project }) => {
+const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project, currentTheme }) => {
     return (
-        <div className="border-b">
+        <div className={`border-b ${currentTheme.borderColor}`}>
             <button
                 onClick={onToggle}
                 className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}
@@ -857,16 +860,16 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                 <div className="overflow-x-auto" onClick={e => e.stopPropagation()}>
                     <table className="min-w-full text-sm">
                         <thead>
-                            <tr className="bg-gray-100">
-                                <th className="p-2 text-left font-semibold">Activity Description</th>
-                                <th className="p-2 text-left font-semibold">Charge Code</th>
-                                <th className="p-2 text-left font-semibold">Est. Hrs</th>
-                                <th className="p-2 text-left font-semibold">% Comp</th>
-                                <th className="p-2 text-left font-semibold">Hrs Used</th>
-                                <th className="p-2 text-left font-semibold">Earned ($)</th>
-                                <th className="p-2 text-left font-semibold">Actual ($)</th>
-                                <th className="p-2 text-left font-semibold">Proj. Hrs</th>
-                                <th className="p-2 text-left font-semibold">Actions</th>
+                            <tr className={currentTheme.altRowBg}>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% Comp</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Hrs Used</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actual ($)</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Proj. Hrs</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -879,6 +882,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                                     onChange={onChange}
                                     onDelete={onDelete}
                                     project={project}
+                                    currentTheme={currentTheme}
                                 />
                             ))}
                              <tr>
@@ -892,7 +896,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
     )
 });
 
-const FinancialSummary = ({ project, activityTotals }) => {
+const FinancialSummary = ({ project, activityTotals, currentTheme }) => {
     if (!project || !activityTotals) return null;
 
     const initialBudget = project.initialBudget || 0;
@@ -911,36 +915,36 @@ const FinancialSummary = ({ project, activityTotals }) => {
     const estFinalCost = spentToDate + costToComplete;
 
     return (
-        <div className="bg-white p-4 rounded-lg border shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center`}>
             <div>
-                <p className="text-sm text-gray-500">Initial Budget</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Initial Budget</p>
                 <p className="text-lg font-bold">{formatCurrency(initialBudget)}</p>
             </div>
             <div>
-                <p className="text-sm text-gray-500">Contingency</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Contingency</p>
                 <p className="text-lg font-bold">{formatCurrency(contingency)}</p>
             </div>
             <div>
-                <p className="text-sm text-gray-500">Spent to Date</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p>
                 <p className="text-lg font-bold">{formatCurrency(spentToDate)}</p>
             </div>
              <div>
-                <p className="text-sm text-gray-500">Cost to Complete</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p>
                 <p className="text-lg font-bold">{formatCurrency(costToComplete)}</p>
             </div>
              <div>
-                <p className="text-sm text-gray-500">Est. Final Cost</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p>
                 <p className="text-lg font-bold">{formatCurrency(estFinalCost)}</p>
             </div>
              <div >
-                <p className="text-sm text-gray-500">Productivity</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Productivity</p>
                 <p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p>
             </div>
         </div>
     )
 }
 
-const HourSummary = ({ project, activityTotals }) => {
+const HourSummary = ({ project, activityTotals, currentTheme }) => {
     if (!project || !activityTotals) return null;
 
     const totalBudgetHours = (project.initialBudget || 0) / (project.blendedRate || 1);
@@ -948,24 +952,24 @@ const HourSummary = ({ project, activityTotals }) => {
     const unallocatedHours = totalBudgetHours - allocatedHours;
 
     return (
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-6 grid grid-cols-1 md:grid-cols-3 gap-4`}>
             <div className="text-center">
-                <p className="text-sm text-blue-800">Total Budgeted Hours</p>
-                <p className="text-lg font-bold text-blue-900">{totalBudgetHours.toFixed(2)}</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Total Budgeted Hours</p>
+                <p className="text-lg font-bold">{totalBudgetHours.toFixed(2)}</p>
             </div>
             <div className="text-center">
-                <p className="text-sm text-blue-800">Total Allocated Hours</p>
-                <p className="text-lg font-bold text-blue-900">{allocatedHours.toFixed(2)}</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Total Allocated Hours</p>
+                <p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p>
             </div>
              <div className="text-center">
-                <p className="text-sm text-blue-800">Unallocated Hours</p>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Unallocated Hours</p>
                 <p className={`text-lg font-bold ${unallocatedHours < 0 ? 'text-red-500' : 'text-green-600'}`}>{unallocatedHours.toFixed(2)}</p>
             </div>
         </div>
     )
 }
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme }) => {
     const [draftData, setDraftData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
@@ -1213,16 +1217,16 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
         <div className="space-y-6 mt-4 border-t pt-4">
              {!isPCL && (
                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" onClick={e => e.stopPropagation()}>
-                    <FinancialSummary project={project} activityTotals={activityTotals} />
-                    <HourSummary project={project} activityTotals={activityTotals} />
+                    <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} />
+                    <HourSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} />
                  </div>
              )}
             
             {/* --- Project Subsets Section --- */}
-            <div className="bg-white rounded-lg border shadow-sm">
+            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                  <button
                     onClick={(e) => handleToggleCollapse(e, 'projectBreakdown')}
-                    className="w-full p-3 text-left font-bold flex justify-between items-center bg-gray-200 hover:bg-gray-300 transition-colors"
+                    className={`w-full p-3 text-left font-bold flex justify-between items-center ${currentTheme.altRowBg} hover:bg-opacity-75 transition-colors`}
                 >
                     <h3 className="text-lg font-semibold">Project Breakdown</h3>
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${collapsedSections.projectBreakdown ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1232,7 +1236,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                 {!collapsedSections.projectBreakdown && (
                     <div className="p-4" onClick={e => e.stopPropagation()}>
                         <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
-                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs text-gray-600 px-2`}>
+                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs ${currentTheme.subtleText} px-2`}>
                                 <span className="col-span-2">Name</span>
                                 <span className="col-span-1">Activity</span>
                                 {!isPCL && <span className="col-span-1">Budget ($)</span>}
@@ -1253,18 +1257,18 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                                 const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
                                 const productivity = actual > 0 ? earned / actual : 0;
                                 return (
-                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-5' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 bg-gray-50 rounded-md`}>
+                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-5' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 ${currentTheme.altRowBg} rounded-md`}>
                                         {editingSubsetId === subset.id && !isPCL ? (
                                             <>
-                                                <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className="p-1 border rounded col-span-2"/>
-                                                <select value={editingSubsetData.activityId} onChange={e => handleEditingSubsetChange('activityId', e.target.value)} className="p-1 border rounded w-full">
+                                                <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className={`p-1 border rounded col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <select value={editingSubsetData.activityId} onChange={e => handleEditingSubsetChange('activityId', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                                     <option value="">Select Activity...</option>
                                                     {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
                                                 </select>
-                                                <input type="number" placeholder="Budget ($)" value={editingSubsetData.budget} onChange={e => handleEditingSubsetChange('budget', e.target.value)} className="p-1 border rounded w-full"/>
-                                                <input type="number" placeholder="% of Project" value={editingSubsetData.percentageOfProject} onChange={e => handleEditingSubsetChange('percentageOfProject', e.target.value)} className="p-1 border rounded w-full"/>
-                                                <input type="number" placeholder="% Complete" value={editingSubsetData.percentComplete} onChange={e => handleEditingSubsetChange('percentComplete', e.target.value)} className="p-1 border rounded w-full"/>
-                                                <input type="number" placeholder="Hours Used" value={editingSubsetData.hoursUsed} onChange={e => handleEditingSubsetChange('hoursUsed', e.target.value)} className="p-1 border rounded w-full"/>
+                                                <input type="number" placeholder="Budget ($)" value={editingSubsetData.budget} onChange={e => handleEditingSubsetChange('budget', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <input type="number" placeholder="% of Project" value={editingSubsetData.percentageOfProject} onChange={e => handleEditingSubsetChange('percentageOfProject', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <input type="number" placeholder="% Complete" value={editingSubsetData.percentComplete} onChange={e => handleEditingSubsetChange('percentComplete', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <input type="number" placeholder="Hours Used" value={editingSubsetData.hoursUsed} onChange={e => handleEditingSubsetChange('hoursUsed', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                 <div className="col-span-3"></div>
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={handleUpdateSubset} className="text-green-500 hover:text-green-700">Save</button>
@@ -1274,9 +1278,9 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                                         ) : (
                                             <>
                                                 <span className="font-medium col-span-2">{subset.name}</span>
-                                                <span className="text-sm text-gray-600 col-span-1">{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
-                                                {!isPCL && <span className="text-sm text-gray-600 col-span-1">{formatCurrency(subset.budget || 0)}</span>}
-                                                <span className="text-sm text-gray-600 col-span-1">{subset.percentageOfProject}%</span>
+                                                <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
+                                                {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{formatCurrency(subset.budget || 0)}</span>}
+                                                <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentageOfProject}%</span>
                                                 
                                                 {isPCL ? (
                                                     <div className="col-span-1">
@@ -1285,18 +1289,18 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                                                             value={subset.percentComplete}
                                                             onChange={(e) => handleSubsetFieldChange(subset.id, 'percentComplete', e.target.value)}
                                                             onBlur={handleSaveChanges}
-                                                            className="p-1 border rounded w-full bg-yellow-100"
+                                                            className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} bg-yellow-100`}
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <span className="text-sm text-gray-600 col-span-1">{subset.percentComplete}%</span>
+                                                    <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentComplete}%</span>
                                                 )}
 
                                                 {!isPCL && (
                                                     <>
-                                                        <span className="text-sm text-gray-600 col-span-1">{subset.hoursUsed}</span>
-                                                        <span className="text-sm text-gray-600 font-semibold col-span-1">{formatCurrency(earned)}</span>
-                                                        <span className="text-sm text-gray-600 font-semibold col-span-1">{formatCurrency(actual)}</span>
+                                                        <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.hoursUsed}</span>
+                                                        <span className={`text-sm font-semibold col-span-1`}>{formatCurrency(earned)}</span>
+                                                        <span className={`text-sm font-semibold col-span-1`}>{formatCurrency(actual)}</span>
                                                         <span className={`text-sm font-bold col-span-1 ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</span>
                                                         <div className="flex items-center gap-2 col-span-1">
                                                             <button onClick={() => {setEditingSubsetId(subset.id); setEditingSubsetData({...subset});}} className="text-blue-500 hover:text-blue-700">Edit</button>
@@ -1315,15 +1319,15 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
                         </div>
                         {!isPCL && (
                             <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
-                                <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className="p-2 border rounded-md col-span-2" />
-                                <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className="p-2 border rounded-md">
+                                <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className={`p-2 border rounded-md col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                     <option value="">Select Activity...</option>
                                     {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
                                 </select>
-                                <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className="p-2 border rounded-md" />
-                                <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className="p-2 border rounded-md" />
-                                <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className="p-2 border rounded-md" />
-                                <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className="p-2 border rounded-md" />
+                                <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
 
                                 <button onClick={handleAddNewSubset} className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 col-span-2">Add Subset</button>
                             </div>
@@ -1335,18 +1339,18 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel }) => {
 
             {/* --- Activity Tracker Section --- */}
             {!isPCL && (
-                <div className="bg-white p-4 rounded-lg border shadow-sm" onClick={e => e.stopPropagation()}>
+                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`} onClick={e => e.stopPropagation()}>
                      <div className="flex justify-between items-center mb-3">
                         <h3 className="text-lg font-semibold">Activity Tracker</h3>
                         <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
                             Save All Changes
                         </button>
                      </div>
-                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project}/>
-                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project}/>
-                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project}/>
-                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project}/>
-                     <div className="bg-gray-100 font-bold p-2 flex justify-end gap-x-6">
+                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project} currentTheme={currentTheme}/>
+                     <div className={`${currentTheme.altRowBg} font-bold p-2 flex justify-end gap-x-6`}>
                         <span className="text-right">Totals:</span>
                         <span>Est: {activityTotals.estimated.toFixed(2)}</span>
                         <span>Used: {activityTotals.used.toFixed(2)}</span>
@@ -1478,7 +1482,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                             )}
                                         </div>
                                     </div>
-                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} />}
+                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} />}
                                 </div>
                             )}
                         </div>
@@ -1919,10 +1923,76 @@ const AdminConsole = ({ db, detailers, projects, currentTheme }) => {
     );
 };
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel }) => {
+const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, currentTheme, weekIndex }) => {
+    const [trade, setTrade] = useState(assignment.trade);
+    const [activity, setActivity] = useState(assignment.activity);
+
+    const availableTrades = useMemo(() => {
+        return Object.keys(detailer?.disciplineSkillsets || {});
+    }, [detailer]);
+
+    const handleSave = () => {
+        onSave(assignment.id, { trade, activity }, weekIndex);
+        onClose();
+    };
+
+    if (!detailer) return null;
+
+    const optionClasses = `bg-gray-800 text-gray-200`; // Explicitly for dark mode options
+
+    return (
+        <div
+            style={{ top: position.top, left: position.left }}
+            className={`absolute z-30 p-4 rounded-lg shadow-xl border ${currentTheme.cardBg} ${currentTheme.borderColor}`}
+            onClick={e => e.stopPropagation()}
+        >
+            <h4 className="font-semibold mb-3">Edit Assignment</h4>
+            <div className="space-y-3">
+                <div>
+                    <label className="block text-sm font-medium mb-1">Discipline (Trade)</label>
+                    <div className="relative">
+                        <select
+                            value={trade}
+                            onChange={e => setTrade(e.target.value)}
+                            className={`w-full p-2 border rounded-md appearance-none ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        >
+                            {availableTrades.map(opt => <option className={optionClasses} key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
+                            <svg className={`fill-current h-4 w-4 ${currentTheme.inputText}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Activity</label>
+                     <div className="relative">
+                        <select
+                            value={activity}
+                            onChange={e => setActivity(e.target.value)}
+                            className={`w-full p-2 border rounded-md appearance-none ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        >
+                            {activityOptions.map(opt => <option className={optionClasses} key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
+                             <svg className={`fill-current h-4 w-4 ${currentTheme.inputText}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+                <button onClick={onClose} className={`px-3 py-1 rounded-md text-sm ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>Cancel</button>
+                <button onClick={handleSave} className="px-3 py-1 rounded-md text-sm bg-blue-600 text-white">Save</button>
+            </div>
+        </div>
+    );
+};
+
+
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [dragFillStart, setDragFillStart] = useState(null); // { assignment, weekIndex }
     const [dragFillEnd, setDragFillEnd] = useState(null); // { weekIndex }
+    const [editingCell, setEditingCell] = useState(null); // { assignment, position: { top, left }, weekIndex }
 
     const isTaskmaster = accessLevel === 'taskmaster';
 
@@ -1982,6 +2052,56 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         return `${start.getMonth()+1}/${start.getDate()}/${start.getFullYear()} - ${end.getMonth()+1}/${end.getDate()}/${end.getFullYear()}`;
     }
 
+    const handleCellClick = (e, assignment, weekIndex) => {
+        if (!isTaskmaster) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        setEditingCell({
+            assignment,
+            position: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX },
+            weekIndex
+        });
+    };
+
+    const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
+        const originalAssignment = assignments.find(a => a.id === assignmentId);
+        if (!originalAssignment) return;
+
+        const changeDate = weekDates[editWeekIndex];
+        const originalStartDate = new Date(originalAssignment.startDate);
+        
+        // Adjust for timezone differences by comparing dates only
+        changeDate.setHours(0,0,0,0);
+        originalStartDate.setHours(0,0,0,0);
+
+        if (changeDate.getTime() <= originalStartDate.getTime()) {
+            // Edit is on or before the start date, so just update the whole assignment
+            const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
+            await updateDoc(assignmentRef, updates);
+        } else {
+            // Split the assignment
+            const batch = writeBatch(db);
+
+            // 1. Update the original assignment's end date
+            const originalAssignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId);
+            const newEndDate = new Date(changeDate);
+            newEndDate.setDate(newEndDate.getDate() - 1);
+            batch.update(originalAssignmentRef, { endDate: newEndDate.toISOString().split('T')[0] });
+
+            // 2. Create the new assignment
+            const newAssignmentRef = doc(collection(db, `artifacts/${appId}/public/data/assignments`));
+            const newAssignment = {
+                ...originalAssignment,
+                ...updates, // new trade and activity
+                startDate: changeDate.toISOString().split('T')[0],
+                // keep original endDate
+            };
+            delete newAssignment.id; // remove old id
+            batch.set(newAssignmentRef, newAssignment);
+
+            await batch.commit();
+        }
+    };
+
     const handleMouseUp = async () => {
         if (!dragFillStart || dragFillEnd === null) return;
 
@@ -2012,55 +2132,19 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         };
     }, [dragFillStart, dragFillEnd]); // Re-add listener if state changes
 
-
-    const themeClasses = {
-        light: {
-            stickyNavBg: 'bg-gray-50',
-            tableWrapperBg: 'bg-white',
-            tableHeadBg: 'bg-gray-50',
-            projectRowBg: 'bg-gray-100',
-            assignmentRowHover: 'hover:bg-gray-50',
-            borderColor: 'border-gray-300',
-            textColor: 'text-gray-700',
-            subtleTextColor: 'text-gray-500'
-        },
-        grey: {
-            stickyNavBg: 'bg-gray-200',
-            tableWrapperBg: 'bg-gray-300',
-            tableHeadBg: 'bg-gray-200',
-            projectRowBg: 'bg-gray-400',
-            assignmentRowHover: 'hover:bg-gray-400',
-            borderColor: 'border-gray-500',
-            textColor: 'text-black',
-            subtleTextColor: 'text-gray-800'
-        },
-        dark: {
-            stickyNavBg: 'bg-gray-800',
-            tableWrapperBg: 'bg-gray-900',
-            tableHeadBg: 'bg-gray-800',
-            projectRowBg: 'bg-gray-700',
-            assignmentRowHover: 'hover:bg-gray-600',
-            borderColor: 'border-gray-600',
-            textColor: 'text-gray-200',
-            subtleTextColor: 'text-gray-400'
-        }
-    };
-    const currentTheme = themeClasses[theme];
-
-
     return (
         <div className="space-y-4 h-full flex flex-col">
              <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.stickyNavBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
                  <div className="flex items-center gap-2">
-                     <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}>{'<'}</button>
-                     <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.borderColor} ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}>Today</button>
-                     <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}>{'>'}</button>
+                     <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
+                     <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
+                     <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'>'}</button>
                      <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
                  </div>
                  <div className="flex items-center gap-2">
-                    <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>Light</button>
-                    <button onClick={() => setTheme('grey')} className={`px-3 py-1 text-sm rounded-md ${theme === 'grey' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>Grey</button>
-                    <button onClick={() => setTheme('dark')} className={`px-3 py-1 text-sm rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : 'bg-gray-900 text-white'}`}>Dark</button>
+                    <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Light</button>
+                    <button onClick={() => setTheme('grey')} className={`px-3 py-1 text-sm rounded-md ${theme === 'grey' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Grey</button>
+                    <button onClick={() => setTheme('dark')} className={`px-3 py-1 text-sm rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Dark</button>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                      {Object.entries(legendColorMapping).map(([trade, color]) => (
@@ -2135,6 +2219,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                 setDragFillEnd({ weekIndex });
                                                             }
                                                         }}
+                                                        onClick={(e) => handleCellClick(e, assignment, weekIndex)}
                                                     >
                                                         {(isAssigned || isFillHighlighted) ? (
                                                           <Tooltip text={tooltipText}>
@@ -2147,6 +2232,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                         onMouseDown={(e) => {
                                                                             e.preventDefault();
+                                                                            e.stopPropagation();
                                                                             setDragFillStart({ assignment, weekIndex });
                                                                         }}
                                                                     >
@@ -2167,6 +2253,17 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     </tbody>
                 </table>
             </div>
+            {editingCell && (
+                <AssignmentEditPopup 
+                    assignment={editingCell.assignment}
+                    detailer={detailers.find(d => d.id === editingCell.assignment.detailerId)}
+                    position={editingCell.position}
+                    onClose={() => setEditingCell(null)}
+                    onSave={handleSplitAndUpdateAssignment}
+                    currentTheme={currentTheme}
+                    weekIndex={editingCell.weekIndex}
+                />
+            )}
         </div>
     );
 };
@@ -2998,16 +3095,18 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                  </div>
              </div>
             {isModalOpen && (
-                <TaskDetailModal
-                    db={db}
-                    task={editingTask}
-                    detailers={detailers}
-                    projects={projects}
-                    onClose={handleCloseModal}
-                    onSave={handleSaveTask}
-                    onSetMessage={showNotification}
-                    onDelete={() => setTaskToDelete(editingTask)}
-                />
+                <Modal onClose={handleCloseModal}>
+                    <TaskDetailModal
+                        db={db}
+                        task={editingTask}
+                        detailers={detailers}
+                        projects={projects}
+                        onClose={handleCloseModal}
+                        onSave={handleSaveTask}
+                        onSetMessage={showNotification}
+                        onDelete={() => setTaskToDelete(editingTask)}
+                    />
+                </Modal>
             )}
              {deletingLane && (
                 <Modal onClose={() => setDeletingLane(null)} customClasses="max-w-md">
@@ -3033,6 +3132,185 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes }) => {
                     </div>
                 </Modal>
              )}
+        </div>
+    );
+};
+
+const ReportingConsole = ({ projects, detailers, assignments, tasks, currentTheme }) => {
+    const [reportType, setReportType] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [reportData, setReportData] = useState(null);
+    const [reportHeaders, setReportHeaders] = useState([]);
+
+    const getDaysInRange = (assStart, assEnd, reportStart, reportEnd) => {
+        const effectiveStart = Math.max(assStart.getTime(), reportStart.getTime());
+        const effectiveEnd = Math.min(assEnd.getTime(), reportEnd.getTime());
+        
+        if (effectiveStart > effectiveEnd) {
+            return 0;
+        }
+
+        const diffTime = Math.abs(effectiveEnd - effectiveStart);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        return diffDays;
+    };
+
+    const handleGenerateReport = () => {
+        let data = [];
+        let headers = [];
+
+        const sDate = startDate ? new Date(startDate) : null;
+        const eDate = endDate ? new Date(endDate) : null;
+        if (eDate) eDate.setHours(23, 59, 59, 999);
+
+        switch (reportType) {
+            case 'project-hours':
+                headers = ["Project Name", "Project ID", "Total Allocated Hours"];
+                const hoursByProject = assignments.reduce((acc, ass) => {
+                    if (!sDate || !eDate) return acc; // Need a date range for this report
+
+                    const assStartDate = new Date(ass.startDate);
+                    const assEndDate = new Date(ass.endDate);
+
+                    const daysInRage = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
+
+                    if (daysInRage > 0) {
+                        const project = projects.find(p => p.id === ass.projectId);
+                        if (project) {
+                            if (!acc[project.id]) {
+                                acc[project.id] = { name: project.name, id: project.projectId, hours: 0 };
+                            }
+                            const dailyHours = (Number(ass.allocation) / 100) * 8; // 40hr week / 5 days
+                            acc[project.id].hours += daysInRage * dailyHours;
+                        }
+                    }
+                    return acc;
+                }, {});
+                data = Object.values(hoursByProject).map(p => [p.name, p.id, p.hours.toFixed(2)]);
+                break;
+            
+            case 'detailer-workload':
+                 headers = ["Detailer", "Total Hours", "Projects"];
+                 const hoursByDetailer = assignments.reduce((acc, ass) => {
+                    if (!sDate || !eDate) return acc;
+                    const assStartDate = new Date(ass.startDate);
+                    const assEndDate = new Date(ass.endDate);
+                    
+                    const daysInRage = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
+
+                    if(daysInRage > 0) {
+                        const detailer = detailers.find(d => d.id === ass.detailerId);
+                        if(detailer) {
+                            if(!acc[detailer.id]) {
+                                acc[detailer.id] = { name: `${detailer.firstName} ${detailer.lastName}`, hours: 0, projects: new Set() };
+                            }
+                            const project = projects.find(p => p.id === ass.projectId);
+                            const dailyHours = (Number(ass.allocation) / 100) * 8;
+                            acc[detailer.id].hours += daysInRage * dailyHours;
+                            if(project) acc[detailer.id].projects.add(project.name);
+                        }
+                    }
+                    return acc;
+                 }, {});
+                 data = Object.values(hoursByDetailer).map(d => [d.name, d.hours.toFixed(2), Array.from(d.projects).join(', ')]);
+                 break;
+
+            case 'task-status':
+                headers = ["Task Name", "Project", "Assignee", "Status", "Due Date"];
+                data = tasks
+                    .filter(t => {
+                        if (!t.dueDate) return true; // Include tasks without due dates
+                        const taskDueDate = new Date(t.dueDate);
+                        return (!sDate || taskDueDate >= sDate) && (!eDate || taskDueDate <= eDate);
+                    })
+                    .map(task => {
+                        const project = projects.find(p => p.id === task.projectId);
+                        const assignee = detailers.find(d => d.id === task.detailerId);
+                        return [
+                            task.taskName,
+                            project ? project.name : 'N/A',
+                            assignee ? `${assignee.firstName} ${assignee.lastName}` : 'N/A',
+                            task.status,
+                            task.dueDate || 'N/A'
+                        ];
+                    });
+                break;
+
+            default:
+                break;
+        }
+        setReportData(data);
+        setReportHeaders(headers);
+    };
+
+    const exportToCSV = () => {
+        if (!reportData || !reportHeaders) return;
+
+        let csvContent = "data:text/csv;charset=utf-8," 
+            + reportHeaders.map(h => `"${h}"`).join(",") + "\n" 
+            + reportData.map(e => e.map(cell => `"${cell}"`).join(",")).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `${reportType}_report.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    return (
+        <div className="p-4 space-y-6">
+            <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting Console</h2>
+
+            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4`}>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Report Type</label>
+                        <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                            <option value="">Select a report...</option>
+                            <option value="project-hours">Project Hours Summary</option>
+                            <option value="detailer-workload">Detailer Workload Summary</option>
+                            <option value="task-status">Task Status Report</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Start Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">End Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    </div>
+                    <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate Report</button>
+                </div>
+            </div>
+
+            {reportData && (
+                 <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-semibold">Report Results</h3>
+                        <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                            <thead>
+                                <tr className={`${currentTheme.altRowBg}`}>
+                                    {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reportData.map((row, rowIndex) => (
+                                    <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
+                                        {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                 </div>
+            )}
         </div>
     );
 };
