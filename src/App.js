@@ -5,8 +5,6 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import * as d3 from 'd3';
 
 // --- Firebase Configuration ---
-// It's generally recommended to store this in environment variables
-// rather than hardcoding in the source file.
 const firebaseConfig = {
   apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
   authDomain: "productivity-tracker-3017d.firebaseapp.com",
@@ -117,6 +115,61 @@ const initialActivityData = [
     { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0 },
     { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0 },
 ];
+
+// --- NEW UX/UI Components ---
+
+const Toaster = ({ toasts }) => (
+    <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
+        {toasts.map(toast => (
+            <div key={toast.id} className={`p-4 rounded-lg shadow-lg text-white animate-fade-in-out ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+                {toast.message}
+            </div>
+        ))}
+    </div>
+);
+
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex justify-center items-center">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
+                <h3 className="text-lg font-bold mb-4">{title}</h3>
+                <div className={`mb-6 ${currentTheme.subtleText}`}>{children}</div>
+                <div className="flex justify-end gap-4">
+                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80`}>Cancel</button>
+                    <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Confirm</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SkeletonLoader = ({ className }) => (
+    <div className={`bg-gray-300 animate-pulse rounded ${className}`}></div>
+);
+
+const TeamConsoleSkeleton = ({ currentTheme }) => (
+    <div>
+        <div className="flex justify-end items-center mb-4 gap-2">
+            <SkeletonLoader className="h-8 w-24" />
+            <SkeletonLoader className="h-8 w-24" />
+        </div>
+        <div className={`${currentTheme.cardBg} rounded-lg p-4 space-y-2`}>
+            {[...Array(5)].map((_, i) => (
+                <div key={i} className={`p-4 ${i % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg} rounded-lg`}>
+                    <div className="flex justify-between items-center">
+                        <div className="space-y-2">
+                            <SkeletonLoader className="h-5 w-40" />
+                            <SkeletonLoader className="h-4 w-32" />
+                        </div>
+                        <SkeletonLoader className="h-8 w-20" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
 
 // --- React Components ---
 
@@ -253,6 +306,15 @@ const App = () => {
     const [accessLevel, setAccessLevel] = useState('default');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = (message, type = 'success') => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts(currentToasts => currentToasts.filter(toast => toast.id !== id));
+        }, 3000);
+    };
 
     const themeClasses = {
         light: { mainBg: 'bg-gray-100', headerBg: 'bg-white', cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600', borderColor: 'border-gray-200', altRowBg: 'bg-blue-50', navBg: 'bg-gray-200', navBtn: 'text-gray-600 hover:bg-gray-300', navBtnActive: 'bg-white text-blue-600 shadow', consoleBg: 'p-4 bg-gray-50', inputBg: 'bg-white', inputText: 'text-gray-900', inputBorder: 'border-gray-300', buttonBg: 'bg-gray-200', buttonText: 'text-gray-800' },
@@ -347,7 +409,7 @@ const App = () => {
                 }, err => console.error(`Error fetching ${name}:`, err));
             });
     
-            setLoading(false);
+            setTimeout(() => setLoading(false), 1000); // Simulate loading for skeleton visibility
     
             return () => {
                 unsubscribers.forEach(unsub => unsub());
@@ -409,12 +471,18 @@ const App = () => {
     );
 
     const renderView = () => {
-        if (loading) return <div className="text-center p-10">Loading data...</div>;
+        if (loading) {
+            switch (view) {
+                case 'detailers': return <TeamConsoleSkeleton currentTheme={currentTheme} />;
+                // Add other skeleton loaders here if created
+                default: return <div className="p-10"><SkeletonLoader className="h-32 w-full" /></div>;
+            }
+        }
         
         const allowedViews = navConfig[accessLevel];
         const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
         
-        const consoleProps = { db, detailers, projects, assignments, tasks, taskLanes, currentTheme, accessLevel, theme, setTheme, appId };
+        const consoleProps = { db, detailers, projects, assignments, tasks, taskLanes, currentTheme, accessLevel, theme, setTheme, appId, showToast };
 
         switch (currentView) {
             case 'detailers': return <TeamConsole {...consoleProps} />;
@@ -443,6 +511,7 @@ const App = () => {
 
     return (
         <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen`}>
+            <Toaster toasts={toasts} />
             <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
                  <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
                      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -530,11 +599,13 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId }) => {
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast }) => {
     const [sortBy, setSortBy] = useState('firstName');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [newAssignments, setNewAssignments] = useState({});
     const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
+    const [confirmAction, setConfirmAction] = useState(null);
+    const [visibleEmployees, setVisibleEmployees] = useState(15);
 
     const getMostRecentMonday = () => {
         const today = new Date();
@@ -576,7 +647,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const handleSaveNewAssignment = async (employeeId, assignmentToSave) => {
         const { projectId, startDate, endDate, trade, activity, allocation } = assignmentToSave;
         if(!projectId || !startDate || !endDate || !trade || !activity || !allocation) {
-            alert("Please fill all fields before saving.");
+            showToast("Please fill all fields before saving.", "error");
             return;
         }
 
@@ -585,11 +656,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 
         try {
             await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload);
+            showToast("Assignment saved successfully!");
             const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== assignmentToSave.id);
             setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
         } catch (e) {
             console.error("Error saving new assignment:", e);
-            alert("Failed to save assignment.");
+            showToast("Failed to save assignment.", "error");
         }
     };
 
@@ -606,16 +678,23 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 ...payload,
                 allocation: Number(payload.allocation)
             });
+            showToast("Assignment updated.");
         } catch(e) {
             console.error("Error updating assignment", e);
+            showToast("Error updating assignment.", "error");
         }
     };
     
-    const handleDeleteExistingAssignment = async (id) => {
-        if (window.confirm("Are you sure you want to delete this assignment?")) {
-            await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
-        }
-    }
+    const confirmDeleteAssignment = (id) => {
+        setConfirmAction({
+            title: "Delete Assignment",
+            message: "Are you sure you want to permanently delete this assignment?",
+            action: async () => {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
+                showToast("Assignment deleted.");
+            }
+        });
+    };
     
     const toggleEmployee = (employeeId) => {
         setExpandedEmployeeId(prevId => prevId === employeeId ? null : employeeId);
@@ -623,6 +702,19 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 
     return (
         <div>
+            <ConfirmationModal
+                isOpen={!!confirmAction}
+                onClose={() => setConfirmAction(null)}
+                onConfirm={() => {
+                    confirmAction.action();
+                    setConfirmAction(null);
+                }}
+                title={confirmAction?.title}
+                currentTheme={currentTheme}
+            >
+                {confirmAction?.message}
+            </ConfirmationModal>
+
             <div className="flex justify-end items-center mb-4 gap-2">
                 <span className={`mr-2 text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
                 <button onClick={() => setSortBy('firstName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
@@ -635,7 +727,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
                 </div>
-                {sortedEmployees.map((employee, index) => {
+                {sortedEmployees.slice(0, visibleEmployees).map((employee, index) => {
                     const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                     
@@ -695,13 +787,13 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                         <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
                                             <h4 className={`font-semibold ${currentTheme.textColor} mb-2`}>All Project Assignments</h4>
                                             {employeeAssignments.length > 0 ? employeeAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => handleDeleteExistingAssignment(asn.id)} currentTheme={currentTheme} />
+                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => confirmDeleteAssignment(asn.id)} currentTheme={currentTheme} />
                                             )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
                                              
                                             {employeeNewAssignments.map(asn => (
-                                                <div key={asn.id} className="relative">
+                                                <div key={asn.id} className="relative p-4 border border-dashed border-blue-400 rounded-lg">
                                                     <InlineAssignmentEditor db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
-                                                    <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="absolute -bottom-2 right-2 bg-green-500 text-white px-2 py-1 text-xs rounded">Save</button>
+                                                    <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="mt-2 bg-green-500 text-white px-3 py-1 text-sm rounded hover:bg-green-600">Save New Assignment</button>
                                                 </div>
                                             ))}
                                             <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
@@ -716,11 +808,18 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                         </div>
                     )
                 })}
+                {visibleEmployees < sortedEmployees.length && (
+                    <div className="text-center mt-4">
+                        <button onClick={() => setVisibleEmployees(prev => prev + 15)} className={`${currentTheme.buttonBg} ${currentTheme.buttonText} px-4 py-2 rounded-lg`}>
+                            Load More
+                        </button>
+                    </div>
+                )}
             </div>
 
             {viewingSkillsFor && (
                 <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
-                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} />
+                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
                 </Modal>
             )}
         </div>
@@ -882,7 +981,7 @@ const HourSummary = ({ project, activityTotals, currentTheme }) => {
     )
 }
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId }) => {
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
     const [draftData, setDraftData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
@@ -1008,7 +1107,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 
         await setDoc(docRef, dataToSave, { merge: true });
         if (!isPCL) {
-          alert("Changes saved!");
+          showToast("Changes saved!");
         }
     };
     
@@ -1270,10 +1369,9 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [sortBy, setSortBy] = useState('projectId');
+    const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
 
     const handleProjectClick = (projectId) => {
         setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
@@ -1283,48 +1381,59 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
         return projects
             .filter(p => !p.archived)
             .filter(p => {
-                const query = searchQuery.toLowerCase();
-                return p.name.toLowerCase().includes(query) || p.projectId.includes(query);
+                const { query, detailerId, startDate, endDate } = filters;
+                const searchLower = query.toLowerCase();
+                
+                const nameMatch = p.name.toLowerCase().includes(searchLower);
+                const idMatch = p.projectId.includes(searchLower);
+                
+                const projectAssignments = assignments.filter(a => a.projectId === p.id);
+                
+                const detailerMatch = !detailerId || projectAssignments.some(a => a.detailerId === detailerId);
+                
+                const dateMatch = (!startDate && !endDate) || projectAssignments.some(a => {
+                    const assignStart = new Date(a.startDate);
+                    const assignEnd = new Date(a.endDate);
+                    const filterStart = startDate ? new Date(startDate) : null;
+                    const filterEnd = endDate ? new Date(endDate) : null;
+
+                    if (filterStart && filterEnd) return assignStart <= filterEnd && assignEnd >= filterStart;
+                    if (filterStart) return assignEnd >= filterStart;
+                    if (filterEnd) return assignStart <= filterEnd;
+                    return true;
+                });
+
+                return (nameMatch || idMatch) && detailerMatch && dateMatch;
             })
-            .sort((a, b) => {
-                if (sortBy === 'name') {
-                    return a.name.localeCompare(b.name);
-                }
-                return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
-            });
-    }, [projects, searchQuery, sortBy]);
+            .sort((a, b) => a.projectId.localeCompare(b.projectId, undefined, { numeric: true }));
+    }, [projects, assignments, filters]);
 
     const isViewer = accessLevel === 'viewer';
+    
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-4">
-                 <div className="flex items-center gap-4">
-                    <h2 className={`text-xl font-bold ${currentTheme.textColor}`}>Project Overview</h2>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setSortBy('name'); }}
-                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                        >
-                            Alphabetical
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setSortBy('projectId'); }}
-                            className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                        >
-                            Project ID
-                        </button>
-                    </div>
-                </div>
-                <div className="w-1/3">
+            <div className={`p-4 rounded-lg mb-4 ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                <h2 className={`text-xl font-bold mb-4 ${currentTheme.textColor}`}>Project Overview & Filters</h2>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <input
                         type="text"
+                        name="query"
                         placeholder="Search by project name or ID..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        value={filters.query}
+                        onChange={handleFilterChange}
                         className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                     />
+                    <select name="detailerId" value={filters.detailerId} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                        <option value="">Filter by Detailer...</option>
+                        {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
+                    </select>
+                    <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                 </div>
             </div>
             <div className="space-y-4">
@@ -1390,7 +1499,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                             )}
                                         </div>
                                     </div>
-                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} />}
+                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} showToast={showToast} />}
                                 </div>
                             )}
                         </div>
@@ -1401,11 +1510,10 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     );
 };
 
-const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme, appId }) => {
+const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme, appId, showToast }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
-    const [saveMessage, setSaveMessage] = useState('');
 
     useEffect(() => {
         const employee = detailers.find(d => d.id === selectedEmployeeId);
@@ -1458,8 +1566,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
         const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableEmployee.id);
         const { id, ...dataToSave } = editableEmployee;
         await setDoc(employeeRef, dataToSave, { merge: true });
-        setSaveMessage("Changes saved successfully!");
-        setTimeout(() => setSaveMessage(''), 3000);
+        showToast("Changes saved successfully!");
     };
     
     return (
@@ -1533,7 +1640,6 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
                     </div>
 
                     <button onClick={handleSaveChanges} className="w-full bg-green-500 text-white p-2 rounded-md hover:bg-green-600 mt-4">Save All Changes</button>
-                    {saveMessage && <p className="text-green-600 mt-2 text-center">{saveMessage}</p>}
                 </div>
             )}
         </div>
@@ -1541,7 +1647,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
 };
 
 
-const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
+const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '' });
     
@@ -1549,7 +1655,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
     const [editingEmployeeData, setEditingEmployeeData] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectData, setEditingProjectData] = useState(null);
-    const [message, setMessage] = useState('');
     const [employeeSortBy, setEmployeeSortBy] = useState('firstName');
     const [projectSortBy, setProjectSortBy] = useState('projectId');
     const [showArchived, setShowArchived] = useState(false);
@@ -1579,17 +1684,15 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
         if (!db) return;
         if (type === 'employee') {
             if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.employeeId) {
-                setMessage('Please fill all employee fields.');
-                setTimeout(()=> setMessage(''), 3000);
+                showToast('Please fill all employee fields.', 'error');
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, skills: {}, disciplineSkillsets: {} });
             setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-            setMessage('Employee added.');
+            showToast('Employee added.');
         } else if (type === 'project') {
             if (!newProject.name || !newProject.projectId) {
-                setMessage('Please fill all project fields.');
-                 setTimeout(()=> setMessage(''), 3000);
+                showToast('Please fill all project fields.', 'error');
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), {
@@ -1600,14 +1703,14 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
                 archived: false,
             });
             setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '' });
-            setMessage('Project added.');
+            showToast('Project added.');
         }
-        setTimeout(()=> setMessage(''), 3000);
     };
 
     const handleDelete = async (type, id) => {
         const collectionName = type === 'employee' ? 'detailers' : 'projects';
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
+        showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
     };
     
     const handleEdit = (type, item) => {
@@ -1644,10 +1747,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
                 });
             }
             handleCancel();
+            showToast('Item updated successfully.');
         } catch (error) {
             console.error("Error updating document: ", error);
-            setMessage("Failed to update item.");
-            setTimeout(()=> setMessage(''), 3000);
+            showToast("Failed to update item.", 'error');
         }
     };
     
@@ -1665,6 +1768,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
         await updateDoc(projectRef, {
             archived: !isArchived
         });
+        showToast(`Project ${!isArchived ? 'archived' : 'unarchived'}.`);
     };
     
     const isEditing = editingEmployeeId || editingProjectId;
@@ -1695,7 +1799,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId }) => {
                     </div>
                     <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
                 </div>
-                {message && <p className="text-center p-2">{message}</p>}
                 <div className="space-y-2">
                     {sortedEmployees.map((e, index) => {
                         const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
@@ -2531,7 +2634,7 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
 };
 
 
-const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete }) => {
+const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete, currentTheme }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
@@ -2686,7 +2789,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     const hasSubtasks = taskData.subTasks && taskData.subTasks.length > 0;
 
     return (
-        <Modal onClose={onClose}>
+        <Modal onClose={onClose} currentTheme={currentTheme}>
             <div className="relative">
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
@@ -2872,23 +2975,13 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
 };
 
 
-const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
+const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToast, currentTheme }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
-    const [notification, setNotification] = useState(null);
     const [editingLaneId, setEditingLaneId] = useState(null);
     const [editingLaneName, setEditingLaneName] = useState('');
-    const [deletingLane, setDeletingLane] = useState(null);
     const [taskToDelete, setTaskToDelete] = useState(null);
-
-    const showNotification = (message) => {
-        if (typeof message === 'string') {
-            setNotification({ text: message, isError: false });
-        } else {
-            setNotification(message);
-        }
-        setTimeout(() => setNotification(null), 3000);
-    };
+    const [confirmAction, setConfirmAction] = useState(null);
 
     const handleOpenModal = (task = null) => {
         setEditingTask(task);
@@ -2904,7 +2997,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
         if (!taskId) return;
         const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
         await updateDoc(taskRef, { status: 'Deleted' });
-        showNotification("Task deleted successfully!");
+        showToast("Task deleted successfully!");
         handleCloseModal(); 
         setTaskToDelete(null); 
     };
@@ -2916,23 +3009,23 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
             if (isNew) {
                 const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
                 if (!newRequestsLane) {
-                    showNotification({ text: "Error: 'New Requests' lane not found.", isError: true });
+                    showToast("Error: 'New Requests' lane not found.", 'error');
                     return;
                 }
                 const { id, ...data } = taskData;
                 data.laneId = newRequestsLane.id;
                 await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-                showNotification("Task created!");
+                showToast("Task created!");
             } else {
                 const { id, ...data } = taskData;
                 const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
                 await updateDoc(taskRef, data);
-                showNotification("Task updated successfully!");
+                showToast("Task updated successfully!");
             }
             handleCloseModal();
         } catch (error) {
             console.error("Error saving task: ", error);
-            showNotification({ text: `Error saving task: ${error.message}`, isError: true });
+            showToast(`Error saving task: ${error.message}`, 'error');
         }
     };
 
@@ -2958,7 +3051,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
                 order: taskLanes.length,
             };
             await addDoc(collection(db, `artifacts/${appId}/public/data/taskLanes`), newLane);
-            showNotification(`Lane '${newLaneName}' added.`);
+            showToast(`Lane '${newLaneName}' added.`);
         }
     };
     
@@ -2973,29 +3066,37 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
         setEditingLaneName('');
     };
     
-    const confirmDeleteLane = async (laneId) => {
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/taskLanes`, laneId));
-        showNotification("Lane deleted.");
-        setDeletingLane(null);
-    }
-
-
-    const handleDeleteLane = (lane) => {
+    const confirmDeleteLane = (lane) => {
         const tasksInLane = tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted');
         if (tasksInLane.length > 0) {
-            showNotification({ text: "Cannot delete a lane that contains tasks.", isError: true });
+            showToast("Cannot delete a lane that contains tasks.", "error");
             return;
         }
-        setDeletingLane(lane);
+        setConfirmAction({
+            title: "Delete Lane",
+            message: `Are you sure you want to delete the lane "${lane.name}"? This action cannot be undone.`,
+            action: async () => {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/taskLanes`, lane.id));
+                showToast("Lane deleted.");
+            }
+        });
     };
 
     return (
         <div className="flex flex-col h-full">
-             {notification && (
-                <div className={`${notification.isError ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700'} px-4 py-2 rounded relative m-4`} role="alert">
-                    <span className="block sm:inline">{notification.text}</span>
-                </div>
-            )}
+            <ConfirmationModal
+                isOpen={!!confirmAction}
+                onClose={() => setConfirmAction(null)}
+                onConfirm={() => {
+                    confirmAction.action();
+                    setConfirmAction(null);
+                }}
+                title={confirmAction?.title}
+                currentTheme={currentTheme}
+            >
+                {confirmAction?.message}
+            </ConfirmationModal>
+
              <div className="flex-grow overflow-x-auto p-4">
                  <div className="flex space-x-4 h-full">
                      {taskLanes.map(lane => (
@@ -3019,7 +3120,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
                                ) : (
                                    <h2 className="font-semibold cursor-pointer" onClick={() => { setEditingLaneId(lane.id); setEditingLaneName(lane.name); }}>{lane.name}</h2>
                                )}
-                                <button onClick={() => handleDeleteLane(lane)} className="text-gray-400 hover:text-red-500 disabled:opacity-20" disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
+                                <button onClick={() => confirmDeleteLane(lane)} className="text-gray-400 hover:text-red-500 disabled:opacity-20" disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
                             </div>
 
                              {lane.name === "New Requests" && (
@@ -3045,7 +3146,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
                  </div>
              </div>
             {isModalOpen && (
-                <Modal onClose={handleCloseModal}>
+                <Modal onClose={handleCloseModal} currentTheme={currentTheme}>
                     <TaskDetailModal
                         db={db}
                         task={editingTask}
@@ -3053,34 +3154,22 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId }) => {
                         projects={projects}
                         onClose={handleCloseModal}
                         onSave={handleSaveTask}
-                        onSetMessage={showNotification}
+                        onSetMessage={(msg) => showToast(msg.text, msg.isError ? 'error' : 'success')}
                         onDelete={() => setTaskToDelete(editingTask)}
+                        currentTheme={currentTheme}
                     />
                 </Modal>
             )}
-             {deletingLane && (
-                <Modal onClose={() => setDeletingLane(null)} customClasses="max-w-md">
-                    <div className="text-center p-4">
-                        <h3 className="text-lg font-bold mb-4">Confirm Deletion</h3>
-                        <p className="mb-6">Are you sure you want to delete the lane "{deletingLane.name}"? This action cannot be undone.</p>
-                        <div className="flex justify-center gap-4">
-                            <button onClick={() => setDeletingLane(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                            <button onClick={() => confirmDeleteLane(deletingLane.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
-                        </div>
-                    </div>
-                </Modal>
-             )}
              {taskToDelete && (
-                <Modal onClose={() => setTaskToDelete(null)} customClasses="max-w-md">
-                    <div className="text-center p-4">
-                        <h3 className="text-lg font-bold mb-4">Confirm Task Deletion</h3>
-                        <p className="mb-6">Are you sure you want to delete the task "{taskToDelete.taskName}"? This will hide it from all active views.</p>
-                        <div className="flex justify-center gap-4">
-                            <button onClick={() => setTaskToDelete(null)} className="px-6 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                            <button onClick={() => handleSoftDeleteTask(taskToDelete.id)} className="px-6 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
-                        </div>
-                    </div>
-                </Modal>
+                <ConfirmationModal
+                    isOpen={!!taskToDelete}
+                    onClose={() => setTaskToDelete(null)}
+                    onConfirm={() => handleSoftDeleteTask(taskToDelete.id)}
+                    title="Confirm Task Deletion"
+                    currentTheme={currentTheme}
+                >
+                    Are you sure you want to delete the task "{taskToDelete.taskName}"? This will hide it from all active views.
+                </ConfirmationModal>
              )}
         </div>
     );
