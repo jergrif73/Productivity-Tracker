@@ -95,6 +95,26 @@ const legendColorMapping = {
     "GIS/GPS": 'bg-orange-500',
 };
 
+const initialActivityData = [
+    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0 },
+    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0 },
+    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0 },
+];
+
 // --- NEW UX/UI Components ---
 
 const Toaster = ({ toasts }) => (
@@ -519,7 +539,7 @@ const App = () => {
                             </button>
                     </div>
                 </header>
-                <main className={`flex-grow overflow-y-auto ${currentTheme.consoleBg}`}>
+                <main className={`flex-grow overflow-hidden ${currentTheme.consoleBg}`}>
                    {renderView()}
                 </main>
                  <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
@@ -689,78 +709,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 allocation: Number(payload.allocation)
             });
             showToast("Assignment updated.");
-            await mergeContiguousAssignments(payload.detailerId, payload.projectId);
         } catch(e) {
             console.error("Error updating assignment", e);
             showToast("Error updating assignment.", "error");
         }
     };
     
-    const mergeContiguousAssignments = useCallback(async (detailerId, projectId) => {
-        const q = query(
-            collection(db, `artifacts/${appId}/public/data/assignments`),
-            where("detailerId", "==", detailerId),
-            where("projectId", "==", projectId)
-        );
-    
-        const snapshot = await getDocs(q);
-        const userAssignments = snapshot.docs.map(d => ({
-            id: d.id,
-            ...d.data(),
-            startDateObj: new Date(d.data().startDate),
-            endDateObj: new Date(d.data().endDate),
-        }));
-    
-        const validAssignments = userAssignments.filter(a => a.startDate && a.endDate);
-        if (validAssignments.length < 2) return;
-    
-        validAssignments.sort((a, b) => a.startDateObj - b.startDateObj);
-    
-        const toDelete = new Set();
-        const toUpdate = new Map();
-    
-        for (let i = 0; i < validAssignments.length - 1; i++) {
-            const current = validAssignments[i];
-            const next = validAssignments[i + 1];
-    
-            if (toDelete.has(current.id) || toDelete.has(next.id)) continue;
-    
-            const canMerge =
-                current.trade === next.trade &&
-                current.allocation == next.allocation;
-    
-            const dayAfterCurrentEnd = new Date(current.endDateObj);
-            dayAfterCurrentEnd.setUTCDate(dayAfterCurrentEnd.getUTCDate() + 1);
-            
-            if (canMerge && dayAfterCurrentEnd.getTime() === next.startDateObj.getTime()) {
-                const newEndDate = next.endDate;
-                current.endDate = newEndDate;
-                current.endDateObj = new Date(newEndDate);
-                
-                toDelete.add(next.id);
-                toUpdate.set(current.id, { endDate: newEndDate });
-                validAssignments[i+1] = current;
-            }
-        }
-    
-        if (toDelete.size > 0 || toUpdate.size > 0) {
-            const batch = writeBatch(db);
-            toDelete.forEach(id => batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, id)));
-            toUpdate.forEach((data, id) => {
-                if(!toDelete.has(id)) {
-                   batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, id), data);
-                }
-            });
-            try {
-                await batch.commit();
-                showToast("Assignments merged automatically.", "success");
-            } catch (e) {
-                console.error("Error during merge operation:", e);
-                showToast("Failed to merge assignments.", "error");
-            }
-        }
-    }, [appId, db, showToast]);
-
     const confirmDeleteAssignment = (id) => {
         const assignmentToDelete = assignments.find(a => a.id === id);
         if (!assignmentToDelete) return;
@@ -771,7 +725,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             action: async () => {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
                 showToast("Assignment deleted.");
-                await mergeContiguousAssignments(assignmentToDelete.detailerId, assignmentToDelete.projectId);
             }
         });
     };
@@ -923,6 +876,549 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     );
 };
 
+const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme }) => {
+    const blendedRate = project.blendedRate || 0;
+    const earnedValue = (activity.estimatedHours * blendedRate) * (activity.percentComplete / 100);
+    const actualCost = activity.hoursUsed * blendedRate;
+
+    const calculateProjectedHours = (activity) => {
+        const hoursUsed = Number(activity.hoursUsed) || 0;
+        const percentComplete = Number(activity.percentComplete) || 0;
+        if (!percentComplete || percentComplete === 0) return 0;
+        return (hoursUsed / percentComplete) * 100;
+    };
+    const projected = calculateProjectedHours(activity);
+    
+    return (
+        <tr key={activity.id}>
+            <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className="p-1"><input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className="p-1 w-24"><input type="text" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{activity.percentComplete.toFixed(2)}%</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{activity.hoursUsed.toFixed(2)}</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{formatCurrency(earnedValue)}</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{formatCurrency(actualCost)}</td>
+            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{projected.toFixed(2)}</td>
+            <td className="p-1 text-center w-12"><button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button></td>
+        </tr>
+    );
+});
+
+
+const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project, currentTheme }) => {
+    return (
+        <div className={`border-b ${currentTheme.borderColor}`}>
+            <button
+                onClick={onToggle}
+                className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}
+                disabled={onToggle === null}
+            >
+                <span>{title}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            {!isCollapsed && (
+                <div className="overflow-x-auto" onClick={e => e.stopPropagation()}>
+                    <table className="min-w-full text-sm">
+                        <thead>
+                            <tr className={currentTheme.altRowBg}>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% Comp</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Hrs Used</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actual ($)</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Proj. Hrs</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((activity, index) => (
+                                <ActivityRow
+                                    key={activity.id}
+                                    activity={activity}
+                                    groupKey={groupKey}
+                                    index={index}
+                                    onChange={onChange}
+                                    onDelete={onDelete}
+                                    project={project}
+                                    currentTheme={currentTheme}
+                                />
+                            ))}
+                             <tr>
+                                <td colSpan="9" className="p-1"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    )
+});
+
+const FinancialSummary = ({ project, activityTotals, currentTheme }) => {
+    if (!project || !activityTotals) return null;
+
+    const initialBudget = project.initialBudget || 0;
+    const contingency = project.contingency || 0;
+    const blendedRate = project.blendedRate || 0;
+
+    const spentToDate = activityTotals.used * blendedRate;
+    
+    const totalHours = activityTotals.estimated;
+    const overallPercentComplete = totalHours > 0 ? (activityTotals.used / totalHours) * 100 : 0;
+    
+    const earnedValue = initialBudget * (overallPercentComplete / 100);
+    const productivity = spentToDate > 0 ? earnedValue / spentToDate : 0;
+
+    const costToComplete = (activityTotals.estimated - activityTotals.used) * blendedRate;
+    const estFinalCost = spentToDate + costToComplete;
+
+    return (
+        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center`}>
+            <div>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Initial Budget</p>
+                <p className="text-lg font-bold">{formatCurrency(initialBudget)}</p>
+            </div>
+            <div>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Contingency</p>
+                <p className="text-lg font-bold">{formatCurrency(contingency)}</p>
+            </div>
+            <div>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p>
+                <p className="text-lg font-bold">{formatCurrency(spentToDate)}</p>
+            </div>
+             <div>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p>
+                <p className="text-lg font-bold">{formatCurrency(costToComplete)}</p>
+            </div>
+             <div>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p>
+                <p className="text-lg font-bold">{formatCurrency(estFinalCost)}</p>
+            </div>
+             <div >
+                <p className={`text-sm ${currentTheme.subtleText}`}>Productivity</p>
+                <p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p>
+            </div>
+        </div>
+    )
+}
+
+const HourSummary = ({ project, activityTotals, currentTheme }) => {
+    if (!project || !activityTotals) return null;
+
+    const totalBudgetHours = (project.initialBudget || 0) / (project.blendedRate || 1);
+    const allocatedHours = activityTotals.estimated;
+    const unallocatedHours = totalBudgetHours - allocatedHours;
+
+    return (
+        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-6 grid grid-cols-1 md:grid-cols-3 gap-4`}>
+            <div className="text-center">
+                <p className={`text-sm ${currentTheme.subtleText}`}>Total Budgeted Hours</p>
+                <p className="text-lg font-bold">{totalBudgetHours.toFixed(2)}</p>
+            </div>
+            <div className="text-center">
+                <p className={`text-sm ${currentTheme.subtleText}`}>Total Allocated Hours</p>
+                <p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p>
+            </div>
+             <div className="text-center">
+                <p className={`text-sm ${currentTheme.subtleText}`}>Unallocated Hours</p>
+                <p className={`text-lg font-bold ${unallocatedHours < 0 ? 'text-red-500' : 'text-green-600'}`}>{unallocatedHours.toFixed(2)}</p>
+            </div>
+        </div>
+    )
+}
+
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
+    const [draftData, setDraftData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
+    const [editingSubsetId, setEditingSubsetId] = useState(null);
+    const [editingSubsetData, setEditingSubsetData] = useState(null);
+    const [collapsedSections, setCollapsedSections] = useState({
+        projectBreakdown: false,
+        sheetmetal: true,
+        piping: true,
+        plumbing: true,
+        bim: true
+    });
+    const isPCL = accessLevel === 'pcl';
+
+    const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
+
+    const allActivitiesList = useMemo(() => {
+        if (!draftData) return [];
+        return Object.values(draftData.activities).flat();
+    }, [draftData]);
+
+
+    const groupActivities = (activityArray) => {
+        return activityArray.reduce((acc, act) => {
+            const desc = act.description.toUpperCase();
+            if (desc.startsWith('SM')) acc.sheetmetal.push(act);
+            else if (desc.startsWith('PF')) acc.piping.push(act);
+            else if (desc.startsWith('PL')) acc.plumbing.push(act);
+            else acc.bim.push(act);
+            return acc;
+        }, { sheetmetal: [], piping: [], plumbing: [], bim: [] });
+    };
+
+    const calculateRollups = useCallback((activities, subsets) => {
+        const newActivities = JSON.parse(JSON.stringify(activities));
+        
+        Object.keys(newActivities).forEach(group => {
+            newActivities[group].forEach(activity => {
+                const relevantSubsets = subsets.filter(s => s.activityId === activity.id);
+                
+                const totalHoursUsed = relevantSubsets.reduce((sum, s) => sum + (Number(s.hoursUsed) || 0), 0);
+                
+                const totalPercentComplete = relevantSubsets.reduce((sum, s) => {
+                    const subsetPercentOfProject = Number(s.percentageOfProject) || 0;
+                    const subsetPercentComplete = Number(s.percentComplete) || 0;
+                    return sum + ((subsetPercentOfProject / 100) * subsetPercentComplete);
+                }, 0);
+
+                activity.hoursUsed = totalHoursUsed;
+                activity.percentComplete = totalPercentComplete; 
+            });
+        });
+        return newActivities;
+    }, []);
+
+    useEffect(() => {
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            let initialData;
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const activities = data.activities || groupActivities(initialActivityData);
+                const subsets = data.subsets || [];
+                initialData = { activities, subsets };
+            } else {
+                const initialGroupedData = groupActivities(initialActivityData);
+                initialData = { activities: initialGroupedData, subsets: [] };
+                setDoc(docRef, initialData);
+            }
+            const rolledUpActivities = calculateRollups(initialData.activities, initialData.subsets);
+            const fullData = {...initialData, activities: rolledUpActivities};
+            
+            setDraftData(JSON.parse(JSON.stringify(fullData)));
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching project data:", error);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [projectId, docRef, calculateRollups]);
+    
+    useEffect(() => {
+        if (draftData) {
+            const rolledUpActivities = calculateRollups(draftData.activities, draftData.subsets);
+            if(JSON.stringify(rolledUpActivities) !== JSON.stringify(draftData.activities)){
+                setDraftData(prev => ({ ...prev, activities: rolledUpActivities }));
+            }
+        }
+    }, [draftData, calculateRollups]);
+
+
+    const handleActivityChange = useCallback((group, index, field, value) => {
+        setDraftData(prevDraft => {
+            const newActivities = { ...prevDraft.activities };
+            const newGroup = [...newActivities[group]];
+            newGroup[index] = { ...newGroup[index], [field]: value };
+            newActivities[group] = newGroup;
+
+            return {
+                ...prevDraft,
+                activities: newActivities
+            };
+        });
+    }, []);
+    
+    const handleSaveChanges = async (e) => {
+        e.stopPropagation();
+        const dataToSave = JSON.parse(JSON.stringify(draftData));
+
+        dataToSave.subsets.forEach(subset => {
+            subset.percentageOfProject = Number(subset.percentageOfProject) || 0;
+            subset.percentComplete = Number(subset.percentComplete) || 0;
+            subset.hoursUsed = Number(subset.hoursUsed) || 0;
+            subset.budget = Number(subset.budget) || 0;
+        });
+
+        for (const groupKey of Object.keys(dataToSave.activities)) {
+            dataToSave.activities[groupKey].forEach(activity => {
+                delete activity.percentComplete;
+                delete activity.hoursUsed;
+            });
+        }
+
+        await setDoc(docRef, dataToSave, { merge: true });
+        if (!isPCL) {
+          showToast("Changes saved!");
+        }
+    };
+    
+    const handleEditingSubsetChange = (field, value) => {
+        setEditingSubsetData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleSubsetFieldChange = useCallback((subsetId, field, value) => {
+        setDraftData(prevDraft => {
+            const newSubsets = prevDraft.subsets.map(s => {
+                if (s.id === subsetId) {
+                    const numericValue = Number(value);
+                    return { ...s, [field]: isNaN(numericValue) ? 0 : numericValue };
+                }
+                return s;
+            });
+            return { ...prevDraft, subsets: newSubsets };
+        });
+    }, []);
+
+
+    const handleAddNewSubset = () => {
+        if (!newSubset.name.trim()) return;
+        const subsetToAdd = { 
+            ...newSubset, 
+            id: `sub_${Date.now()}`, 
+            percentageOfProject: Number(newSubset.percentageOfProject) || 0,
+            percentComplete: Number(newSubset.percentComplete) || 0,
+            hoursUsed: Number(newSubset.hoursUsed) || 0,
+            budget: Number(newSubset.budget) || 0,
+        };
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            subsets: [...(prevDraft.subsets || []), subsetToAdd]
+        }));
+        setNewSubset({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
+    };
+
+    const handleUpdateSubset = () => {
+        if (!editingSubsetData || !editingSubsetData.name.trim()) return;
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            subsets: prevDraft.subsets.map(s => 
+                s.id === editingSubsetId 
+                ? { ...editingSubsetData, 
+                    percentageOfProject: Number(editingSubsetData.percentageOfProject) || 0,
+                    percentComplete: Number(editingSubsetData.percentComplete) || 0,
+                    hoursUsed: Number(editingSubsetData.hoursUsed) || 0,
+                    budget: Number(editingSubsetData.budget) || 0,
+                  } 
+                : s
+            )
+        }));
+        setEditingSubsetId(null);
+        setEditingSubsetData(null);
+    };
+
+    const handleDeleteSubset = (subsetId) => {
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            subsets: prevDraft.subsets.filter(s => s.id !== subsetId)
+        }));
+    };
+    
+    const handleAddNewActivity = useCallback((group) => {
+        const newActivity = {
+            id: `act_${Date.now()}`,
+            description: "New Activity",
+            chargeCode: "",
+            estimatedHours: 0,
+            percentComplete: 0,
+            hoursUsed: 0,
+        };
+        setDraftData(prevDraft => ({
+            ...prevDraft,
+            activities: {
+                ...prevDraft.activities,
+                [group]: [...prevDraft.activities[group], newActivity]
+            }
+        }));
+    }, []);
+
+    const handleDeleteActivity = useCallback((group, index) => {
+        setDraftData(prevDraft => {
+            const newGroup = [...prevDraft.activities[group]];
+            const deletedActivityId = newGroup[index].id;
+            newGroup.splice(index, 1);
+            return {
+                ...prevDraft,
+                activities: {
+                    ...prevDraft.activities,
+                    [group]: newGroup
+                },
+                subsets: prevDraft.subsets.filter(s => s.activityId !== deletedActivityId)
+            };
+        });
+    }, []);
+
+    const handleToggleCollapse = (e, section) => {
+        e.stopPropagation();
+        setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    };
+
+    const activityTotals = useMemo(() => {
+        if (!draftData) return null;
+        const allActivities = Object.values(draftData.activities).flat();
+        return allActivities.reduce((acc, activity) => {
+            acc.estimated += Number(activity.estimatedHours || 0);
+            acc.used += Number(activity.hoursUsed || 0);
+            return acc;
+        }, { estimated: 0, used: 0 });
+    }, [draftData]);
+
+    if (loading || !draftData || !project || !activityTotals) return <div className="p-4 text-center">Loading Project Details...</div>;
+    
+    return (
+        <div className="space-y-6 mt-4 border-t pt-4">
+             {!isPCL && (
+                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" onClick={e => e.stopPropagation()}>
+                    <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} />
+                    <HourSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} />
+                 </div>
+             )}
+            
+            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                 <button
+                    onClick={(e) => handleToggleCollapse(e, 'projectBreakdown')}
+                    className={`w-full p-3 text-left font-bold flex justify-between items-center ${currentTheme.altRowBg} hover:bg-opacity-75 transition-colors`}
+                >
+                    <h3 className="text-lg font-semibold">Project Breakdown</h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${collapsedSections.projectBreakdown ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                {!collapsedSections.projectBreakdown && (
+                    <div className="p-4" onClick={e => e.stopPropagation()}>
+                        <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
+                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-4' : 'grid-cols-11'} gap-x-4 font-bold text-xs ${currentTheme.subtleText} px-2`}>
+                                <span className="col-span-2">Name</span>
+                                <span className="col-span-1">Activity</span>
+                                {!isPCL && <span className="col-span-1">Budget ($)</span>}
+                                {!isPCL && <span className="col-span-1">% of Project</span>}
+                                <span className="col-span-1">% Complete</span>
+                                {!isPCL && (
+                                    <>
+                                        <span className="col-span-1">Hours Used</span>
+                                        <span className="col-span-1">Earned ($)</span>
+                                        <span className="col-span-1">Actual ($)</span>
+                                        <span className="col-span-1">Productivity</span>
+                                        <span className="col-span-1">Actions</span>
+                                    </>
+                                )}
+                            </div>
+                            {(draftData.subsets || []).map((subset, index) => {
+                                const earned = (subset.budget || 0) * (subset.percentComplete || 0) / 100;
+                                const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
+                                const productivity = actual > 0 ? earned / actual : 0;
+                                return (
+                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-4' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 ${currentTheme.altRowBg} rounded-md`}>
+                                        {editingSubsetId === subset.id && !isPCL ? (
+                                            <>
+                                                <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className={`p-1 border rounded col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <select value={editingSubsetData.activityId} onChange={e => handleEditingSubsetChange('activityId', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                                    <option value="">Select Activity...</option>
+                                                    {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
+                                                </select>
+                                                <input type="number" placeholder="Budget ($)" value={editingSubsetData.budget} onChange={e => handleEditingSubsetChange('budget', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <input type="number" placeholder="% of Project" value={editingSubsetData.percentageOfProject} onChange={e => handleEditingSubsetChange('percentageOfProject', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <input type="number" placeholder="% Complete" value={editingSubsetData.percentComplete} onChange={e => handleEditingSubsetChange('percentComplete', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <input type="number" placeholder="Hours Used" value={editingSubsetData.hoursUsed} onChange={e => handleEditingSubsetChange('hoursUsed', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                <div className="col-span-3"></div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={handleUpdateSubset} className="text-green-500 hover:text-green-700">Save</button>
+                                                    <button onClick={() => setEditingSubsetId(null)} className="text-gray-500 hover:text-gray-700">Cancel</button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="font-medium col-span-2">{subset.name}</span>
+                                                <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
+                                                {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{formatCurrency(subset.budget || 0)}</span>}
+                                                {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentageOfProject}%</span>}
+                                                
+                                                {isPCL ? (
+                                                    <div className="col-span-1">
+                                                        <input
+                                                            type="number"
+                                                            value={subset.percentComplete}
+                                                            onChange={(e) => handleSubsetFieldChange(subset.id, 'percentComplete', e.target.value)}
+                                                            onBlur={handleSaveChanges}
+                                                            className={`p-1 border-2 rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.borderColor} border-yellow-400`}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentComplete}%</span>
+                                                )}
+
+                                                {!isPCL && (
+                                                    <>
+                                                        <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.hoursUsed}</span>
+                                                        <span className={`text-sm font-semibold col-span-1`}>{formatCurrency(earned)}</span>
+                                                        <span className={`text-sm font-semibold col-span-1`}>{formatCurrency(actual)}</span>
+                                                        <span className={`text-sm font-bold col-span-1 ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</span>
+                                                        <div className="flex items-center gap-2 col-span-1">
+                                                            <button onClick={() => {setEditingSubsetId(subset.id); setEditingSubsetData({...subset});}} className="text-blue-500 hover:text-blue-700">Edit</button>
+                                                            <button onClick={() => handleDeleteSubset(subset.id)} className="text-red-500 hover:text-red-700">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                            )})}
+                        </div>
+                        {!isPCL && (
+                            <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
+                                <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className={`p-2 border rounded-md col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                    <option value="">Select Activity...</option>
+                                    {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
+                                </select>
+                                <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+
+                                <button onClick={handleAddNewSubset} className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 col-span-2">Add Subset</button>
+                            </div>
+                        )}
+                    </div>
+                 )}
+            </div>
+
+            {!isPCL && (
+                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`} onClick={e => e.stopPropagation()}>
+                     <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-lg font-semibold">Activity Tracker</h3>
+                        <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
+                            Save All Changes
+                        </button>
+                     </div>
+                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project} currentTheme={currentTheme}/>
+                     <div className={`${currentTheme.altRowBg} font-bold p-2 flex justify-end gap-x-6`}>
+                        <span className="text-right">Totals:</span>
+                        <span>Est: {activityTotals.estimated.toFixed(2)}</span>
+                        <span>Used: {activityTotals.used.toFixed(2)}</span>
+                     </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
 const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
@@ -994,6 +1490,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 {filteredProjects.map((p, index) => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     const isExpanded = expandedProjectId === p.id;
+                    const project = projects.find(proj => proj.id === p.id);
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
 
                     return (
@@ -1052,6 +1549,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                             )}
                                         </div>
                                     </div>
+                                    {!isViewer && <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} showToast={showToast} />}
                                 </div>
                             )}
                         </div>
@@ -1326,160 +1824,179 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const isEditing = editingEmployeeId || editingProjectId;
     
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Manage Employees</h2>
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm">Sort by:</span>
-                        <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                        <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                    </div>
-                </div>
-                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                    <h3 className="font-semibold mb-2">Add New Employee</h3>
-                    <div className="space-y-2 mb-4">
-                        <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                            {titleOptions.map(title => (
-                                <option key={title} value={title}>{title}</option>
-                            ))}
-                        </select>
-                        <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                    </div>
-                    <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
-                </div>
-                <div className="space-y-2">
-                    {sortedEmployees.map((e, index) => {
-                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                        return (
-                        <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                            {editingEmployeeId === e.id ? (
-                                <div className="space-y-2">
-                                    <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                        {titleOptions.map(title => (
-                                            <option key={title} value={title}>{title}</option>
-                                        ))}
-                                    </select>
-                                    <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                        <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <p>{e.firstName} {e.lastName}</p>
-                                        <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
-                                        <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleEdit('employee', e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
-                                        <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
-                                    </div>
-                                </div>
-                            )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full p-4">
+            {/* --- Employee Column --- */}
+            <div className="flex flex-col h-full overflow-hidden">
+                 {/* REWRITE: Header section (fixed). This part does not scroll. */}
+                 <div className="flex-shrink-0">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold">Manage Employees</h2>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm">Sort by:</span>
+                            <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                            <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
                         </div>
-                    )})}
+                    </div>
+                 </div>
+
+                {/* REWRITE: Scrollable content section. Wraps the Add form and the List. */}
+                <div className="flex-grow overflow-y-auto pr-2">
+                    {/* "Add New Employee" form (now inside scrollable area) */}
+                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                        <h3 className="font-semibold mb-2">Add New Employee</h3>
+                        <div className="space-y-2 mb-4">
+                            <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                {titleOptions.map(title => (
+                                    <option key={title} value={title}>{title}</option>
+                                ))}
+                            </select>
+                            <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        </div>
+                        <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                    </div>
+                    {/* Employee List (inside scrollable area) */}
+                    <div className="space-y-2">
+                        {sortedEmployees.map((e, index) => {
+                            const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                            return (
+                            <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                                {editingEmployeeId === e.id ? (
+                                    <div className="space-y-2">
+                                        <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                            {titleOptions.map(title => (
+                                                <option key={title} value={title}>{title}</option>
+                                            ))}
+                                        </select>
+                                        <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                            <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <p>{e.firstName} {e.lastName}</p>
+                                            <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
+                                            <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => handleEdit('employee', e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
+                                            <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )})}
+                    </div>
                 </div>
             </div>
 
-            <div>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Manage Projects</h2>
-                    <div className="flex items-center gap-4">
-                         <div className="flex items-center gap-2">
-                            <span className="text-sm">Sort by:</span>
-                            <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                            <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                        </div>
-                        <div className="flex items-center">
-                            <span className="text-sm mr-2">{showArchived ? 'Showing Archived' : 'Showing Active'}</span>
-                            <label htmlFor="archiveToggle" className="flex items-center cursor-pointer">
-                                <div className="relative">
-                                <input type="checkbox" id="archiveToggle" className="sr-only" checked={showArchived} onChange={() => setShowArchived(!showArchived)} />
-                                <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
-                                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${showArchived ? 'translate-x-6' : ''}`}></div>
-                                </div>
-                            </label>
+            {/* --- Project Column --- */}
+            <div className="flex flex-col h-full overflow-hidden">
+                {/* REWRITE: Header section (fixed). This part does not scroll. */}
+                <div className="flex-shrink-0">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold">Manage Projects</h2>
+                        <div className="flex items-center gap-4">
+                             <div className="flex items-center gap-2">
+                                <span className="text-sm">Sort by:</span>
+                                <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                                <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                            </div>
+                            <div className="flex items-center">
+                                <span className="text-sm mr-2">{showArchived ? 'Showing Archived' : 'Showing Active'}</span>
+                                <label htmlFor="archiveToggle" className="flex items-center cursor-pointer">
+                                    <div className="relative">
+                                    <input type="checkbox" id="archiveToggle" className="sr-only" checked={showArchived} onChange={() => setShowArchived(!showArchived)} />
+                                    <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${showArchived ? 'translate-x-6' : ''}`}></div>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
-                 <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                    <h3 className="font-semibold mb-2">Add New Project</h3>
-                    <div className="space-y-2 mb-4">
-                        <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                         <div className="flex items-center gap-2">
-                            <label className="w-32">Initial Budget ($):</label>
-                            <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+
+                {/* REWRITE: Scrollable content section. Wraps the Add form and the List. */}
+                <div className="flex-grow overflow-y-auto pr-2">
+                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                        <h3 className="font-semibold mb-2">Add New Project</h3>
+                        <div className="space-y-2 mb-4">
+                            <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                             <div className="flex items-center gap-2">
+                                <label className="w-32">Initial Budget ($):</label>
+                                <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            </div>
+                             <div className="flex items-center gap-2">
+                                <label className="w-32">Blended Rate ($/hr):</label>
+                                <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            </div>
+                             <div className="flex items-center gap-2">
+                                <label className="w-32">Contingency ($):</label>
+                                <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="w-32">Project Dashboard:</label>
+                                <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            </div>
                         </div>
-                         <div className="flex items-center gap-2">
-                            <label className="w-32">Blended Rate ($/hr):</label>
-                            <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        </div>
-                         <div className="flex items-center gap-2">
-                            <label className="w-32">Contingency ($):</label>
-                            <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <label className="w-32">Project Dashboard:</label>
-                            <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        </div>
+                        <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                     </div>
-                    <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
-                </div>
-                <div className="space-y-2 mb-8">
-                    {sortedProjects.map((p, index) => {
-                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                        return (
-                         <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                            {editingProjectId === p.id ? (
-                                <div className="space-y-2">
-                                    <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Initial Budget ($):</label>
-                                        <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+
+                    <div className="space-y-2 mb-8">
+                        {sortedProjects.map((p, index) => {
+                            const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                            return (
+                             <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                                {editingProjectId === p.id ? (
+                                    <div className="space-y-2">
+                                        <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        <div className="flex items-center gap-2">
+                                            <label className="w-32">Initial Budget ($):</label>
+                                            <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="w-32">Blended Rate ($/hr):</label>
+                                            <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        </div>
+                                         <div className="flex items-center gap-2">
+                                            <label className="w-32">Contingency ($):</label>
+                                            <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="w-32">Project Dashboard:</label>
+                                            <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        </div>
+                                        <div className="flex gap-2 pt-4">
+                                            <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                            <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Blended Rate ($/hr):</label>
-                                        <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                ) : (
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                          <p>{p.name} ({p.projectId})</p>
+                                          <p className={`text-sm ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                        </div>
+                                        <div className="flex gap-2 flex-shrink-0">
+                                            <button onClick={() => handleToggleArchive(p.id, p.archived || false)} className={`text-xs px-2 py-1 rounded-md ${p.archived ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`} disabled={isEditing}>{p.archived ? 'Unarchive' : 'Archive'}</button>
+                                            <button onClick={() => handleEdit('project', p)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
+                                            <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                        </div>
                                     </div>
-                                     <div className="flex items-center gap-2">
-                                        <label className="w-32">Contingency ($):</label>
-                                        <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Project Dashboard:</label>
-                                        <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                    </div>
-                                    <div className="flex gap-2 pt-4">
-                                        <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                        <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                      <p>{p.name} ({p.projectId})</p>
-                                      <p className={`text-sm ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
-                                    </div>
-                                    <div className="flex gap-2 flex-shrink-0">
-                                        <button onClick={() => handleToggleArchive(p.id, p.archived || false)} className={`text-xs px-2 py-1 rounded-md ${p.archived ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`} disabled={isEditing}>{p.archived ? 'Unarchive' : 'Archive'}</button>
-                                        <button onClick={() => handleEdit('project', p)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
-                                        <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )})}
+                                )}
+                            </div>
+                        )})}
+                    </div>
                 </div>
             </div>
         </div>
@@ -1613,74 +2130,9 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         });
     };
 
-    const mergeContiguousAssignments = useCallback(async (detailerId, projectId) => {
-        const q = query(
-            collection(db, `artifacts/${appId}/public/data/assignments`),
-            where("detailerId", "==", detailerId),
-            where("projectId", "==", projectId)
-        );
-    
-        const snapshot = await getDocs(q);
-        const userAssignments = snapshot.docs.map(d => ({
-            id: d.id,
-            ...d.data(),
-            startDateObj: new Date(d.data().startDate),
-            endDateObj: new Date(d.data().endDate),
-        }));
-    
-        const validAssignments = userAssignments.filter(a => a.startDate && a.endDate);
-        if (validAssignments.length < 2) return;
-    
-        validAssignments.sort((a, b) => a.startDateObj - b.startDateObj);
-    
-        const toDelete = new Set();
-        const toUpdate = new Map();
-    
-        for (let i = 0; i < validAssignments.length - 1; i++) {
-            const current = validAssignments[i];
-            const next = validAssignments[i + 1];
-    
-            if (toDelete.has(current.id) || toDelete.has(next.id)) continue;
-    
-            const canMerge =
-                current.trade === next.trade &&
-                current.allocation == next.allocation;
-    
-            const dayAfterCurrentEnd = new Date(current.endDateObj);
-            dayAfterCurrentEnd.setUTCDate(dayAfterCurrentEnd.getUTCDate() + 1);
-            
-            if (canMerge && dayAfterCurrentEnd.getTime() === next.startDateObj.getTime()) {
-                const newEndDate = next.endDate;
-                current.endDate = newEndDate;
-                current.endDateObj = new Date(newEndDate);
-                
-                toDelete.add(next.id);
-                toUpdate.set(current.id, { endDate: newEndDate });
-                validAssignments[i+1] = current;
-            }
-        }
-    
-        if (toDelete.size > 0 || toUpdate.size > 0) {
-            const batch = writeBatch(db);
-            toDelete.forEach(id => batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, id)));
-            toUpdate.forEach((data, id) => {
-                if(!toDelete.has(id)) {
-                   batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, id), data);
-                }
-            });
-            try {
-                await batch.commit();
-                showToast("Assignments merged automatically.", "success");
-            } catch (e) {
-                console.error("Error during merge operation:", e);
-                showToast("Failed to merge assignments.", "error");
-            }
-        }
-    }, [appId, db, showToast]);
-
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
         const originalAssignment = assignments.find(a => a.id === assignmentId);
-        if (!originalAssignment || originalAssignment.trade === updates.trade) {
+        if (!originalAssignment || (originalAssignment.trade === updates.trade)) {
             setEditingCell(null);
             return;
         }
@@ -1731,7 +2183,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         try {
             await batch.commit();
             showToast("Assignment updated and split.", "success");
-            await mergeContiguousAssignments(originalAssignment.detailerId, originalAssignment.projectId);
         } catch (e) {
             console.error("Error during split-update operation:", e);
             showToast("Error updating assignment.", "error");
@@ -1754,14 +2205,13 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             await updateDoc(assignmentRef, {
                 endDate: newEndDate.toISOString().split('T')[0]
             });
-             await mergeContiguousAssignments(assignment.detailerId, assignment.projectId);
         } catch (e) {
             console.error("Error updating assignment end date:", e);
         }
 
         setDragFillStart(null);
         setDragFillEnd(null);
-    }, [dragFillStart, dragFillEnd, weekDates, appId, db, mergeContiguousAssignments]);
+    }, [dragFillStart, dragFillEnd, weekDates, appId, db]);
     
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
