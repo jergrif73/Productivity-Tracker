@@ -672,6 +672,13 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 
     const handleUpdateExistingAssignment = async (assignment) => {
         const { id, ...payload } = assignment;
+        const { projectId, trade, activity } = payload;
+    
+        if (!activity || !trade || !projectId) {
+            confirmDeleteAssignment(id);
+            return;
+        }
+    
         const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, id);
         try {
             await updateDoc(assignmentRef, {
@@ -679,19 +686,98 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 allocation: Number(payload.allocation)
             });
             showToast("Assignment updated.");
+            await mergeContiguousAssignments(payload.detailerId, payload.projectId);
         } catch(e) {
             console.error("Error updating assignment", e);
             showToast("Error updating assignment.", "error");
         }
     };
     
+    // FIXED: This function has been rewritten to be more robust and avoid common pitfalls.
+    const mergeContiguousAssignments = useCallback(async (detailerId, projectId) => {
+        const q = query(
+            collection(db, `artifacts/${appId}/public/data/assignments`),
+            where("detailerId", "==", detailerId),
+            where("projectId", "==", projectId)
+        );
+    
+        const snapshot = await getDocs(q);
+        const userAssignments = snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            // Ensure dates are actual Date objects for correct sorting
+            startDateObj: new Date(d.data().startDate),
+            endDateObj: new Date(d.data().endDate),
+        }));
+    
+        const validAssignments = userAssignments.filter(a => a.startDate && a.endDate);
+        if (validAssignments.length < 2) return;
+    
+        validAssignments.sort((a, b) => a.startDateObj - b.startDateObj);
+    
+        const toDelete = new Set();
+        const toUpdate = new Map();
+    
+        for (let i = 0; i < validAssignments.length - 1; i++) {
+            const current = validAssignments[i];
+            const next = validAssignments[i + 1];
+    
+            if (toDelete.has(current.id) || toDelete.has(next.id)) continue;
+    
+            // Check if assignments have the same properties
+            const canMerge =
+                current.trade === next.trade &&
+                current.activity === next.activity &&
+                current.allocation == next.allocation;
+    
+            // Check if they are contiguous
+            const dayAfterCurrentEnd = new Date(current.endDateObj);
+            dayAfterCurrentEnd.setUTCDate(dayAfterCurrentEnd.getUTCDate() + 1);
+            
+            if (canMerge && dayAfterCurrentEnd.getTime() === next.startDateObj.getTime()) {
+                // We will extend `current` and delete `next`
+                const newEndDate = next.endDate;
+                current.endDate = newEndDate;
+                current.endDateObj = new Date(newEndDate);
+                
+                // Mark `next` for deletion
+                toDelete.add(next.id);
+                // Mark `current` for update
+                toUpdate.set(current.id, { endDate: newEndDate });
+                // Make the next iteration check against the now-extended `current`
+                validAssignments[i+1] = current;
+            }
+        }
+    
+        if (toDelete.size > 0 || toUpdate.size > 0) {
+            const batch = writeBatch(db);
+            toDelete.forEach(id => batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, id)));
+            toUpdate.forEach((data, id) => {
+                if(!toDelete.has(id)) { // Don't try to update something we're deleting in the same batch
+                   batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, id), data);
+                }
+            });
+            try {
+                await batch.commit();
+                showToast("Assignments merged automatically.", "success");
+            } catch (e) {
+                console.error("Error during merge operation:", e);
+                showToast("Failed to merge assignments.", "error");
+            }
+        }
+    }, [appId, db, showToast]);
+
     const confirmDeleteAssignment = (id) => {
+        const assignmentToDelete = assignments.find(a => a.id === id);
+        if (!assignmentToDelete) return;
+        
         setConfirmAction({
             title: "Delete Assignment",
             message: "Are you sure you want to permanently delete this assignment?",
             action: async () => {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
                 showToast("Assignment deleted.");
+                await mergeContiguousAssignments(assignmentToDelete.detailerId, assignmentToDelete.projectId);
             }
         });
     };
@@ -706,7 +792,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 isOpen={!!confirmAction}
                 onClose={() => setConfirmAction(null)}
                 onConfirm={() => {
-                    confirmAction.action();
+                    if(confirmAction.action) confirmAction.action();
                     setConfirmAction(null);
                 }}
                 title={confirmAction?.title}
@@ -1999,7 +2085,7 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [dragFillStart, setDragFillStart] = useState(null);
     const [dragFillEnd, setDragFillEnd] = useState(null);
@@ -2071,9 +2157,85 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         });
     };
 
+    // FIXED: This function has been rewritten to be more robust and avoid common pitfalls.
+    const mergeContiguousAssignments = useCallback(async (detailerId, projectId) => {
+        const q = query(
+            collection(db, `artifacts/${appId}/public/data/assignments`),
+            where("detailerId", "==", detailerId),
+            where("projectId", "==", projectId)
+        );
+    
+        const snapshot = await getDocs(q);
+        const userAssignments = snapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data(),
+            // Ensure dates are actual Date objects for correct sorting
+            startDateObj: new Date(d.data().startDate),
+            endDateObj: new Date(d.data().endDate),
+        }));
+    
+        const validAssignments = userAssignments.filter(a => a.startDate && a.endDate);
+        if (validAssignments.length < 2) return;
+    
+        validAssignments.sort((a, b) => a.startDateObj - b.startDateObj);
+    
+        const toDelete = new Set();
+        const toUpdate = new Map();
+    
+        for (let i = 0; i < validAssignments.length - 1; i++) {
+            const current = validAssignments[i];
+            const next = validAssignments[i + 1];
+    
+            if (toDelete.has(current.id) || toDelete.has(next.id)) continue;
+    
+            // Check if assignments have the same properties
+            const canMerge =
+                current.trade === next.trade &&
+                current.activity === next.activity &&
+                current.allocation == next.allocation;
+    
+            // Check if they are contiguous
+            const dayAfterCurrentEnd = new Date(current.endDateObj);
+            dayAfterCurrentEnd.setUTCDate(dayAfterCurrentEnd.getUTCDate() + 1);
+            
+            if (canMerge && dayAfterCurrentEnd.getTime() === next.startDateObj.getTime()) {
+                // We will extend `current` and delete `next`
+                const newEndDate = next.endDate;
+                current.endDate = newEndDate;
+                current.endDateObj = new Date(newEndDate);
+                
+                // Mark `next` for deletion
+                toDelete.add(next.id);
+                // Mark `current` for update
+                toUpdate.set(current.id, { endDate: newEndDate });
+                // Make the next iteration check against the now-extended `current`
+                validAssignments[i+1] = current;
+            }
+        }
+    
+        if (toDelete.size > 0 || toUpdate.size > 0) {
+            const batch = writeBatch(db);
+            toDelete.forEach(id => batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, id)));
+            toUpdate.forEach((data, id) => {
+                if(!toDelete.has(id)) { // Don't try to update something we're deleting in the same batch
+                   batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, id), data);
+                }
+            });
+            try {
+                await batch.commit();
+                showToast("Assignments merged automatically.", "success");
+            } catch (e) {
+                console.error("Error during merge operation:", e);
+                showToast("Failed to merge assignments.", "error");
+            }
+        }
+    }, [appId, db, showToast]);
+
+    // FIXED: This function now correctly splits and updates assignments using atomic batch writes.
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
         const originalAssignment = assignments.find(a => a.id === assignmentId);
         if (!originalAssignment || (originalAssignment.trade === updates.trade && originalAssignment.activity === updates.activity)) {
+            setEditingCell(null);
             return;
         }
     
@@ -2081,32 +2243,43 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         const assignmentsRef = collection(db, `artifacts/${appId}/public/data/assignments`);
     
         const changeDate = new Date(weekDates[editWeekIndex]);
+        changeDate.setUTCHours(0,0,0,0);
+
         const originalStartDate = new Date(originalAssignment.startDate);
+        originalStartDate.setUTCHours(0,0,0,0);
+
         const originalEndDate = new Date(originalAssignment.endDate);
+        originalEndDate.setUTCHours(0,0,0,0);
     
+        // Delete the original assignment that is being split
         batch.delete(doc(assignmentsRef, originalAssignment.id));
     
+        // Create the segment before the change, if it exists
         const dayBeforeChange = new Date(changeDate);
-        dayBeforeChange.setDate(changeDate.getDate() - 1);
+        dayBeforeChange.setUTCDate(dayBeforeChange.getUTCDate() - 1);
         if (originalStartDate < changeDate) {
             const beforeSegment = { ...originalAssignment, endDate: dayBeforeChange.toISOString().split('T')[0] };
             delete beforeSegment.id;
             batch.set(doc(assignmentsRef), beforeSegment);
         }
     
+        // Create the new, changed segment for the selected week
         const changeWeekEndDate = new Date(changeDate);
-        changeWeekEndDate.setDate(changeDate.getDate() + 6);
+        changeWeekEndDate.setUTCDate(changeWeekEndDate.getUTCDate() + 6);
+        const finalEndDateForChangedSegment = changeWeekEndDate < originalEndDate ? changeWeekEndDate : originalEndDate;
+        
         const changedSegment = {
             ...originalAssignment,
             ...updates,
             startDate: changeDate.toISOString().split('T')[0],
-            endDate: (changeWeekEndDate < originalEndDate ? changeWeekEndDate : originalEndDate).toISOString().split('T')[0]
+            endDate: finalEndDateForChangedSegment.toISOString().split('T')[0]
         };
         delete changedSegment.id;
         batch.set(doc(assignmentsRef), changedSegment);
     
+        // Create the segment after the change, if it exists
         const dayAfterChangeWeek = new Date(changeWeekEndDate);
-        dayAfterChangeWeek.setDate(changeWeekEndDate.getDate() + 1);
+        dayAfterChangeWeek.setUTCDate(dayAfterChangeWeek.getUTCDate() + 1);
         if (originalEndDate > changeWeekEndDate) {
             const afterSegment = { ...originalAssignment, startDate: dayAfterChangeWeek.toISOString().split('T')[0] };
             delete afterSegment.id;
@@ -2115,56 +2288,14 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     
         try {
             await batch.commit();
+            showToast("Assignment updated and split.", "success");
+            // Run merge check to consolidate any new contiguous blocks
             await mergeContiguousAssignments(originalAssignment.detailerId, originalAssignment.projectId);
         } catch (e) {
             console.error("Error during split-update operation:", e);
-        }
-    };
-    
-    const mergeContiguousAssignments = async (detailerId, projectId) => {
-        const q = query(
-            collection(db, `artifacts/${appId}/public/data/assignments`),
-            where("detailerId", "==", detailerId),
-            where("projectId", "==", projectId)
-        );
-    
-        const snapshot = await getDocs(q);
-        const userAssignments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-        if (userAssignments.length < 2) return;
-    
-        userAssignments.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-    
-        const batch = writeBatch(db);
-        let wasMerged = false;
-    
-        for (let i = 0; i < userAssignments.length - 1; i++) {
-            const current = userAssignments[i];
-            const next = userAssignments[i+1];
-    
-            const dayAfterCurrentEnd = new Date(current.endDate);
-            dayAfterCurrentEnd.setDate(dayAfterCurrentEnd.getDate() + 1);
-            const nextStartDate = new Date(next.startDate);
-    
-            if (
-                current.trade === next.trade &&
-                current.activity === next.activity &&
-                current.allocation === next.allocation &&
-                dayAfterCurrentEnd.getTime() === nextStartDate.getTime()
-            ) {
-                batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, current.id), { endDate: next.endDate });
-                batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, next.id));
-                wasMerged = true;
-                userAssignments[i+1].startDate = current.startDate;
-            }
-        }
-    
-        if (wasMerged) {
-            try {
-                await batch.commit();
-                await mergeContiguousAssignments(detailerId, projectId);
-            } catch (e) {
-                console.error("Error during merge operation:", e);
-            }
+            showToast("Error updating assignment.", "error");
+        } finally {
+            setEditingCell(null);
         }
     };
 
@@ -2189,7 +2320,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
         setDragFillStart(null);
         setDragFillEnd(null);
-    }, [dragFillStart, dragFillEnd, weekDates, appId, db]);
+    }, [dragFillStart, dragFillEnd, weekDates, appId, db, mergeContiguousAssignments]);
     
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
@@ -3088,7 +3219,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                 isOpen={!!confirmAction}
                 onClose={() => setConfirmAction(null)}
                 onConfirm={() => {
-                    confirmAction.action();
+                    if(confirmAction?.action) confirmAction.action();
                     setConfirmAction(null);
                 }}
                 title={confirmAction?.title}
