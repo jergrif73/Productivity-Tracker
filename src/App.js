@@ -2799,6 +2799,59 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
     );
 };
 
+const AttachmentSection = ({ attachments, onAdd, onUpdate, onDelete, currentTheme }) => {
+    const [newUrl, setNewUrl] = useState('');
+    const [editingAttachment, setEditingAttachment] = useState(null); // { id: '...', url: '...' }
+
+    const handleAdd = () => {
+        if (newUrl.trim()) {
+            onAdd(newUrl.trim());
+            setNewUrl('');
+        }
+    };
+
+    const handleUpdate = () => {
+        if (editingAttachment && editingAttachment.url.trim()) {
+            onUpdate(editingAttachment.id, editingAttachment.url.trim());
+            setEditingAttachment(null);
+        }
+    };
+
+    return (
+        <div className="mt-2 space-y-2 text-xs">
+            {(attachments || []).map(att => (
+                <div key={att.id} className={`flex items-center gap-2 p-1 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                    {editingAttachment?.id === att.id ? (
+                        <input
+                            type="text"
+                            value={editingAttachment.url}
+                            onChange={(e) => setEditingAttachment({ ...editingAttachment, url: e.target.value })}
+                            className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            onBlur={handleUpdate}
+                            onKeyPress={e => e.key === 'Enter' && handleUpdate()}
+                            autoFocus
+                        />
+                    ) : (
+                         <a href={att.url} target="_blank" rel="noopener noreferrer" className="flex-grow text-blue-400 hover:underline truncate">{att.url}</a>
+                    )}
+                    <button onClick={() => setEditingAttachment({ ...att })} className="text-blue-500 hover:text-blue-700 font-semibold">Edit</button>
+                    <button onClick={() => onDelete(att.id)} className="text-red-500 hover:text-red-700 font-semibold">Del</button>
+                </div>
+            ))}
+             <div className="flex items-center gap-2 pt-2 border-t border-dashed mt-2">
+                <input
+                    type="text"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    placeholder="Add URL link..."
+                    className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                />
+                <button onClick={handleAdd} className={`px-2 py-1 rounded hover:bg-opacity-80 ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>Add</button>
+            </div>
+        </div>
+    );
+};
+
 
 const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete, currentTheme }) => {
     const [taskData, setTaskData] = useState(null);
@@ -2810,14 +2863,26 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     
     useEffect(() => {
         if (task && task.id) {
-            const subTasksWithComments = (task.subTasks || []).map(st => ({...st, comments: st.comments || []}));
-            setTaskData({...task, comments: task.comments || [], subTasks: subTasksWithComments});
+            const subTasksWithDetails = (task.subTasks || []).map(st => ({
+                ...st, 
+                comments: st.comments || [],
+                attachments: st.attachments || []
+            }));
+            setTaskData({
+                ...task, 
+                comments: task.comments || [], 
+                attachments: task.attachments || [], 
+                subTasks: subTasksWithDetails
+            });
             setIsNewTask(false);
         } else {
             setTaskData({
                 taskName: '', projectId: '', detailerId: '', status: taskStatusOptions[0], dueDate: '',
                 entryDate: new Date().toISOString().split('T')[0],
-                subTasks: [], watchers: [], comments: []
+                subTasks: [], 
+                watchers: [], 
+                comments: [],
+                attachments: []
             });
             setIsNewTask(true);
         }
@@ -2836,7 +2901,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     const handleAddSubTask = () => {
         if (!newSubTask.name) return;
         
-        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [] };
+        const subTaskToAdd = { ...newSubTask, id: `sub_${Date.now()}`, isCompleted: false, comments: [], attachments: [] };
         setTaskData(prev => ({...prev, subTasks: [...(prev.subTasks || []), subTaskToAdd]}));
         setNewSubTask({ name: '', detailerId: '', dueDate: '' });
     };
@@ -2949,6 +3014,60 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
         }
         setTaskData(updatedTaskData);
     };
+
+    const handleAddAttachment = (url, subTaskId = null) => {
+        const newAttachment = { id: `att_${Date.now()}`, url };
+        if (subTaskId) {
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => 
+                    st.id === subTaskId 
+                    ? { ...st, attachments: [...(st.attachments || []), newAttachment] } 
+                    : st
+                )
+            }));
+        } else {
+            setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), newAttachment] }));
+        }
+    };
+
+    const handleUpdateAttachment = (attachmentId, newUrl, subTaskId = null) => {
+        if (subTaskId) {
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => {
+                    if (st.id === subTaskId) {
+                        return { ...st, attachments: st.attachments.map(att => att.id === attachmentId ? { ...att, url: newUrl } : att) };
+                    }
+                    return st;
+                })
+            }));
+        } else {
+            setTaskData(prev => ({
+                ...prev,
+                attachments: prev.attachments.map(att => att.id === attachmentId ? { ...att, url: newUrl } : att)
+            }));
+        }
+    };
+
+    const handleDeleteAttachment = (attachmentId, subTaskId = null) => {
+        if (subTaskId) {
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => {
+                    if (st.id === subTaskId) {
+                        return { ...st, attachments: st.attachments.filter(att => att.id !== attachmentId) };
+                    }
+                    return st;
+                })
+            }));
+        } else {
+            setTaskData(prev => ({
+                ...prev,
+                attachments: prev.attachments.filter(att => att.id !== attachmentId)
+            }));
+        }
+    };
     
     if (!taskData) return null;
     
@@ -3033,6 +3152,13 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                                         </div>
                                     )}
                                     <div className="pl-6">
+                                        <AttachmentSection
+                                            attachments={st.attachments}
+                                            onAdd={(url) => handleAddAttachment(url, st.id)}
+                                            onUpdate={(id, url) => handleUpdateAttachment(id, url, st.id)}
+                                            onDelete={(id) => handleDeleteAttachment(id, st.id)}
+                                            currentTheme={currentTheme}
+                                        />
                                         <CommentSection 
                                            comments={st.comments}
                                            onAddComment={(commentData) => handleAddComment(commentData, st.id)}
@@ -3053,6 +3179,17 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                             <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`} />
                             <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
                         </div>
+                    </div>
+                    
+                     <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
+                         <h3 className="font-semibold mb-2">Task Attachments</h3>
+                         <AttachmentSection
+                            attachments={taskData.attachments}
+                            onAdd={(url) => handleAddAttachment(url)}
+                            onUpdate={(id, url) => handleUpdateAttachment(id, url)}
+                            onDelete={(id) => handleDeleteAttachment(id)}
+                            currentTheme={currentTheme}
+                         />
                     </div>
                     
                      <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>

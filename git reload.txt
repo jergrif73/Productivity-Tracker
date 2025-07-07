@@ -1,5 +1,5 @@
 git add .
-git commit -m "Worked on Activity Modification to the Workloader Console"
+git commit -m "Added Sort Function to Workloader"
 git push origin main
 
 
