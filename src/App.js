@@ -606,6 +606,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
     const [confirmAction, setConfirmAction] = useState(null);
     const [visibleEmployees, setVisibleEmployees] = useState(15);
+    const [assignmentSortBy, setAssignmentSortBy] = useState('projectName'); // 'projectName' or 'projectId'
 
     const getMostRecentMonday = () => {
         const today = new Date();
@@ -620,6 +621,34 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             return a.lastName.localeCompare(b.lastName);
         });
     }, [detailers, sortBy]);
+
+    // FIXED: Moved the complex sorting logic into a single useMemo at the top level of the component.
+    // This prevents the "Hook can't be called in a callback" error and is more efficient.
+    const employeesWithSortedAssignments = useMemo(() => {
+        const projectMap = new Map(projects.map(p => [p.id, p]));
+        return sortedEmployees.map(employee => {
+            const empAssignments = assignments
+                .filter(a => a.detailerId === employee.id)
+                .map(assignment => {
+                    const project = projectMap.get(assignment.projectId);
+                    return {
+                        ...assignment,
+                        projectName: project ? project.name : 'Unknown Project',
+                        projectIdentifier: project ? project.projectId : '0'
+                    };
+                });
+
+            empAssignments.sort((a, b) => {
+                if (assignmentSortBy === 'projectName') {
+                    const nameCompare = a.projectName.localeCompare(b.projectName);
+                    if (nameCompare !== 0) return nameCompare;
+                    return a.projectIdentifier.localeCompare(b.projectIdentifier, undefined, { numeric: true });
+                }
+                return a.projectIdentifier.localeCompare(b.projectIdentifier, undefined, { numeric: true });
+            });
+            return { ...employee, sortedAssignments: empAssignments };
+        });
+    }, [sortedEmployees, assignments, projects, assignmentSortBy]);
 
     const handleAddNewAssignment = (employeeId) => {
         const newAsn = {
@@ -693,7 +722,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         }
     };
     
-    // FIXED: This function has been rewritten to be more robust and avoid common pitfalls.
     const mergeContiguousAssignments = useCallback(async (detailerId, projectId) => {
         const q = query(
             collection(db, `artifacts/${appId}/public/data/assignments`),
@@ -705,7 +733,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         const userAssignments = snapshot.docs.map(d => ({
             id: d.id,
             ...d.data(),
-            // Ensure dates are actual Date objects for correct sorting
             startDateObj: new Date(d.data().startDate),
             endDateObj: new Date(d.data().endDate),
         }));
@@ -724,27 +751,21 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     
             if (toDelete.has(current.id) || toDelete.has(next.id)) continue;
     
-            // Check if assignments have the same properties
             const canMerge =
                 current.trade === next.trade &&
                 current.activity === next.activity &&
                 current.allocation == next.allocation;
     
-            // Check if they are contiguous
             const dayAfterCurrentEnd = new Date(current.endDateObj);
             dayAfterCurrentEnd.setUTCDate(dayAfterCurrentEnd.getUTCDate() + 1);
             
             if (canMerge && dayAfterCurrentEnd.getTime() === next.startDateObj.getTime()) {
-                // We will extend `current` and delete `next`
                 const newEndDate = next.endDate;
                 current.endDate = newEndDate;
                 current.endDateObj = new Date(newEndDate);
                 
-                // Mark `next` for deletion
                 toDelete.add(next.id);
-                // Mark `current` for update
                 toUpdate.set(current.id, { endDate: newEndDate });
-                // Make the next iteration check against the now-extended `current`
                 validAssignments[i+1] = current;
             }
         }
@@ -753,7 +774,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             const batch = writeBatch(db);
             toDelete.forEach(id => batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, id)));
             toUpdate.forEach((data, id) => {
-                if(!toDelete.has(id)) { // Don't try to update something we're deleting in the same batch
+                if(!toDelete.has(id)) {
                    batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, id), data);
                 }
             });
@@ -813,8 +834,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     <div className="col-span-7">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
                 </div>
-                {sortedEmployees.slice(0, visibleEmployees).map((employee, index) => {
-                    const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
+                {employeesWithSortedAssignments.slice(0, visibleEmployees).map((employeeData, index) => {
+                    const { sortedAssignments, ...employee } = employeeData;
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                     
                     const today = new Date();
@@ -825,7 +846,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     weekEnd.setDate(weekStart.getDate() + 6);
                     weekEnd.setHours(23, 59, 59, 999);
                     
-                    const weeklyAllocation = employeeAssignments.reduce((sum, a) => {
+                    const weeklyAllocation = sortedAssignments.reduce((sum, a) => {
                         if (!a.startDate || !a.endDate) return sum;
                         const assignStart = new Date(a.startDate);
                         const assignEnd = new Date(a.endDate);
@@ -854,7 +875,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                 <div className="hidden md:col-span-7 md:block">
                                     {!isExpanded && (
                                         <p className={`text-sm ${currentTheme.subtleText}`}>
-                                            {employeeAssignments.length > 0 ? `${employeeAssignments.length} total assignment(s)` : 'No assignments'}
+                                            {sortedAssignments.length > 0 ? `${sortedAssignments.length} total assignment(s)` : 'No assignments'}
                                         </p>
                                     )}
                                 </div>
@@ -871,8 +892,25 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                 <div className={`p-4 border-t ${currentTheme.borderColor}`}>
                                     <div className="grid grid-cols-12 gap-4 items-start">
                                         <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
-                                            <h4 className={`font-semibold ${currentTheme.textColor} mb-2`}>All Project Assignments</h4>
-                                            {employeeAssignments.length > 0 ? employeeAssignments.map(asn => (
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h4 className={`font-semibold ${currentTheme.textColor}`}>All Project Assignments</h4>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className={`${currentTheme.subtleText}`}>Sort by:</span>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectName'); }}
+                                                        className={`px-2 py-1 rounded ${assignmentSortBy === 'projectName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                                    >
+                                                        Alphabetical
+                                                    </button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectId'); }}
+                                                        className={`px-2 py-1 rounded ${assignmentSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                                    >
+                                                        Project ID
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {sortedAssignments.length > 0 ? sortedAssignments.map(asn => (
                                                 <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => confirmDeleteAssignment(asn.id)} currentTheme={currentTheme} />
                                             )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
                                              
@@ -894,7 +932,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                         </div>
                     )
                 })}
-                {visibleEmployees < sortedEmployees.length && (
+                {visibleEmployees < employeesWithSortedAssignments.length && (
                     <div className="text-center mt-4">
                         <button onClick={() => setVisibleEmployees(prev => prev + 15)} className={`${currentTheme.buttonBg} ${currentTheme.buttonText} px-4 py-2 rounded-lg`}>
                             Load More
@@ -1331,11 +1369,11 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 {!collapsedSections.projectBreakdown && (
                     <div className="p-4" onClick={e => e.stopPropagation()}>
                         <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
-                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-5' : 'grid-cols-11'} gap-x-4 font-bold text-xs ${currentTheme.subtleText} px-2`}>
+                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-4' : 'grid-cols-11'} gap-x-4 font-bold text-xs ${currentTheme.subtleText} px-2`}>
                                 <span className="col-span-2">Name</span>
                                 <span className="col-span-1">Activity</span>
                                 {!isPCL && <span className="col-span-1">Budget ($)</span>}
-                                <span className="col-span-1">% of Project</span>
+                                {!isPCL && <span className="col-span-1">% of Project</span>}
                                 <span className="col-span-1">% Complete</span>
                                 {!isPCL && (
                                     <>
@@ -1352,7 +1390,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                 const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
                                 const productivity = actual > 0 ? earned / actual : 0;
                                 return (
-                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-5' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 ${currentTheme.altRowBg} rounded-md`}>
+                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-4' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 ${currentTheme.altRowBg} rounded-md`}>
                                         {editingSubsetId === subset.id && !isPCL ? (
                                             <>
                                                 <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className={`p-1 border rounded col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
@@ -1375,7 +1413,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                                 <span className="font-medium col-span-2">{subset.name}</span>
                                                 <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
                                                 {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{formatCurrency(subset.budget || 0)}</span>}
-                                                <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentageOfProject}%</span>
+                                                {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentageOfProject}%</span>}
                                                 
                                                 {isPCL ? (
                                                     <div className="col-span-1">
@@ -1384,7 +1422,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                                             value={subset.percentComplete}
                                                             onChange={(e) => handleSubsetFieldChange(subset.id, 'percentComplete', e.target.value)}
                                                             onBlur={handleSaveChanges}
-                                                            className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} bg-yellow-100`}
+                                                            className={`p-1 border-2 rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.borderColor} border-yellow-400`}
                                                         />
                                                     </div>
                                                 ) : (
@@ -1503,7 +1541,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
     return (
         <div>
-            <div className={`p-4 rounded-lg mb-4 ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+            <div className={`sticky top-0 z-10 p-4 rounded-b-lg mb-4 ${currentTheme.cardBg} border-b border-x ${currentTheme.borderColor} shadow-md`}>
                 <h2 className={`text-xl font-bold mb-4 ${currentTheme.textColor}`}>Project Overview & Filters</h2>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <input
@@ -1522,7 +1560,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                     <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                 </div>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 px-4">
                 {filteredProjects.map((p, index) => {
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     const isExpanded = expandedProjectId === p.id;
@@ -2087,6 +2125,7 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 
 const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast }) => {
     const [startDate, setStartDate] = useState(new Date());
+    const [sortBy, setSortBy] = useState('name');
     const [dragFillStart, setDragFillStart] = useState(null);
     const [dragFillEnd, setDragFillEnd] = useState(null);
     const [editingCell, setEditingCell] = useState(null);
@@ -2129,9 +2168,14 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                 return { ...project, assignments: projectAssignments };
             })
             .filter(p => p.assignments.length > 0)
-            .sort((a,b) => a.name.localeCompare(b.name));
+            .sort((a,b) => {
+                if (sortBy === 'name') {
+                    return a.name.localeCompare(b.name);
+                }
+                return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
+            });
 
-    }, [projects, assignments, detailers]);
+    }, [projects, assignments, detailers, sortBy]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -2157,7 +2201,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         });
     };
 
-    // FIXED: This function has been rewritten to be more robust and avoid common pitfalls.
     const mergeContiguousAssignments = useCallback(async (detailerId, projectId) => {
         const q = query(
             collection(db, `artifacts/${appId}/public/data/assignments`),
@@ -2169,7 +2212,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         const userAssignments = snapshot.docs.map(d => ({
             id: d.id,
             ...d.data(),
-            // Ensure dates are actual Date objects for correct sorting
             startDateObj: new Date(d.data().startDate),
             endDateObj: new Date(d.data().endDate),
         }));
@@ -2188,27 +2230,21 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     
             if (toDelete.has(current.id) || toDelete.has(next.id)) continue;
     
-            // Check if assignments have the same properties
             const canMerge =
                 current.trade === next.trade &&
                 current.activity === next.activity &&
                 current.allocation == next.allocation;
     
-            // Check if they are contiguous
             const dayAfterCurrentEnd = new Date(current.endDateObj);
             dayAfterCurrentEnd.setUTCDate(dayAfterCurrentEnd.getUTCDate() + 1);
             
             if (canMerge && dayAfterCurrentEnd.getTime() === next.startDateObj.getTime()) {
-                // We will extend `current` and delete `next`
                 const newEndDate = next.endDate;
                 current.endDate = newEndDate;
                 current.endDateObj = new Date(newEndDate);
                 
-                // Mark `next` for deletion
                 toDelete.add(next.id);
-                // Mark `current` for update
                 toUpdate.set(current.id, { endDate: newEndDate });
-                // Make the next iteration check against the now-extended `current`
                 validAssignments[i+1] = current;
             }
         }
@@ -2217,7 +2253,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             const batch = writeBatch(db);
             toDelete.forEach(id => batch.delete(doc(db, `artifacts/${appId}/public/data/assignments`, id)));
             toUpdate.forEach((data, id) => {
-                if(!toDelete.has(id)) { // Don't try to update something we're deleting in the same batch
+                if(!toDelete.has(id)) {
                    batch.update(doc(db, `artifacts/${appId}/public/data/assignments`, id), data);
                 }
             });
@@ -2231,7 +2267,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
     }, [appId, db, showToast]);
 
-    // FIXED: This function now correctly splits and updates assignments using atomic batch writes.
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
         const originalAssignment = assignments.find(a => a.id === assignmentId);
         if (!originalAssignment || (originalAssignment.trade === updates.trade && originalAssignment.activity === updates.activity)) {
@@ -2251,10 +2286,8 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         const originalEndDate = new Date(originalAssignment.endDate);
         originalEndDate.setUTCHours(0,0,0,0);
     
-        // Delete the original assignment that is being split
         batch.delete(doc(assignmentsRef, originalAssignment.id));
     
-        // Create the segment before the change, if it exists
         const dayBeforeChange = new Date(changeDate);
         dayBeforeChange.setUTCDate(dayBeforeChange.getUTCDate() - 1);
         if (originalStartDate < changeDate) {
@@ -2263,7 +2296,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             batch.set(doc(assignmentsRef), beforeSegment);
         }
     
-        // Create the new, changed segment for the selected week
         const changeWeekEndDate = new Date(changeDate);
         changeWeekEndDate.setUTCDate(changeWeekEndDate.getUTCDate() + 6);
         const finalEndDateForChangedSegment = changeWeekEndDate < originalEndDate ? changeWeekEndDate : originalEndDate;
@@ -2277,7 +2309,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         delete changedSegment.id;
         batch.set(doc(assignmentsRef), changedSegment);
     
-        // Create the segment after the change, if it exists
         const dayAfterChangeWeek = new Date(changeWeekEndDate);
         dayAfterChangeWeek.setUTCDate(dayAfterChangeWeek.getUTCDate() + 1);
         if (originalEndDate > changeWeekEndDate) {
@@ -2289,7 +2320,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         try {
             await batch.commit();
             showToast("Assignment updated and split.", "success");
-            // Run merge check to consolidate any new contiguous blocks
             await mergeContiguousAssignments(originalAssignment.detailerId, originalAssignment.projectId);
         } catch (e) {
             console.error("Error during split-update operation:", e);
@@ -2345,6 +2375,11 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                      <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
                      <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'>'}</button>
                      <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
+                 </div>
+                 <div className="flex items-center gap-2">
+                    <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                    <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                    <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
                  </div>
                  <div className="flex items-center gap-2">
                     <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Light</button>
@@ -2681,7 +2716,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     );
 };
 
-const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment }) => {
+const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComment, currentTheme }) => {
     const [newComment, setNewComment] = useState('');
     const [author, setAuthor] = useState('');
     const [editingComment, setEditingComment] = useState(null);
@@ -2707,13 +2742,13 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
         <div className="mt-4 space-y-3">
             <div className="space-y-2">
                 {(comments || []).map(comment => (
-                    <div key={comment.id} className="bg-gray-100 p-2 rounded-md text-sm">
+                    <div key={comment.id} className={`${currentTheme.altRowBg} p-2 rounded-md text-sm`}>
                          {editingComment?.id === comment.id ? (
                             <div className="space-y-2">
                                 <textarea 
                                     value={editingComment.text} 
                                     onChange={(e) => setEditingComment({...editingComment, text: e.target.value})}
-                                    className="w-full p-2 border rounded-md text-sm"
+                                    className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                 />
                                 <div className="flex gap-2">
                                     <button onClick={handleUpdate} className="px-3 py-1 bg-green-500 text-white rounded text-xs">Save</button>
@@ -2722,8 +2757,8 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
                             </div>
                          ) : (
                             <div>
-                                <p className="text-gray-800">{comment.text}</p>
-                                <div className="flex justify-between items-center mt-1 text-gray-500 text-xs">
+                                <p className={currentTheme.textColor}>{comment.text}</p>
+                                <div className={`flex justify-between items-center mt-1 ${currentTheme.subtleText} text-xs`}>
                                     <span><strong>{comment.author}</strong> - {new Date(comment.timestamp).toLocaleString()}</span>
                                     <div className="flex gap-2">
                                         <button onClick={() => setEditingComment({id: comment.id, text: comment.text})} className="hover:underline">Edit</button>
@@ -2740,7 +2775,7 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
                     value={newComment} 
                     onChange={e => setNewComment(e.target.value)} 
                     placeholder="Add a comment..." 
-                    className="w-full p-2 border rounded-md"
+                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                 />
                 <div className="flex gap-2 items-center">
                     <input 
@@ -2749,12 +2784,12 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
                         onChange={e => setAuthor(e.target.value.toUpperCase())}
                         placeholder="Initials"
                         maxLength="3"
-                        className="p-2 border rounded-md w-20"
+                        className={`p-2 border rounded-md w-20 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                     />
                     <button 
                         onClick={handleAdd}
                         disabled={!newComment || author.length !== 3}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300"
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400"
                     >
                         Post Comment
                     </button>
@@ -2918,6 +2953,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     if (!taskData) return null;
     
     const hasSubtasks = taskData.subTasks && taskData.subTasks.length > 0;
+    const formElementClasses = `w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`;
 
     return (
         <Modal onClose={onClose} currentTheme={currentTheme}>
@@ -2925,23 +2961,23 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
                     
-                    <div className="p-4 border rounded-lg space-y-3">
-                        <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className="w-full text-lg font-semibold p-2 border rounded-md" />
+                    <div className={`p-4 border rounded-lg space-y-3 ${currentTheme.altRowBg}`}>
+                        <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className={`text-lg font-semibold ${formElementClasses}`} />
                         <div className="grid grid-cols-2 gap-4">
-                            <select name="projectId" value={taskData.projectId} onChange={handleChange} className="w-full p-2 border rounded-md">
+                            <select name="projectId" value={taskData.projectId} onChange={handleChange} className={formElementClasses}>
                                 <option value="">Select Project...</option>
                                 {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
-                            <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className="w-full p-2 border rounded-md">
+                            <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className={formElementClasses}>
                                 <option value="">Assign To...</option>
                                 {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                             </select>
-                            <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className="w-full p-2 border rounded-md"/>
-                            <p className="p-2 text-sm text-gray-500">Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
+                            <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className={formElementClasses}/>
+                            <p className={`p-2 text-sm ${currentTheme.subtleText}`}>Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
                         </div>
                     </div>
 
-                    <div className="p-4 border rounded-lg">
+                    <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
                         <h3 className="font-semibold mb-2">Watchers</h3>
                         <div className="flex flex-wrap gap-2 mb-4">
                             {(taskData.watchers || []).map(watcherId => {
@@ -2958,7 +2994,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                             <select
                                 value={newWatcherId}
                                 onChange={(e) => setNewWatcherId(e.target.value)}
-                                className="flex-grow p-2 border rounded-md"
+                                className={`flex-grow ${formElementClasses}`}
                             >
                                 <option value="">Add a watcher...</option>
                                 {detailers.map(d => (
@@ -2973,16 +3009,16 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                         </div>
                     </div>
 
-                    <div className="p-4 border rounded-lg">
+                    <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
                         <h3 className="font-semibold mb-2">Sub-tasks</h3>
                         <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
                             {(taskData.subTasks || []).map(st => (
-                                <div key={st.id} className="p-2 bg-gray-50 rounded">
+                                <div key={st.id} className={`p-2 ${currentTheme.cardBg} rounded`}>
                                     {editingSubTaskId === st.id ? (
                                         <div className="flex gap-2 items-center">
-                                            <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className="flex-grow p-1 border rounded-md"/>
-                                            <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
-                                            <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className="p-1 border rounded-md text-sm"/>
+                                            <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className={`flex-grow ${formElementClasses}`}/>
+                                            <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
+                                            <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}/>
                                             <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
                                             <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
                                         </div>
@@ -2990,8 +3026,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                                         <div className="flex items-center gap-2">
                                             <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
                                             <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
-                                            <span className="text-xs text-gray-500">{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
-                                            <span className="text-xs text-gray-500">{st.dueDate}</span>
+                                            <span className={`text-xs ${currentTheme.subtleText}`}>{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
+                                            <span className={`text-xs ${currentTheme.subtleText}`}>{st.dueDate}</span>
                                             <button onClick={() => handleStartEditSubTask(st)} className="text-xs text-blue-600 hover:underline" disabled={editingSubTaskId}>Edit</button>
                                             <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
                                         </div>
@@ -3002,29 +3038,31 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                                            onAddComment={(commentData) => handleAddComment(commentData, st.id)}
                                            onUpdateComment={(id, text) => handleUpdateComment(id, text, st.id)}
                                            onDeleteComment={(id) => handleDeleteComment(id, st.id)}
+                                           currentTheme={currentTheme}
                                         />
                                     </div>
                                 </div>
                             ))}
                         </div>
                         <div className="flex gap-2 items-center p-2 border-t">
-                            <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className="flex-grow p-1 border rounded-md" />
-                            <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm">
+                            <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className={`flex-grow ${formElementClasses}`} />
+                            <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`}>
                                 <option value="">Assignee...</option>
                                 {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
                             </select>
-                            <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className="p-1 border rounded-md text-sm" />
+                            <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`} />
                             <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
                         </div>
                     </div>
                     
-                     <div className="p-4 border rounded-lg">
+                     <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
                          <h3 className="font-semibold mb-2">Task Comments</h3>
                          <CommentSection 
                            comments={taskData.comments}
                            onAddComment={handleAddComment}
                            onUpdateComment={handleUpdateComment}
                            onDeleteComment={handleDeleteComment}
+                           currentTheme={currentTheme}
                          />
                     </div>
 
@@ -3052,7 +3090,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
 };
 
 
-const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
+const TaskCard = ({ task, detailers, onDragStart, onClick, currentTheme }) => {
     const watchers = (task.watchers || []).map(wId => detailers.find(d => d.id === wId)).filter(Boolean);
     const subTasks = task.subTasks || [];
     const completedSubTasks = subTasks.filter(st => st.isCompleted).length;
@@ -3063,11 +3101,11 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
             draggable
             onDragStart={(e) => onDragStart(e, task.id)}
             onClick={onClick}
-            className="bg-gray-700 p-3 rounded-lg border border-gray-600 shadow-sm cursor-pointer mb-3 text-gray-200"
+            className={`${currentTheme.cardBg} p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer mb-3 ${currentTheme.textColor}`}
         >
             <p className="font-semibold mb-2">{task.taskName}</p>
-            <div className="flex items-center justify-between text-xs text-gray-400 mt-2">
-                <span className={task.dueDate ? '' : 'text-gray-500'}>
+            <div className={`flex items-center justify-between text-xs ${currentTheme.subtleText} mt-2`}>
+                <span className={task.dueDate ? '' : 'opacity-50'}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                     </svg>
@@ -3086,14 +3124,14 @@ const TaskCard = ({ task, detailers, onDragStart, onClick }) => {
                      <div className="flex -space-x-2">
                         {assignee && (
                              <Tooltip text={`Assignee: ${assignee.firstName} ${assignee.lastName}`}>
-                                 <span className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs border-2 border-gray-700">
+                                 <span className={`w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs border-2 ${currentTheme.borderColor}`}>
                                      {assignee.firstName.charAt(0)}{assignee.lastName.charAt(0)}
                                  </span>
                             </Tooltip>
                         )}
                         {watchers.slice(0, 2).map(watcher => (
                             <Tooltip key={watcher.id} text={`${watcher.firstName} ${watcher.lastName}`}>
-                                 <span className="w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center text-white text-xs border-2 border-gray-700">
+                                 <span className={`w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center text-white text-xs border-2 ${currentTheme.borderColor}`}>
                                      {watcher.firstName.charAt(0)}{watcher.lastName.charAt(0)}
                                  </span>
                             </Tooltip>
@@ -3235,9 +3273,9 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                              key={lane.id}
                              onDragOver={handleDragOver}
                              onDrop={(e) => handleDrop(e, lane.id)}
-                             className="bg-gray-900 rounded-lg p-3 w-56 flex-shrink-0 flex flex-col"
+                             className={`${currentTheme.altRowBg} rounded-lg p-3 w-72 flex-shrink-0 flex flex-col`}
                          >
-                            <div className="flex justify-between items-center mb-4 text-white">
+                            <div className={`flex justify-between items-center mb-4 ${currentTheme.textColor}`}>
                                { editingLaneId === lane.id ? (
                                    <input
                                       type="text"
@@ -3245,17 +3283,17 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                       onChange={(e) => setEditingLaneName(e.target.value)}
                                       onBlur={() => handleRenameLane(lane.id)}
                                       onKeyPress={(e) => e.key === 'Enter' && handleRenameLane(lane.id)}
-                                      className="font-semibold p-1 rounded-md border bg-gray-700 w-full text-white"
+                                      className={`font-semibold p-1 rounded-md border ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full`}
                                       autoFocus
                                    />
                                ) : (
                                    <h2 className="font-semibold cursor-pointer" onClick={() => { setEditingLaneId(lane.id); setEditingLaneName(lane.name); }}>{lane.name}</h2>
                                )}
-                                <button onClick={() => confirmDeleteLane(lane)} className="text-gray-400 hover:text-red-500 disabled:opacity-20" disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
+                                <button onClick={() => confirmDeleteLane(lane)} className={`${currentTheme.subtleText} hover:text-red-500 disabled:opacity-20`} disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
                             </div>
 
                              {lane.name === "New Requests" && (
-                                 <button onClick={() => handleOpenModal(null)} className="w-full text-left p-2 mb-3 bg-gray-700 text-gray-300 rounded-md shadow-sm hover:bg-gray-600">+ Add Task</button>
+                                 <button onClick={() => handleOpenModal(null)} className={`w-full text-left p-2 mb-3 ${currentTheme.cardBg} ${currentTheme.textColor} rounded-md shadow-sm hover:bg-opacity-80`}>+ Add Task</button>
                              )}
 
                              <div className="flex-grow overflow-y-auto pr-2">
@@ -3266,13 +3304,14 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                          detailers={detailers}
                                          onDragStart={handleDragStart}
                                          onClick={() => handleOpenModal(task)}
+                                         currentTheme={currentTheme}
                                      />
                                  ))}
                              </div>
                          </div>
                      ))}
-                      <div className="w-56 flex-shrink-0">
-                         <button onClick={handleAddLane} className="w-full p-3 bg-gray-700 text-gray-400 rounded-lg hover:bg-gray-600">+ Add Another List</button>
+                      <div className="w-72 flex-shrink-0">
+                         <button onClick={handleAddLane} className={`w-full p-3 ${currentTheme.buttonBg} ${currentTheme.buttonText} rounded-lg hover:bg-opacity-80`}>+ Add Another List</button>
                       </div>
                  </div>
              </div>
