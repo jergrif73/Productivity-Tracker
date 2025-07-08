@@ -41,36 +41,6 @@ const titleOptions = [
     "Trade Constructability Lead", "Constructability Manager"
 ];
 
-const initialDetailers = [
-    { firstName: "Arne", lastName: "Knutsen", employeeId: "502530", title: "Detailer III", email: "Arne.Knutsen@example.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Bailee", lastName: "Risley", employeeId: "107888", title: "Detailer I", email: "BRisley@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "David", lastName: "Hisaw", employeeId: "500038", title: "Detailer III", email: "DHisaw@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Devon", lastName: "Beaudry", employeeId: "505369", title: "Detailer I", email: "dbeaudry@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Jacob", lastName: "Gowey", employeeId: "100989", title: "Project Constructability Lead", email: "jgowey@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Jade", lastName: "Abrams", employeeId: "530498", title: "Detailer I", email: "Jade.Abrams@example.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Jeremiah", lastName: "Griffith", employeeId: "500193", title: "Project Constructability Lead, Sr.", email: "jgriffith@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Melissa", lastName: "Cannon", employeeId: "530634", title: "Detailer I", email: "MCannon@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Michael", lastName: "McIntyre", employeeId: "507259", title: "Detailer II", email: "mmcIntyre@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Philip", lastName: "Kronberg", employeeId: "506614", title: "Detailer II", email: "pkronberg@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Rick", lastName: "Peterson", employeeId: "500132", title: "Trade Constructability Lead", email: "rpeterson@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Robert", lastName: "Mitchell", employeeId: "113404", title: "Detailer I", email: "RoMitchell@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Shawn", lastName: "Schneirla", employeeId: "503701", title: "Detailer III", email: "sschneirla@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Shawn", lastName: "Simleness", employeeId: "503506", title: "Project Constructability Lead", email: "ssimleness@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Travis", lastName: "Michalowski", employeeId: "505404", title: "Detailer II", email: "TMichalowski@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Joshua", lastName: "Testerman", employeeId: "504750", title: "Detailer I", email: "JoTesterman@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Tyler", lastName: "Stoker", employeeId: "113923", title: "Detailer I", email: "Tyler.Stoker@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Nickolas", lastName: "Marshall", employeeId: "520118", title: "Detailer I", email: "nmarshall@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Jeremy", lastName: "Splattstoesser", employeeId: "507221", title: "Detailer II", email: "jsplattstoesser@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Pavel", lastName: "Makarenko", employeeId: "500793", title: "Detailer II", email: "PMakarenko@southlandind.com", skills: {}, disciplineSkillsets: {} },
-    { firstName: "Tyson", lastName: "Kafentzis", employeeId: "101153", title: "Detailer I", email: "TKafentzis@southlandind.com", skills: {}, disciplineSkillsets: {} }
-];
-
-const initialProjects = [
-    { name: "Brandt Interco", projectId: "5800005", initialBudget: 0, blendedRate: 0, contingency: 0, archived: false, dashboardUrl: "" },
-    { name: "PRECON / Estimating 2022", projectId: "5818022", initialBudget: 0, blendedRate: 0, contingency: 0, archived: false, dashboardUrl: "" },
-    { name: "RLSB 7th Floor Buildout", projectId: "5820526", initialBudget: 0, blendedRate: 0, contingency: 0, archived: false, dashboardUrl: "" },
-];
-
 const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
 const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
 const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
@@ -359,8 +329,6 @@ const App = () => {
 
     const seedInitialData = useCallback(async () => {
         if (!db) return;
-        const detailersRef = collection(db, `artifacts/${appId}/public/data/detailers`);
-        const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
         const lanesRef = collection(db, `artifacts/${appId}/public/data/taskLanes`);
         
         const seedCollection = async (ref, initialData) => {
@@ -377,15 +345,13 @@ const App = () => {
         };
 
         await Promise.all([
-            seedCollection(detailersRef, initialDetailers),
-            seedCollection(projectsRef, initialProjects),
             seedCollection(lanesRef, [
                 { name: "New Requests", order: 0 }, { name: "Project Setup Support (VDC)", order: 1 },
                 { name: "Process Improvements (VDC)", order: 2 }, { name: "Support Requests (VDC)", order: 3 },
                 { name: "RFA Requests (VDC)", order: 4 }, { name: "On Hold", order: 5 },
             ])
         ]);
-    }, []);
+    }, [appId]);
 
     useEffect(() => {
         if (!isAuthReady || !db) return;
@@ -414,7 +380,7 @@ const App = () => {
                 unsubscribers.forEach(unsub => unsub());
             };
         });
-    }, [isAuthReady, seedInitialData]);
+    }, [isAuthReady, seedInitialData, appId]);
 
     const handleLoginAttempt = (username, password) => {
         if (username === 'Taskmaster' && password === 'Taskmaster1234') {
