@@ -85,7 +85,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                             </tr>
                         </thead>
                         <tbody>
-                            {data.map((activity, index) => (
+                            {(data || []).map((activity, index) => (
                                 <ActivityRow
                                     key={activity.id}
                                     activity={activity}
@@ -192,7 +192,10 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         sheetmetal: true,
         piping: true,
         plumbing: true,
-        bim: true
+        bim: true,
+        structural: true,
+        coordination: true,
+        gis: true,
     });
     const isPCL = accessLevel === 'pcl';
 
@@ -205,34 +208,40 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 
 
     const groupActivities = (activityArray) => {
+        const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
         return activityArray.reduce((acc, act) => {
             const desc = act.description.toUpperCase();
             if (desc.startsWith('SM')) acc.sheetmetal.push(act);
             else if (desc.startsWith('PF')) acc.piping.push(act);
             else if (desc.startsWith('PL')) acc.plumbing.push(act);
+            else if (desc.startsWith('ST')) acc.structural.push(act);
+            else if (desc.startsWith('CO')) acc.coordination.push(act);
+            else if (desc.startsWith('GIS')) acc.gis.push(act);
             else acc.bim.push(act);
             return acc;
-        }, { sheetmetal: [], piping: [], plumbing: [], bim: [] });
+        }, defaultGroups);
     };
 
     const calculateRollups = useCallback((activities, subsets) => {
         const newActivities = JSON.parse(JSON.stringify(activities));
         
         Object.keys(newActivities).forEach(group => {
-            newActivities[group].forEach(activity => {
-                const relevantSubsets = subsets.filter(s => s.activityId === activity.id);
-                
-                const totalHoursUsed = relevantSubsets.reduce((sum, s) => sum + (Number(s.hoursUsed) || 0), 0);
-                
-                const totalPercentComplete = relevantSubsets.reduce((sum, s) => {
-                    const subsetPercentOfProject = Number(s.percentageOfProject) || 0;
-                    const subsetPercentComplete = Number(s.percentComplete) || 0;
-                    return sum + ((subsetPercentOfProject / 100) * subsetPercentComplete);
-                }, 0);
+            if (newActivities[group]) { // Check if group exists
+                newActivities[group].forEach(activity => {
+                    const relevantSubsets = subsets.filter(s => s.activityId === activity.id);
+                    
+                    const totalHoursUsed = relevantSubsets.reduce((sum, s) => sum + (Number(s.hoursUsed) || 0), 0);
+                    
+                    const totalPercentComplete = relevantSubsets.reduce((sum, s) => {
+                        const subsetPercentOfProject = Number(s.percentageOfProject) || 0;
+                        const subsetPercentComplete = Number(s.percentComplete) || 0;
+                        return sum + ((subsetPercentOfProject / 100) * subsetPercentComplete);
+                    }, 0);
 
-                activity.hoursUsed = totalHoursUsed;
-                activity.percentComplete = totalPercentComplete; 
-            });
+                    activity.hoursUsed = totalHoursUsed;
+                    activity.percentComplete = totalPercentComplete; 
+                });
+            }
         });
         return newActivities;
     }, []);
@@ -240,9 +249,12 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
     useEffect(() => {
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             let initialData;
+            const defaultActivityGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
+
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                const activities = data.activities || groupActivities(initialActivityData);
+                // FIX: Merge loaded activities with default structure to ensure all keys exist
+                const activities = { ...defaultActivityGroups, ...(data.activities || {}) };
                 const subsets = data.subsets || [];
                 initialData = { activities, subsets };
             } else {
@@ -553,10 +565,13 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                             Save All Changes
                         </button>
                      </div>
-                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-amber-700/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-purple-500/70" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70 text-black" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-blue-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-indigo-600/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Structural" data={draftData.activities.structural} groupKey="structural" colorClass="bg-amber-700/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.structural} onToggle={(e) => handleToggleCollapse(e, 'structural')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Coordination" data={draftData.activities.coordination} groupKey="coordination" colorClass="bg-pink-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.coordination} onToggle={(e) => handleToggleCollapse(e, 'coordination')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="GIS/GPS" data={draftData.activities.gis} groupKey="gis" colorClass="bg-teal-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.gis} onToggle={(e) => handleToggleCollapse(e, 'gis')} project={project} currentTheme={currentTheme}/>
                      <div className={`${currentTheme.altRowBg} font-bold p-2 flex justify-end gap-x-6`}>
                         <span className="text-right">Totals:</span>
                         <span>Est: {activityTotals.estimated.toFixed(2)}</span>

@@ -78,21 +78,21 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const tradeColorMapping = {
         Piping: { bg: 'bg-green-500', text: 'text-white' },
         Duct: { bg: 'bg-yellow-400', text: 'text-black' },
-        Plumbing: { bg: 'bg-amber-700', text: 'text-white' },
-        Coordination: { bg: 'bg-fuchsia-500', text: 'text-white' },
-        BIM: { bg: 'bg-purple-500', text: 'text-white' },
-        Structural: { bg: 'bg-blue-500', text: 'text-white' },
-        "GIS/GPS": { bg: 'bg-orange-500', text: 'text-white' },
+        Plumbing: { bg: 'bg-blue-500', text: 'text-white' },
+        Coordination: { bg: 'bg-pink-500', text: 'text-white' },
+        BIM: { bg: 'bg-indigo-600', text: 'text-white' },
+        Structural: { bg: 'bg-amber-700', text: 'text-white' },
+        "GIS/GPS": { bg: 'bg-teal-500', text: 'text-white' },
     };
     
     const legendColorMapping = {
         Piping: 'bg-green-500',
         Duct: 'bg-yellow-400',
-        Plumbing: 'bg-amber-700',
-        Coordination: 'bg-fuchsia-500',
-        BIM: 'bg-purple-500',
-        Structural: 'bg-blue-500',
-        "GIS/GPS": 'bg-orange-500',
+        Plumbing: 'bg-blue-500',
+        Coordination: 'bg-pink-500',
+        BIM: 'bg-indigo-600',
+        Structural: 'bg-amber-700',
+        "GIS/GPS": 'bg-teal-500',
     };
 
     const getWeekDates = (from) => {
