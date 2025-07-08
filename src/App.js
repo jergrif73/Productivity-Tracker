@@ -539,7 +539,7 @@ const App = () => {
                             </button>
                     </div>
                 </header>
-                <main className={`flex-grow overflow-hidden ${currentTheme.consoleBg}`}>
+                <main className={`flex-grow overflow-y-auto ${currentTheme.consoleBg}`}>
                    {renderView()}
                 </main>
                  <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
@@ -1824,179 +1824,160 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const isEditing = editingEmployeeId || editingProjectId;
     
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full p-4">
-            {/* --- Employee Column --- */}
-            <div className="flex flex-col h-full overflow-hidden">
-                 {/* REWRITE: Header section (fixed). This part does not scroll. */}
-                 <div className="flex-shrink-0">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold">Manage Employees</h2>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm">Sort by:</span>
-                            <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                            <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                 <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Manage Employees</h2>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm">Sort by:</span>
+                        <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                        <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
                     </div>
-                 </div>
-
-                {/* REWRITE: Scrollable content section. Wraps the Add form and the List. */}
-                <div className="flex-grow overflow-y-auto pr-2">
-                    {/* "Add New Employee" form (now inside scrollable area) */}
-                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                        <h3 className="font-semibold mb-2">Add New Employee</h3>
-                        <div className="space-y-2 mb-4">
-                            <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                {titleOptions.map(title => (
-                                    <option key={title} value={title}>{title}</option>
-                                ))}
-                            </select>
-                            <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        </div>
-                        <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                </div>
+                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                    <h3 className="font-semibold mb-2">Add New Employee</h3>
+                    <div className="space-y-2 mb-4">
+                        <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                            {titleOptions.map(title => (
+                                <option key={title} value={title}>{title}</option>
+                            ))}
+                        </select>
+                        <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                     </div>
-                    {/* Employee List (inside scrollable area) */}
-                    <div className="space-y-2">
-                        {sortedEmployees.map((e, index) => {
-                            const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                            return (
-                            <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                                {editingEmployeeId === e.id ? (
-                                    <div className="space-y-2">
-                                        <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                            {titleOptions.map(title => (
-                                                <option key={title} value={title}>{title}</option>
-                                            ))}
-                                        </select>
-                                        <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                            <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                        </div>
+                    <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                </div>
+                <div className="space-y-2">
+                    {sortedEmployees.map((e, index) => {
+                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                        return (
+                        <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                            {editingEmployeeId === e.id ? (
+                                <div className="space-y-2">
+                                    <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                        {titleOptions.map(title => (
+                                            <option key={title} value={title}>{title}</option>
+                                        ))}
+                                    </select>
+                                    <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                        <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
                                     </div>
-                                ) : (
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p>{e.firstName} {e.lastName}</p>
-                                            <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
-                                            <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleEdit('employee', e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
-                                            <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
-                                        </div>
+                                </div>
+                            ) : (
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p>{e.firstName} {e.lastName}</p>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
+                                        <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
                                     </div>
-                                )}
-                            </div>
-                        )})}
-                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleEdit('employee', e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
+                                        <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )})}
                 </div>
             </div>
 
-            {/* --- Project Column --- */}
-            <div className="flex flex-col h-full overflow-hidden">
-                {/* REWRITE: Header section (fixed). This part does not scroll. */}
-                <div className="flex-shrink-0">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold">Manage Projects</h2>
-                        <div className="flex items-center gap-4">
-                             <div className="flex items-center gap-2">
-                                <span className="text-sm">Sort by:</span>
-                                <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                                <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                            </div>
-                            <div className="flex items-center">
-                                <span className="text-sm mr-2">{showArchived ? 'Showing Archived' : 'Showing Active'}</span>
-                                <label htmlFor="archiveToggle" className="flex items-center cursor-pointer">
-                                    <div className="relative">
-                                    <input type="checkbox" id="archiveToggle" className="sr-only" checked={showArchived} onChange={() => setShowArchived(!showArchived)} />
-                                    <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
-                                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${showArchived ? 'translate-x-6' : ''}`}></div>
-                                    </div>
-                                </label>
-                            </div>
+            <div>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Manage Projects</h2>
+                    <div className="flex items-center gap-4">
+                         <div className="flex items-center gap-2">
+                            <span className="text-sm">Sort by:</span>
+                            <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                            <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                        </div>
+                        <div className="flex items-center">
+                            <span className="text-sm mr-2">{showArchived ? 'Showing Archived' : 'Showing Active'}</span>
+                            <label htmlFor="archiveToggle" className="flex items-center cursor-pointer">
+                                <div className="relative">
+                                <input type="checkbox" id="archiveToggle" className="sr-only" checked={showArchived} onChange={() => setShowArchived(!showArchived)} />
+                                <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                                <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${showArchived ? 'translate-x-6' : ''}`}></div>
+                                </div>
+                            </label>
                         </div>
                     </div>
                 </div>
-
-                {/* REWRITE: Scrollable content section. Wraps the Add form and the List. */}
-                <div className="flex-grow overflow-y-auto pr-2">
-                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                        <h3 className="font-semibold mb-2">Add New Project</h3>
-                        <div className="space-y-2 mb-4">
-                            <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                             <div className="flex items-center gap-2">
-                                <label className="w-32">Initial Budget ($):</label>
-                                <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                             <div className="flex items-center gap-2">
-                                <label className="w-32">Blended Rate ($/hr):</label>
-                                <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                             <div className="flex items-center gap-2">
-                                <label className="w-32">Contingency ($):</label>
-                                <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <label className="w-32">Project Dashboard:</label>
-                                <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
+                 <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
+                    <h3 className="font-semibold mb-2">Add New Project</h3>
+                    <div className="space-y-2 mb-4">
+                        <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                         <div className="flex items-center gap-2">
+                            <label className="w-32">Initial Budget ($):</label>
+                            <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                         </div>
-                        <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
+                         <div className="flex items-center gap-2">
+                            <label className="w-32">Blended Rate ($/hr):</label>
+                            <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        </div>
+                         <div className="flex items-center gap-2">
+                            <label className="w-32">Contingency ($):</label>
+                            <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <label className="w-32">Project Dashboard:</label>
+                            <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                        </div>
                     </div>
-
-                    <div className="space-y-2 mb-8">
-                        {sortedProjects.map((p, index) => {
-                            const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                            return (
-                             <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                                {editingProjectId === p.id ? (
-                                    <div className="space-y-2">
-                                        <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Initial Budget ($):</label>
-                                            <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Blended Rate ($/hr):</label>
-                                            <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                         <div className="flex items-center gap-2">
-                                            <label className="w-32">Contingency ($):</label>
-                                            <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Project Dashboard:</label>
-                                            <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex gap-2 pt-4">
-                                            <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                            <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                        </div>
+                    <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
+                </div>
+                <div className="space-y-2 mb-8">
+                    {sortedProjects.map((p, index) => {
+                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                        return (
+                         <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                            {editingProjectId === p.id ? (
+                                <div className="space-y-2">
+                                    <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Initial Budget ($):</label>
+                                        <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
-                                ) : (
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                          <p>{p.name} ({p.projectId})</p>
-                                          <p className={`text-sm ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
-                                        </div>
-                                        <div className="flex gap-2 flex-shrink-0">
-                                            <button onClick={() => handleToggleArchive(p.id, p.archived || false)} className={`text-xs px-2 py-1 rounded-md ${p.archived ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`} disabled={isEditing}>{p.archived ? 'Unarchive' : 'Archive'}</button>
-                                            <button onClick={() => handleEdit('project', p)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
-                                            <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
-                                        </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Blended Rate ($/hr):</label>
+                                        <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                     </div>
-                                )}
-                            </div>
-                        )})}
-                    </div>
+                                     <div className="flex items-center gap-2">
+                                        <label className="w-32">Contingency ($):</label>
+                                        <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Project Dashboard:</label>
+                                        <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                    </div>
+                                    <div className="flex gap-2 pt-4">
+                                        <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                        <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                      <p>{p.name} ({p.projectId})</p>
+                                      <p className={`text-sm ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                    </div>
+                                    <div className="flex gap-2 flex-shrink-0">
+                                        <button onClick={() => handleToggleArchive(p.id, p.archived || false)} className={`text-xs px-2 py-1 rounded-md ${p.archived ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`} disabled={isEditing}>{p.archived ? 'Unarchive' : 'Archive'}</button>
+                                        <button onClick={() => handleEdit('project', p)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
+                                        <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )})}
                 </div>
             </div>
         </div>
