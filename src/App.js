@@ -299,8 +299,8 @@ const App = () => {
     
     const navConfig = {
         taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'forecast', 'skills', 'reporting', 'admin'],
-        pcl: ['projects', 'workloader', 'tasks', 'gantt', 'forecast'],
-        viewer: ['projects', 'workloader', 'tasks', 'gantt', 'forecast'],
+        pcl: ['projects', 'workloader', 'tasks', 'gantt'],
+        viewer: ['projects', 'workloader', 'tasks', 'gantt'],
         default: []
     };
 
