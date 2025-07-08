@@ -46,7 +46,6 @@ const calculateHrsPerWk = (estimate) => {
     if (start > end) {
         return 0;
     }
-    // Add 1 to include both start and end dates in the duration
     const diffTime = end.getTime() - start.getTime();
     const diffDays = (diffTime / (1000 * 60 * 60 * 24)) + 1;
     
@@ -54,7 +53,7 @@ const calculateHrsPerWk = (estimate) => {
 
     const diffWeeks = diffDays / 7;
 
-    if (diffWeeks < 1) { // If duration is less than a week, all hours are in that week
+    if (diffWeeks < 1) { 
         return Math.round(estimatedHours);
     }
 
@@ -63,16 +62,20 @@ const calculateHrsPerWk = (estimate) => {
 
 
 const TradeEstimateEditor = ({ estimate, onSave, onCancel, currentTheme }) => {
-    const [localEstimate, setLocalEstimate] = useState(estimate);
+    const [localEstimate, setLocalEstimate] = useState({ rampUpPercent: 25, rampDownPercent: 25, ...estimate });
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setLocalEstimate(prev => ({ ...prev, [name]: value }));
+        let processedValue = value;
+        if (name === 'rampUpPercent' || name === 'rampDownPercent' || name === 'estimatedHours') {
+            processedValue = parseInt(value, 10) || 0;
+        }
+        setLocalEstimate(prev => ({ ...prev, [name]: processedValue }));
     };
 
     return (
         <div className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-500/10 rounded-md">
-            <div className="col-span-3">
+            <div className="col-span-2">
                 <select name="trade" value={localEstimate.trade} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                     {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
@@ -80,14 +83,18 @@ const TradeEstimateEditor = ({ estimate, onSave, onCancel, currentTheme }) => {
             <div className="col-span-2">
                 <input type="number" name="estimatedHours" value={localEstimate.estimatedHours} onChange={handleChange} placeholder="Hours" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
             </div>
-            <div className="col-span-2 flex items-center justify-center font-bold text-lg">
-                {calculateHrsPerWk(localEstimate)}
-            </div>
+            <div className="col-span-1 text-center font-bold">{calculateHrsPerWk(localEstimate)}</div>
             <div className="col-span-2">
                 <input type="date" name="startDate" value={localEstimate.startDate} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
             </div>
             <div className="col-span-2">
                 <input type="date" name="endDate" value={localEstimate.endDate} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            </div>
+            <div className="col-span-1">
+                <input type="number" name="rampUpPercent" value={localEstimate.rampUpPercent} onChange={handleChange} placeholder="Up %" className={`w-full p-2 border rounded-md text-xs ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            </div>
+             <div className="col-span-1">
+                <input type="number" name="rampDownPercent" value={localEstimate.rampDownPercent} onChange={handleChange} placeholder="Down %" className={`w-full p-2 border rounded-md text-xs ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
             </div>
             <div className="col-span-1 flex items-center justify-end gap-2">
                 <button onClick={() => onSave(localEstimate)} className="text-green-500 hover:text-green-700">Save</button>
@@ -485,10 +492,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                 <div className="grid grid-cols-12 gap-2 items-center font-semibold text-xs px-2">
                                                     <span className="col-span-3">Trade</span>
                                                     <span className="col-span-2">Est. Hours</span>
-                                                    <span className="col-span-2">Hrs/Wk</span>
+                                                    <span className="col-span-1 text-center">Hrs/Wk</span>
                                                     <span className="col-span-2">Start Date</span>
                                                     <span className="col-span-2">End Date</span>
-                                                    <span className="col-span-1"></span>
+                                                    <span className="col-span-2 text-center">Ramp %</span>
                                                 </div>
                                                 {tradeEstimates.map(est => (
                                                     editingEstimateId === est.id ? 
@@ -497,10 +504,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                     <div key={est.id} className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-gray-500/10 rounded-md">
                                                         <span className="col-span-3">{est.trade}</span>
                                                         <span className="col-span-2">{est.estimatedHours}</span>
-                                                        <span className="col-span-2 font-bold">{calculateHrsPerWk(est)}</span>
+                                                        <span className="col-span-1 text-center font-bold">{calculateHrsPerWk(est)}</span>
                                                         <span className="col-span-2">{est.startDate}</span>
                                                         <span className="col-span-2">{est.endDate}</span>
-                                                        <div className="col-span-1 flex items-center justify-end gap-2">
+                                                        <div className="col-span-2 flex items-center justify-end gap-2">
                                                             <button onClick={() => setEditingEstimateId(est.id)} className="text-blue-500 hover:text-blue-700 text-sm">Edit</button>
                                                             <button onClick={() => handleDeleteEstimate(est.id)} className="text-red-500 hover:text-red-700 text-sm">Delete</button>
                                                         </div>
@@ -509,7 +516,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                 {newEstimate ? 
                                                     <TradeEstimateEditor estimate={newEstimate} onSave={handleSaveEstimate} onCancel={() => setNewEstimate(null)} currentTheme={currentTheme} />
                                                     :
-                                                    <button onClick={() => setNewEstimate({ trade: 'Duct', estimatedHours: 0, startDate: '', endDate: ''})} className="text-sm text-blue-500 hover:underline mt-2">+ Add Trade Estimate</button>
+                                                    <button onClick={() => setNewEstimate({ trade: 'Duct', estimatedHours: 0, startDate: '', endDate: '', rampUpPercent: 25, rampDownPercent: 25 })} className="text-sm text-blue-500 hover:underline mt-2">+ Add Trade Estimate</button>
                                                 }
                                             </div>
                                         )}

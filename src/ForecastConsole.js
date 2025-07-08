@@ -44,6 +44,88 @@ const d3ColorMapping = {
     "GIS/GPS": '#14b8a6',
 };
 
+/**
+ * Distributes hours for a single estimate over a series of weeks using a trapezoidal (bell curve) model.
+ * @param {object} estimate - The trade estimate object.
+ * @param {Date[]} weekDates - An array of Date objects representing the start of each week in the forecast.
+ * @param {number} rampUpPercent - The percentage of the duration for ramp-up.
+ * @param {number} rampDownPercent - The percentage of the duration for ramp-down.
+ * @returns {number[]} An array of hours corresponding to each week in weekDates.
+ */
+const distributeHoursWithBellCurve = (estimate, weekDates, rampUpPercent, rampDownPercent) => {
+    const { estimatedHours, startDate, endDate } = estimate;
+    const weeklyDistribution = new Array(weekDates.length).fill(0);
+
+    if (!estimatedHours || !startDate || !endDate) return weeklyDistribution;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start > end) return weeklyDistribution;
+
+    const totalDurationDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) + 1;
+    if (totalDurationDays <= 0) return weeklyDistribution;
+
+    // For very short projects, use a linear distribution to avoid weird results.
+    if (totalDurationDays < 28) {
+        const dailyHours = estimatedHours / totalDurationDays;
+        weekDates.forEach((weekStart, i) => {
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+
+            if (start <= weekEnd && end >= weekStart) {
+                const overlapStart = Math.max(start, weekStart);
+                const overlapEnd = Math.min(end, weekEnd);
+                const overlapDays = (overlapEnd - overlapStart) / (1000 * 60 * 60 * 24) + 1;
+                if (overlapDays > 0) {
+                    weeklyDistribution[i] = overlapDays * dailyHours;
+                }
+            }
+        });
+        return weeklyDistribution;
+    }
+
+    const plateauPercent = 100 - rampUpPercent - rampDownPercent;
+
+    const rampUpDays = totalDurationDays * (rampUpPercent / 100);
+    const plateauDays = totalDurationDays * (plateauPercent / 100);
+    const rampDownDays = totalDurationDays * (rampDownPercent / 100);
+
+    const rampUpEnd = new Date(start);
+    rampUpEnd.setDate(start.getDate() + rampUpDays - 1);
+
+    const plateauEnd = new Date(rampUpEnd);
+    plateauEnd.setDate(rampUpEnd.getDate() + plateauDays);
+
+    const weightedDurationDays = (rampUpDays * 0.5) + (plateauDays * 1.0) + (rampDownDays * 0.5);
+    if (weightedDurationDays <= 0) return weeklyDistribution;
+    
+    const peakDailyHours = estimatedHours / weightedDurationDays;
+    const rampDailyHours = peakDailyHours / 2;
+
+    weekDates.forEach((weekStart, i) => {
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        if (start <= weekEnd && end >= weekStart) {
+            let hoursForWeek = 0;
+            for (let day = new Date(weekStart); day <= weekEnd; day.setDate(day.getDate() + 1)) {
+                if (day >= start && day <= end) {
+                    if (day <= rampUpEnd) {
+                        hoursForWeek += rampDailyHours;
+                    } else if (day <= plateauEnd) {
+                        hoursForWeek += peakDailyHours;
+                    } else {
+                        hoursForWeek += rampDailyHours;
+                    }
+                }
+            }
+            weeklyDistribution[i] = hoursForWeek;
+        }
+    });
+
+    return weeklyDistribution;
+};
+
 
 const ForecastConsole = ({ db, projects, currentTheme, appId }) => {
     const svgRef = useRef(null);
@@ -51,6 +133,8 @@ const ForecastConsole = ({ db, projects, currentTheme, appId }) => {
     const [allEstimates, setAllEstimates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeStatuses, setActiveStatuses] = useState(["Planning", "Conducting", "Controlling"]);
+    const [rampUpPercent, setRampUpPercent] = useState(25);
+    const [rampDownPercent, setRampDownPercent] = useState(25);
     
     const weekCount = 40;
     const dimensions = { width: 1600, height: 500, margin: { top: 20, right: 30, bottom: 40, left: 60 } };
@@ -95,57 +179,37 @@ const ForecastConsole = ({ db, projects, currentTheme, appId }) => {
         if (!allEstimates.length) return [];
 
         const filteredEstimates = allEstimates.filter(est => activeStatuses.includes(est.projectStatus));
+        
+        const hoursByTrade = {};
 
-        const hoursByTrade = filteredEstimates.reduce((acc, est) => {
-            if (!acc[est.trade]) {
-                acc[est.trade] = [];
+        filteredEstimates.forEach(est => {
+            if (!hoursByTrade[est.trade]) {
+                hoursByTrade[est.trade] = new Array(weekDates.length).fill(0);
             }
-            acc[est.trade].push(est);
-            return acc;
-        }, {});
-
-        return Object.entries(hoursByTrade).map(([trade, estimates]) => {
-            const weeklyHours = weekDates.map(weekStart => {
-                let totalHours = 0;
-                const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekStart.getDate() + 6);
-
-                estimates.forEach(est => {
-                    if (!est.startDate || !est.endDate || !est.estimatedHours) return;
-
-                    const estStart = new Date(est.startDate);
-                    const estEnd = new Date(est.endDate);
-
-                    if (estStart <= weekEnd && estEnd >= weekStart) {
-                        const durationDays = (estEnd - estStart) / (1000 * 60 * 60 * 24) + 1;
-                        const dailyHours = est.estimatedHours / durationDays;
-
-                        const overlapStart = Math.max(estStart, weekStart);
-                        const overlapEnd = Math.min(estEnd, weekEnd);
-                        const overlapDays = (overlapEnd - overlapStart) / (1000 * 60 * 60 * 24) + 1;
-                        
-                        totalHours += overlapDays * dailyHours;
-                    }
-                });
-                return { date: weekStart, hours: totalHours };
+            const weeklyHours = distributeHoursWithBellCurve(est, weekDates, rampUpPercent, rampDownPercent);
+            weeklyHours.forEach((hours, i) => {
+                hoursByTrade[est.trade][i] += hours;
             });
-            return { trade, values: weeklyHours };
         });
 
-    }, [allEstimates, weekDates, activeStatuses]);
+        return Object.entries(hoursByTrade).map(([trade, hoursArray]) => ({
+            trade,
+            values: hoursArray.map((hours, i) => ({ date: weekDates[i], hours }))
+        }));
+
+    }, [allEstimates, weekDates, activeStatuses, rampUpPercent, rampDownPercent]);
 
     useEffect(() => {
         if (loading || !svgRef.current || !currentTheme) return;
         
         const dataToRender = forecastData;
-        if(dataToRender.length === 0) {
-            d3.select(svgRef.current).selectAll("*").remove();
-            return;
-        };
-
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
         
+        if(dataToRender.length === 0) {
+            return;
+        };
+
         const yMax = d3.max(dataToRender, d => d3.max(d.values, v => v.hours));
 
         const x = d3.scaleTime()
@@ -238,6 +302,24 @@ const ForecastConsole = ({ db, projects, currentTheme, appId }) => {
         });
     };
 
+    const handleRampUpChange = (e) => {
+        const value = parseInt(e.target.value, 10);
+        setRampUpPercent(value);
+        if (value + rampDownPercent > 100) {
+            setRampDownPercent(100 - value);
+        }
+    };
+
+    const handleRampDownChange = (e) => {
+        const value = parseInt(e.target.value, 10);
+        setRampDownPercent(value);
+        if (value + rampUpPercent > 100) {
+            setRampUpPercent(100 - value);
+        }
+    };
+
+    const plateauPercent = 100 - rampUpPercent - rampDownPercent;
+
     return (
         <div className="p-4 space-y-4">
             <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
@@ -258,6 +340,22 @@ const ForecastConsole = ({ db, projects, currentTheme, appId }) => {
                             </button>
                         </Tooltip>
                     ))}
+                </div>
+            </div>
+            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm space-y-2`}>
+                <h3 className="text-lg font-semibold text-center">Forecast Distribution</h3>
+                <div className="flex justify-around items-center text-sm">
+                    <div className="w-1/3 px-4">
+                        <label htmlFor="rampUp" className="block text-center">Ramp Up: {rampUpPercent}%</label>
+                        <input id="rampUp" type="range" min="0" max="100" value={rampUpPercent} onChange={handleRampUpChange} className="w-full" />
+                    </div>
+                    <div className="w-1/3 px-4 text-center font-bold">
+                        Plateau: {plateauPercent}%
+                    </div>
+                    <div className="w-1/3 px-4">
+                        <label htmlFor="rampDown" className="block text-center">Ramp Down: {rampDownPercent}%</label>
+                        <input id="rampDown" type="range" min="0" max="100" value={rampDownPercent} onChange={handleRampDownChange} className="w-full" />
+                    </div>
                 </div>
             </div>
             <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm overflow-x-auto`}>
