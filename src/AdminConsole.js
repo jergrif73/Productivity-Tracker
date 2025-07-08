@@ -1,5 +1,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
+
+const useDebounce = (value, delay) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+};
 
 const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
@@ -27,7 +40,7 @@ const titleOptions = [
 ];
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
-const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
+const disciplineOptions = ["Duct", "Piping", "Plumbing", "BIM", "Structural", "Coordination", "GIS/GPS"];
 
 const statusDescriptions = {
     Planning: "Estimating",
@@ -36,74 +49,238 @@ const statusDescriptions = {
     Archive: "Completed"
 };
 
-const calculateHrsPerWk = (estimate) => {
-    const { estimatedHours, startDate, endDate } = estimate;
-    if (!estimatedHours || !startDate || !endDate) {
-        return 0;
-    }
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (start > end) {
-        return 0;
-    }
-    const diffTime = end.getTime() - start.getTime();
-    const diffDays = (diffTime / (1000 * 60 * 60 * 24)) + 1;
-    
-    if (diffDays <= 0) return 0;
+const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
+    const [startDate, setStartDate] = useState(new Date());
+    const [weeklyHours, setWeeklyHours] = useState({});
+    const [activeTrades, setActiveTrades] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [dragState, setDragState] = useState(null);
+    const [isAdding, setIsAdding] = useState(false);
+    const [newTrade, setNewTrade] = useState('');
 
-    const diffWeeks = diffDays / 7;
+    const weekCount = 52;
 
-    if (diffWeeks < 1) { 
-        return Math.round(estimatedHours);
-    }
-
-    return Math.round(Number(estimatedHours) / diffWeeks);
-};
-
-
-const TradeEstimateEditor = ({ estimate, onSave, onCancel, currentTheme }) => {
-    const [localEstimate, setLocalEstimate] = useState({ rampUpPercent: 25, rampDownPercent: 25, ...estimate });
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        let processedValue = value;
-        if (name === 'rampUpPercent' || name === 'rampDownPercent' || name === 'estimatedHours') {
-            processedValue = parseInt(value, 10) || 0;
+    const getWeekDates = (from, count) => {
+        const sunday = new Date(from);
+        sunday.setHours(0, 0, 0, 0);
+        sunday.setDate(sunday.getDate() - sunday.getDay());
+        const weeks = [];
+        for (let i = 0; i < count; i++) {
+            const weekStart = new Date(sunday);
+            weekStart.setDate(sunday.getDate() + (i * 7));
+            weeks.push(weekStart.toISOString().split('T')[0]);
         }
-        setLocalEstimate(prev => ({ ...prev, [name]: processedValue }));
+        return weeks;
     };
 
+    const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
+    
+    useEffect(() => {
+        setLoading(true);
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+        const unsubscribe = onSnapshot(configRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().activeTrades) {
+                setActiveTrades(docSnap.data().activeTrades);
+            } else {
+                setActiveTrades([]);
+            }
+        });
+
+        const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`);
+        const unsubscribeHours = onSnapshot(weeklyHoursRef, (snapshot) => {
+            const hoursData = {};
+            snapshot.docs.forEach(doc => {
+                if (doc.id !== '_config') {
+                    hoursData[doc.id] = doc.data();
+                }
+            });
+            setWeeklyHours(hoursData);
+            setLoading(false);
+        });
+
+        return () => {
+            unsubscribe();
+            unsubscribeHours();
+        };
+    }, [project.id, db, appId]);
+
+    const handleHoursChange = (trade, week, hours) => {
+        const newWeeklyHours = {
+            ...weeklyHours,
+            [trade]: {
+                ...weeklyHours[trade],
+                [week]: parseInt(hours, 10) || 0,
+            }
+        };
+        setWeeklyHours(newWeeklyHours);
+    };
+
+    const debouncedWeeklyHours = useDebounce(weeklyHours, 1500);
+
+    useEffect(() => {
+        if (loading || !project.id || Object.keys(debouncedWeeklyHours).length === 0) return;
+        const saveData = async () => {
+            const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`);
+            const promises = Object.entries(debouncedWeeklyHours).map(([trade, weekData]) => {
+                if (activeTrades.includes(trade)) {
+                    return setDoc(doc(weeklyHoursRef, trade), weekData, { merge: true });
+                }
+                return Promise.resolve();
+            });
+            await Promise.all(promises);
+        };
+        saveData();
+    }, [debouncedWeeklyHours, activeTrades, project.id, loading, db, appId]);
+
+    const handleAddTrade = async () => {
+        if (newTrade && !activeTrades.includes(newTrade)) {
+            const updatedTrades = [...activeTrades, newTrade];
+            const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+            await setDoc(configRef, { activeTrades: updatedTrades });
+            setIsAdding(false);
+            setNewTrade('');
+        }
+    };
+
+    const handleDeleteTrade = async (tradeToDelete) => {
+        const updatedTrades = activeTrades.filter(t => t !== tradeToDelete);
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+        await setDoc(configRef, { activeTrades: updatedTrades });
+
+        const tradeHoursRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, tradeToDelete);
+        await deleteDoc(tradeHoursRef);
+        showToast(`'${tradeToDelete}' removed from project.`);
+    };
+
+    const handleMouseDown = (trade, week) => {
+        setDragState({
+            startTrade: trade,
+            startWeek: week,
+            fillValue: weeklyHours[trade]?.[week] || 0,
+            selection: {}
+        });
+    };
+
+    const handleMouseEnter = (trade, week) => {
+        if (!dragState || dragState.startTrade !== trade) return;
+        
+        const startIndex = weekDates.indexOf(dragState.startWeek);
+        const currentIndex = weekDates.indexOf(week);
+        
+        const newSelection = {};
+        const min = Math.min(startIndex, currentIndex);
+        const max = Math.max(startIndex, currentIndex);
+
+        for(let i = min; i <= max; i++) {
+            newSelection[weekDates[i]] = true;
+        }
+
+        setDragState(prev => ({ ...prev, selection: newSelection }));
+    };
+
+    const handleMouseUp = () => {
+        if (!dragState) return;
+
+        const { startTrade, fillValue, selection } = dragState;
+        const updatedHours = { ...weeklyHours[startTrade] };
+
+        Object.keys(selection).forEach(week => {
+            updatedHours[week] = fillValue;
+        });
+
+        setWeeklyHours(prev => ({
+            ...prev,
+            [startTrade]: updatedHours
+        }));
+        setDragState(null);
+    };
+    
+    useEffect(() => {
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [dragState]);
+
+    const handleDateNav = (offset) => {
+        setStartDate(prev => {
+            const newDate = new Date(prev);
+            newDate.setDate(newDate.getDate() + offset);
+            return newDate;
+        });
+    };
+
+    const availableTrades = disciplineOptions.filter(opt => !activeTrades.includes(opt));
+
     return (
-        <div className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-500/10 rounded-md">
-            <div className="col-span-2">
-                <select name="trade" value={localEstimate.trade} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                    {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
+        <div className="mt-4 pt-4 border-t border-gray-500/50 space-y-2" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-end items-center gap-2 mb-2">
+                <button onClick={() => handleDateNav(-28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<< 4w'}</button>
+                <button onClick={() => setStartDate(new Date())} className={`p-1 px-2 text-xs border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
+                <button onClick={() => handleDateNav(28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
             </div>
-            <div className="col-span-2">
-                <input type="number" name="estimatedHours" value={localEstimate.estimatedHours} onChange={handleChange} placeholder="Hours" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            <div className="overflow-x-auto">
+                <table className="min-w-full text-sm text-center border-collapse">
+                    <thead className="sticky top-0 z-10">
+                        <tr>
+                            <th className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.headerBg} sticky left-0 z-20`}>Trade</th>
+                            {weekDates.map(week => (
+                                <th key={week} className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.headerBg}`}>
+                                    {new Date(week + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {activeTrades.map(trade => (
+                            <tr key={trade}>
+                                <td className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
+                                    <div className="flex justify-between items-center">
+                                        <span>{trade}</span>
+                                        <button onClick={() => handleDeleteTrade(trade)} className="text-red-500 hover:text-red-700 ml-2 font-bold text-lg">&times;</button>
+                                    </div>
+                                </td>
+                                {weekDates.map(week => {
+                                    const isSelected = dragState?.startTrade === trade && dragState?.selection[week];
+                                    return (
+                                    <td key={`${trade}-${week}`} className={`p-0 border relative ${currentTheme.borderColor}`} onMouseEnter={() => handleMouseEnter(trade, week)}>
+                                        <input
+                                            type="number"
+                                            value={weeklyHours[trade]?.[week] || ''}
+                                            onChange={(e) => handleHoursChange(trade, week, e.target.value)}
+                                            disabled={loading}
+                                            className={`w-full h-full p-1 text-center bg-transparent focus:bg-blue-200 focus:text-black outline-none no-arrows ${currentTheme.inputText} ${isSelected ? 'bg-blue-300/50' : ''}`}
+                                        />
+                                        <div 
+                                            className="absolute bottom-0 right-0 w-2 h-2 bg-blue-600 cursor-crosshair"
+                                            onMouseDown={() => handleMouseDown(trade, week)}
+                                        ></div>
+                                    </td>
+                                )})}
+                            </tr>
+                        ))}
+                         {isAdding && (
+                            <tr>
+                                <td className={`p-2 border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
+                                    <div className="flex gap-2">
+                                        <select value={newTrade} onChange={(e) => setNewTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                            <option value="">Select a trade...</option>
+                                            {availableTrades.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                        <button onClick={handleAddTrade} className="bg-green-500 text-white px-4 py-2 rounded-md">Add</button>
+                                        <button onClick={() => setIsAdding(false)} className="bg-gray-500 text-white px-4 py-2 rounded-md">Cancel</button>
+                                    </div>
+                                </td>
+                                <td colSpan={weekDates.length}></td>
+                            </tr>
+                         )}
+                    </tbody>
+                </table>
             </div>
-            <div className="col-span-1 text-center font-bold">{calculateHrsPerWk(localEstimate)}</div>
-            <div className="col-span-2">
-                <input type="date" name="startDate" value={localEstimate.startDate} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-            </div>
-            <div className="col-span-2">
-                <input type="date" name="endDate" value={localEstimate.endDate} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-            </div>
-            <div className="col-span-1">
-                <input type="number" name="rampUpPercent" value={localEstimate.rampUpPercent} onChange={handleChange} placeholder="Up %" className={`w-full p-2 border rounded-md text-xs ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-            </div>
-             <div className="col-span-1">
-                <input type="number" name="rampDownPercent" value={localEstimate.rampDownPercent} onChange={handleChange} placeholder="Down %" className={`w-full p-2 border rounded-md text-xs ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-            </div>
-            <div className="col-span-1 flex items-center justify-end gap-2">
-                <button onClick={() => onSave(localEstimate)} className="text-green-500 hover:text-green-700">Save</button>
-                <button onClick={onCancel} className="text-gray-500 hover:text-gray-700">Cancel</button>
-            </div>
+            {!isAdding && <button onClick={() => setIsAdding(true)} className="text-sm text-blue-500 hover:underline mt-2">+ Add Trade</button>}
         </div>
     );
 };
-
 
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
@@ -116,28 +293,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [employeeSortBy, setEmployeeSortBy] = useState('firstName');
     const [projectSortBy, setProjectSortBy] = useState('projectId');
     const [activeStatuses, setActiveStatuses] = useState(["Planning", "Conducting", "Controlling"]);
-    
     const [expandedProjectId, setExpandedProjectId] = useState(null);
-    const [tradeEstimates, setTradeEstimates] = useState([]);
-    const [editingEstimateId, setEditingEstimateId] = useState(null);
-    const [newEstimate, setNewEstimate] = useState(null);
-
-    useEffect(() => {
-        if (!expandedProjectId) {
-            setTradeEstimates([]);
-            return;
-        }
-
-        const estimatesRef = collection(db, `artifacts/${appId}/public/data/projects/${expandedProjectId}/tradeEstimates`);
-        const unsubscribe = onSnapshot(estimatesRef, (snapshot) => {
-            const estimates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setTradeEstimates(estimates);
-        });
-
-        return () => unsubscribe();
-
-    }, [expandedProjectId, db, appId]);
-
 
     const handleStatusFilterToggle = (statusToToggle) => {
         setActiveStatuses(prev => {
@@ -273,30 +429,23 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             setEditingProjectData(prev => ({ ...prev, [name]: value }));
         }
     };
-
-    const handleSaveEstimate = async (estimateData) => {
-        const { id, ...data } = estimateData;
-        const estimatesRef = collection(db, `artifacts/${appId}/public/data/projects/${expandedProjectId}/tradeEstimates`);
-        if (id) { // Update existing
-            await updateDoc(doc(estimatesRef, id), data);
-            setEditingEstimateId(null);
-        } else { // Add new
-            await addDoc(estimatesRef, data);
-            setNewEstimate(null);
-        }
-        showToast("Estimate saved.");
-    };
-
-    const handleDeleteEstimate = async (estimateId) => {
-        const estimateRef = doc(db, `artifacts/${appId}/public/data/projects/${expandedProjectId}/tradeEstimates`, estimateId);
-        await deleteDoc(estimateRef);
-        showToast("Estimate deleted.");
-    };
     
     const isEditing = editingEmployeeId || editingProjectId;
     
     return (
         <div className="p-4">
+            {/* --- CSS to hide number input arrows --- */}
+            <style>{`
+                .no-arrows::-webkit-inner-spin-button,
+                .no-arrows::-webkit-outer-spin-button {
+                    -webkit-appearance: none;
+                    margin: 0;
+                }
+                .no-arrows {
+                    -moz-appearance: textfield;
+                }
+            `}</style>
+
             {/* --- Sticky Header --- */}
             <div className={`sticky top-0 z-10 ${currentTheme.consoleBg} py-2`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -488,37 +637,13 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             </div>
                                         </div>
                                         {isExpanded && (
-                                            <div className="mt-4 pt-4 border-t border-gray-500/50 space-y-2" onClick={(e) => e.stopPropagation()}>
-                                                <div className="grid grid-cols-12 gap-2 items-center font-semibold text-xs px-2">
-                                                    <span className="col-span-3">Trade</span>
-                                                    <span className="col-span-2">Est. Hours</span>
-                                                    <span className="col-span-1 text-center">Hrs/Wk</span>
-                                                    <span className="col-span-2">Start Date</span>
-                                                    <span className="col-span-2">End Date</span>
-                                                    <span className="col-span-2 text-center">Ramp %</span>
-                                                </div>
-                                                {tradeEstimates.map(est => (
-                                                    editingEstimateId === est.id ? 
-                                                    <TradeEstimateEditor key={est.id} estimate={est} onSave={handleSaveEstimate} onCancel={() => setEditingEstimateId(null)} currentTheme={currentTheme} />
-                                                    :
-                                                    <div key={est.id} className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-gray-500/10 rounded-md">
-                                                        <span className="col-span-3">{est.trade}</span>
-                                                        <span className="col-span-2">{est.estimatedHours}</span>
-                                                        <span className="col-span-1 text-center font-bold">{calculateHrsPerWk(est)}</span>
-                                                        <span className="col-span-2">{est.startDate}</span>
-                                                        <span className="col-span-2">{est.endDate}</span>
-                                                        <div className="col-span-2 flex items-center justify-end gap-2">
-                                                            <button onClick={() => setEditingEstimateId(est.id)} className="text-blue-500 hover:text-blue-700 text-sm">Edit</button>
-                                                            <button onClick={() => handleDeleteEstimate(est.id)} className="text-red-500 hover:text-red-700 text-sm">Delete</button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {newEstimate ? 
-                                                    <TradeEstimateEditor estimate={newEstimate} onSave={handleSaveEstimate} onCancel={() => setNewEstimate(null)} currentTheme={currentTheme} />
-                                                    :
-                                                    <button onClick={() => setNewEstimate({ trade: 'Duct', estimatedHours: 0, startDate: '', endDate: '', rampUpPercent: 25, rampDownPercent: 25 })} className="text-sm text-blue-500 hover:underline mt-2">+ Add Trade Estimate</button>
-                                                }
-                                            </div>
+                                            <WeeklyTimeline 
+                                                project={p}
+                                                db={db}
+                                                appId={appId}
+                                                currentTheme={currentTheme}
+                                                showToast={showToast}
+                                            />
                                         )}
                                     </div>
                                 )}
