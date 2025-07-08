@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { collection, doc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import React, { useState, useMemo, useEffect } from 'react';
+import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
@@ -27,6 +27,7 @@ const titleOptions = [
 ];
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
+const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
 
 const statusDescriptions = {
     Planning: "Estimating",
@@ -34,6 +35,68 @@ const statusDescriptions = {
     Controlling: "Operational",
     Archive: "Completed"
 };
+
+const calculateHrsPerWk = (estimate) => {
+    const { estimatedHours, startDate, endDate } = estimate;
+    if (!estimatedHours || !startDate || !endDate) {
+        return 0;
+    }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start > end) {
+        return 0;
+    }
+    // Add 1 to include both start and end dates in the duration
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = (diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    if (diffDays <= 0) return 0;
+
+    const diffWeeks = diffDays / 7;
+
+    if (diffWeeks < 1) { // If duration is less than a week, all hours are in that week
+        return Math.round(estimatedHours);
+    }
+
+    return Math.round(Number(estimatedHours) / diffWeeks);
+};
+
+
+const TradeEstimateEditor = ({ estimate, onSave, onCancel, currentTheme }) => {
+    const [localEstimate, setLocalEstimate] = useState(estimate);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setLocalEstimate(prev => ({ ...prev, [name]: value }));
+    };
+
+    return (
+        <div className="grid grid-cols-12 gap-2 items-center p-2 bg-gray-500/10 rounded-md">
+            <div className="col-span-3">
+                <select name="trade" value={localEstimate.trade} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                    {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+            </div>
+            <div className="col-span-2">
+                <input type="number" name="estimatedHours" value={localEstimate.estimatedHours} onChange={handleChange} placeholder="Hours" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            </div>
+            <div className="col-span-2 flex items-center justify-center font-bold text-lg">
+                {calculateHrsPerWk(localEstimate)}
+            </div>
+            <div className="col-span-2">
+                <input type="date" name="startDate" value={localEstimate.startDate} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            </div>
+            <div className="col-span-2">
+                <input type="date" name="endDate" value={localEstimate.endDate} onChange={handleChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            </div>
+            <div className="col-span-1 flex items-center justify-end gap-2">
+                <button onClick={() => onSave(localEstimate)} className="text-green-500 hover:text-green-700">Save</button>
+                <button onClick={onCancel} className="text-gray-500 hover:text-gray-700">Cancel</button>
+            </div>
+        </div>
+    );
+};
+
 
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
@@ -46,6 +109,27 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [employeeSortBy, setEmployeeSortBy] = useState('firstName');
     const [projectSortBy, setProjectSortBy] = useState('projectId');
     const [activeStatuses, setActiveStatuses] = useState(["Planning", "Conducting", "Controlling"]);
+    
+    const [expandedProjectId, setExpandedProjectId] = useState(null);
+    const [tradeEstimates, setTradeEstimates] = useState([]);
+    const [editingEstimateId, setEditingEstimateId] = useState(null);
+    const [newEstimate, setNewEstimate] = useState(null);
+
+    useEffect(() => {
+        if (!expandedProjectId) {
+            setTradeEstimates([]);
+            return;
+        }
+
+        const estimatesRef = collection(db, `artifacts/${appId}/public/data/projects/${expandedProjectId}/tradeEstimates`);
+        const unsubscribe = onSnapshot(estimatesRef, (snapshot) => {
+            const estimates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setTradeEstimates(estimates);
+        });
+
+        return () => unsubscribe();
+
+    }, [expandedProjectId, db, appId]);
 
 
     const handleStatusFilterToggle = (statusToToggle) => {
@@ -182,6 +266,25 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             setEditingProjectData(prev => ({ ...prev, [name]: value }));
         }
     };
+
+    const handleSaveEstimate = async (estimateData) => {
+        const { id, ...data } = estimateData;
+        const estimatesRef = collection(db, `artifacts/${appId}/public/data/projects/${expandedProjectId}/tradeEstimates`);
+        if (id) { // Update existing
+            await updateDoc(doc(estimatesRef, id), data);
+            setEditingEstimateId(null);
+        } else { // Add new
+            await addDoc(estimatesRef, data);
+            setNewEstimate(null);
+        }
+        showToast("Estimate saved.");
+    };
+
+    const handleDeleteEstimate = async (estimateId) => {
+        const estimateRef = doc(db, `artifacts/${appId}/public/data/projects/${expandedProjectId}/tradeEstimates`, estimateId);
+        await deleteDoc(estimateRef);
+        showToast("Estimate deleted.");
+    };
     
     const isEditing = editingEmployeeId || editingProjectId;
     
@@ -214,7 +317,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     <div className="flex items-center justify-end gap-2">
                         <span className="text-sm font-medium">Show:</span>
                         {projectStatuses.map(status => (
-                            <Tooltip key={status} text={statusDescriptions[status]}>
+                             <Tooltip key={status} text={statusDescriptions[status]}>
                                 <button 
                                     onClick={() => handleStatusFilterToggle(status)}
                                     className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
@@ -321,6 +424,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                         {sortedProjects.map((p, index) => {
                             const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                             const currentStatus = p.status || (p.archived ? "Archive" : "Controlling");
+                            const isExpanded = expandedProjectId === p.id;
+                            
                             return (
                                 <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
                                 {editingProjectId === p.id ? (
@@ -354,25 +459,60 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-semibold">{p.name} ({p.projectId})</p>
-                                            <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                    <div className="cursor-pointer" onClick={() => setExpandedProjectId(isExpanded ? null : p.id)}>
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <p className="font-semibold">{p.name} ({p.projectId})</p>
+                                                <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                {projectStatuses.map(status => (
+                                                    <Tooltip key={status} text={statusDescriptions[status]}>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }}
+                                                            className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}
+                                                        >
+                                                            {status.charAt(0)}
+                                                        </button>
+                                                    </Tooltip>
+                                                ))}
+                                                <button onClick={(e) => { e.stopPropagation(); handleEdit('project', p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete('project', p.id); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                            {projectStatuses.map(status => (
-                                                <Tooltip key={status} text={statusDescriptions[status]}>
-                                                    <button 
-                                                        onClick={() => handleProjectStatusChange(p.id, status)}
-                                                        className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}
-                                                    >
-                                                        {status.charAt(0)}
-                                                    </button>
-                                                </Tooltip>
-                                            ))}
-                                            <button onClick={() => handleEdit('project', p)} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
-                                            <button onClick={() => handleDelete('project', p.id)} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
-                                        </div>
+                                        {isExpanded && (
+                                            <div className="mt-4 pt-4 border-t border-gray-500/50 space-y-2" onClick={(e) => e.stopPropagation()}>
+                                                <div className="grid grid-cols-12 gap-2 items-center font-semibold text-xs px-2">
+                                                    <span className="col-span-3">Trade</span>
+                                                    <span className="col-span-2">Est. Hours</span>
+                                                    <span className="col-span-2">Hrs/Wk</span>
+                                                    <span className="col-span-2">Start Date</span>
+                                                    <span className="col-span-2">End Date</span>
+                                                    <span className="col-span-1"></span>
+                                                </div>
+                                                {tradeEstimates.map(est => (
+                                                    editingEstimateId === est.id ? 
+                                                    <TradeEstimateEditor key={est.id} estimate={est} onSave={handleSaveEstimate} onCancel={() => setEditingEstimateId(null)} currentTheme={currentTheme} />
+                                                    :
+                                                    <div key={est.id} className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-gray-500/10 rounded-md">
+                                                        <span className="col-span-3">{est.trade}</span>
+                                                        <span className="col-span-2">{est.estimatedHours}</span>
+                                                        <span className="col-span-2 font-bold">{calculateHrsPerWk(est)}</span>
+                                                        <span className="col-span-2">{est.startDate}</span>
+                                                        <span className="col-span-2">{est.endDate}</span>
+                                                        <div className="col-span-1 flex items-center justify-end gap-2">
+                                                            <button onClick={() => setEditingEstimateId(est.id)} className="text-blue-500 hover:text-blue-700 text-sm">Edit</button>
+                                                            <button onClick={() => handleDeleteEstimate(est.id)} className="text-red-500 hover:text-red-700 text-sm">Delete</button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {newEstimate ? 
+                                                    <TradeEstimateEditor estimate={newEstimate} onSave={handleSaveEstimate} onCancel={() => setNewEstimate(null)} currentTheme={currentTheme} />
+                                                    :
+                                                    <button onClick={() => setNewEstimate({ trade: 'Duct', estimatedHours: 0, startDate: '', endDate: ''})} className="text-sm text-blue-500 hover:underline mt-2">+ Add Trade Estimate</button>
+                                                }
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
