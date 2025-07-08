@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, query, getDocs, writeBatch, updateDoc, where } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import * as d3 from 'd3';
 
 // Import all the console components
 import TeamConsole from './TeamConsole';
@@ -39,8 +38,6 @@ try {
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
 
-// NOTE: initialDetailers and initialProjects arrays have been removed.
-
 // --- NEW UX/UI Components ---
 const Toaster = ({ toasts }) => (
     <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
@@ -51,22 +48,7 @@ const Toaster = ({ toasts }) => (
         ))}
     </div>
 );
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
-    if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex justify-center items-center">
-            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
-                <h3 className="text-lg font-bold mb-4">{title}</h3>
-                <div className={`mb-6 ${currentTheme.subtleText}`}>{children}</div>
-                <div className="flex justify-end gap-4">
-                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80`}>Cancel</button>
-                    <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Confirm</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 const SkeletonLoader = ({ className }) => (
     <div className={`bg-gray-300 animate-pulse rounded ${className}`}></div>
 );
@@ -244,8 +226,6 @@ const App = () => {
         return () => unsubscribe();
     }, []);
 
-    // NOTE: seedInitialData function has been removed.
-
     useEffect(() => {
         if (!isAuthReady || !db) return;
         setLoading(true);
@@ -410,5 +390,8 @@ const App = () => {
         </div>
     );
 };
+
+// --- Console Components ---
+// This section is now empty! All consoles have been moved to their own files.
 
 export default App;
