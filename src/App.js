@@ -260,8 +260,8 @@ const App = () => {
             setView('detailers');
             setIsLoggedIn(true);
             setLoginError('');
-        } else if (username === 'PCL' && password === 'PCL1234') {
-            setAccessLevel('pcl');
+        } else if (username === 'TCL' && password === 'TCL1234') {
+            setAccessLevel('tcl');
             setView('projects');
             setIsLoggedIn(true);
             setLoginError('');
@@ -299,7 +299,7 @@ const App = () => {
     
     const navConfig = {
         taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'forecast', 'skills', 'reporting', 'admin'],
-        pcl: ['projects', 'workloader', 'tasks', 'gantt'],
+        tcl: ['projects', 'workloader', 'tasks', 'gantt'],
         viewer: ['projects', 'workloader', 'tasks', 'gantt'],
         default: []
     };

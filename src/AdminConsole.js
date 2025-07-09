@@ -284,7 +284,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
     
     const [editingEmployeeId, setEditingEmployeeId] = useState(null);
     const [editingEmployeeData, setEditingEmployeeData] = useState(null);
@@ -364,11 +364,12 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 ...newProject,
                 initialBudget: Number(newProject.initialBudget),
                 blendedRate: Number(newProject.blendedRate),
+                bimBlendedRate: Number(newProject.bimBlendedRate),
                 contingency: Number(newProject.contingency),
                 archived: newProject.status === "Archive",
             };
             await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), payload);
-            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
             showToast('Project added.');
         }
     };
@@ -409,6 +410,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     ...data,
                     initialBudget: Number(data.initialBudget),
                     blendedRate: Number(data.blendedRate),
+                    bimBlendedRate: Number(data.bimBlendedRate),
                     contingency: Number(data.contingency),
                     archived: data.status === "Archive",
                 });
@@ -565,6 +567,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                 <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                             </div>
                             <div className="flex items-center gap-2">
+                                <label className="w-32">BIM Blended Rate ($/hr):</label>
+                                <input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <label className="w-32">Contingency ($):</label>
                                 <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                             </div>
@@ -602,6 +608,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            <label className="w-32">BIM Blended Rate ($/hr):</label>
+                                            <input name="bimBlendedRate" value={editingProjectData.bimBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="BIM Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                        </div>
+                                        <div className="flex items-center gap-2">
                                             <label className="w-32">Contingency ($):</label>
                                             <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                         </div>
@@ -619,7 +629,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                         <div className="flex justify-between items-center">
                                             <div>
                                                 <p className="font-semibold">{p.name} ({p.projectId})</p>
-                                                <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                                <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | BIM Rate: ${p.bimBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
                                             </div>
                                             <div className="flex items-center gap-1 flex-shrink-0">
                                                 {projectStatuses.map(status => (

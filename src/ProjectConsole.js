@@ -6,36 +6,59 @@ const formatCurrency = (value) => {
     return numberValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 };
 
+const Tooltip = ({ text, children }) => {
+    const [visible, setVisible] = useState(false);
+    return (
+        <div className="relative flex items-center justify-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
+            {children}
+            {visible && (
+                <div className="absolute bottom-full mb-2 w-max max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md z-20 shadow-lg border border-gray-700">
+                    <p className="font-mono whitespace-pre-wrap">{text}</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const disciplineOptions = ["Duct", "Piping", "Plumbing", "BIM", "Structural", "Coordination", "GIS/GPS"];
 const initialActivityData = [
-    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0 },
-    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0 },
-    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0 },
-    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0 },
-    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0 },
-    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0 },
+    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
+    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, hoursUsed: 0, percentComplete: 0 },
 ];
 
-const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme }) => {
-    const blendedRate = project.blendedRate || 0;
-    const earnedValue = (activity.estimatedHours * blendedRate) * (activity.percentComplete / 100);
-    const actualCost = activity.hoursUsed * blendedRate;
+const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme, totalProjectHours, accessLevel }) => {
+    const { percentComplete = 0, hoursUsed = 0 } = activity;
 
-    const calculateProjectedHours = (activity) => {
-        const hoursUsed = Number(activity.hoursUsed) || 0;
-        const percentComplete = Number(activity.percentComplete) || 0;
-        if (!percentComplete || percentComplete === 0) return 0;
-        return (hoursUsed / percentComplete) * 100;
+    const useBimRate = groupKey === 'bim' || activity.description === "Project Setup";
+    const rateToUse = useBimRate ? (project.bimBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
+
+    const earnedValue = (activity.estimatedHours * rateToUse) * (percentComplete / 100);
+    const actualCost = hoursUsed * rateToUse;
+    const percentOfProject = totalProjectHours > 0 ? (Number(activity.estimatedHours) / totalProjectHours) * 100 : 0;
+    
+    const rawBudget = (Number(activity.estimatedHours) || 0) * rateToUse;
+    const lineItemBudget = Math.ceil(rawBudget / 5) * 5;
+
+    const calculateProjectedHours = (act) => {
+        const localHoursUsed = Number(act.hoursUsed) || 0;
+        const localPercentComplete = Number(act.percentComplete) || 0;
+        if (!localPercentComplete || localPercentComplete === 0) return 0;
+        return (localHoursUsed / localPercentComplete) * 100;
     };
     const projected = calculateProjectedHours(activity);
     
@@ -44,18 +67,31 @@ const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete,
             <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
             <td className="p-1"><input type="text" value={activity.chargeCode} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
             <td className="p-1 w-24"><input type="text" value={activity.estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
-            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{activity.percentComplete.toFixed(2)}%</td>
-            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{activity.hoursUsed.toFixed(2)}</td>
-            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{formatCurrency(earnedValue)}</td>
-            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{formatCurrency(actualCost)}</td>
-            <td className={`p-1 w-24 ${currentTheme.altRowBg}`}>{projected.toFixed(2)}</td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="Est. Hours * Rate"><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Est. Hrs / Total Est. Hrs) * 100"><p>{percentOfProject.toFixed(2)}%</p></Tooltip></td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}>{percentComplete.toFixed(2)}%</td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}>
+                {accessLevel === 'taskmaster' ? (
+                    <input 
+                        type="number" 
+                        value={hoursUsed} 
+                        onChange={(e) => onChange(groupKey, index, 'hoursUsed', e.target.value)} 
+                        className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
+                    />
+                ) : (
+                    <p>{hoursUsed}</p>
+                )}
+            </td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="Hrs Used * Rate"><p>{formatCurrency(actualCost)}</p></Tooltip></td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Hrs Used / % Comp) * 100"><p>{projected.toFixed(2)}</p></Tooltip></td>
             <td className="p-1 text-center w-12"><button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button></td>
         </tr>
     );
 });
 
 
-const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project, currentTheme }) => {
+const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project, currentTheme, totalProjectHours, accessLevel }) => {
     return (
         <div className={`border-b ${currentTheme.borderColor}`}>
             <button
@@ -76,6 +112,8 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                                 <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
                                 <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
                                 <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
+                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% of Project</th>
                                 <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% Comp</th>
                                 <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Hrs Used</th>
                                 <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
@@ -95,10 +133,12 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                                     onDelete={onDelete}
                                     project={project}
                                     currentTheme={currentTheme}
+                                    totalProjectHours={totalProjectHours}
+                                    accessLevel={accessLevel}
                                 />
                             ))}
                              <tr>
-                                <td colSpan="9" className="p-1"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                                <td colSpan="11" className="p-1"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
                             </tr>
                         </tbody>
                     </table>
@@ -113,9 +153,12 @@ const FinancialSummary = ({ project, activityTotals, currentTheme }) => {
 
     const initialBudget = project.initialBudget || 0;
     const contingency = project.contingency || 0;
-    const blendedRate = project.blendedRate || 0;
-
-    const spentToDate = activityTotals.used * blendedRate;
+    const allocatedHours = activityTotals.estimated;
+    const spentToDate = activityTotals.totalActualCost;
+    
+    const costToComplete = initialBudget - spentToDate;
+    
+    const estFinalCost = spentToDate + costToComplete;
     
     const totalHours = activityTotals.estimated;
     const overallPercentComplete = totalHours > 0 ? (activityTotals.used / totalHours) * 100 : 0;
@@ -123,14 +166,15 @@ const FinancialSummary = ({ project, activityTotals, currentTheme }) => {
     const earnedValue = initialBudget * (overallPercentComplete / 100);
     const productivity = spentToDate > 0 ? earnedValue / spentToDate : 0;
 
-    const costToComplete = (activityTotals.estimated - activityTotals.used) * blendedRate;
-    const estFinalCost = spentToDate + costToComplete;
-
     return (
-        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center`}>
+        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 text-center`}>
             <div>
                 <p className={`text-sm ${currentTheme.subtleText}`}>Initial Budget</p>
                 <p className="text-lg font-bold">{formatCurrency(initialBudget)}</p>
+            </div>
+             <div>
+                <p className={`text-sm ${currentTheme.subtleText}`}>Total Allocated Hrs</p>
+                <Tooltip text="Sum of all Est. Hrs in Activity Tracker"><p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p></Tooltip>
             </div>
             <div>
                 <p className={`text-sm ${currentTheme.subtleText}`}>Contingency</p>
@@ -138,55 +182,99 @@ const FinancialSummary = ({ project, activityTotals, currentTheme }) => {
             </div>
             <div>
                 <p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p>
-                <p className="text-lg font-bold">{formatCurrency(spentToDate)}</p>
+                <Tooltip text="Sum of (Hrs Used * Rate) for each activity"><p className="text-lg font-bold">{formatCurrency(spentToDate)}</p></Tooltip>
             </div>
              <div>
                 <p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p>
-                <p className="text-lg font-bold">{formatCurrency(costToComplete)}</p>
+                <Tooltip text={"Initial Budget - Spent to Date"}><p className="text-lg font-bold">{formatCurrency(costToComplete)}</p></Tooltip>
             </div>
              <div>
                 <p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p>
-                <p className="text-lg font-bold">{formatCurrency(estFinalCost)}</p>
+                <Tooltip text="Spent to Date + Cost to Complete"><p className="text-lg font-bold">{formatCurrency(estFinalCost)}</p></Tooltip>
             </div>
              <div >
                 <p className={`text-sm ${currentTheme.subtleText}`}>Productivity</p>
-                <p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p>
+                <Tooltip text="(Initial Budget * % Complete) / Spent to Date"><p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p></Tooltip>
             </div>
         </div>
     )
 }
 
-const HourSummary = ({ project, activityTotals, currentTheme }) => {
-    if (!project || !activityTotals) return null;
+const BreakdownRow = ({ item, type, onSave, onDelete, onAddSubset, availableActivities, project, indent = 0, currentTheme, isTCL, onTCLUpdate, disciplineOptions }) => {
+    const [isEditing, setIsEditing] = useState(!item.name); 
+    const [editData, setEditData] = useState(item);
 
-    const totalBudgetHours = (project.initialBudget || 0) / (project.blendedRate || 1);
-    const allocatedHours = activityTotals.estimated;
-    const unallocatedHours = totalBudgetHours - allocatedHours;
+    const handleSave = () => {
+        onSave(editData);
+        setIsEditing(false);
+    };
+
+    const handleCancel = () => {
+        if (!item.name) { 
+            onDelete(item.id);
+        }
+        setIsEditing(false);
+        setEditData(item);
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        const isNumeric = ['percentageOfParent'].includes(name);
+        setEditData(prev => ({ ...prev, [name]: isNumeric ? Number(value) : value }));
+    };
+    
+    if (isEditing && !isTCL) {
+        return (
+            <div className={`grid grid-cols-12 gap-2 items-center py-1 text-sm ${currentTheme.altRowBg} rounded-md`} style={{ paddingLeft: `${indent}rem` }}>
+                <div className="col-span-3">
+                    <input type="text" name="name" value={editData.name} onChange={handleChange} placeholder={type === 'main' ? 'Main Set Name' : 'Subset Name'} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                </div>
+                <div className="col-span-2">
+                    {type === 'sub' ? (
+                        <select name="trade" value={editData.trade} onChange={handleChange} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                            {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    ) : <span />}
+                </div>
+                <div className="col-span-3">
+                     {type === 'main' ? (
+                        <select name="activityId" value={editData.activityId} onChange={handleChange} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                           <option value="">Select Activity...</option>
+                           {availableActivities.map(act => <option key={act.id} value={act.id}>{act.description}</option>)}
+                        </select>
+                    ) : <span>{item.activity?.description}</span>}
+                </div>
+                <div className="col-span-2">
+                    <input type="number" name="percentageOfParent" value={editData.percentageOfParent} onChange={handleChange} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                </div>
+                <div className="col-span-2 flex gap-2">
+                    <button onClick={handleSave} className="text-green-500">Save</button>
+                    <button onClick={handleCancel} className="text-gray-500">Cancel</button>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-6 grid grid-cols-1 md:grid-cols-3 gap-4`}>
-            <div className="text-center">
-                <p className={`text-sm ${currentTheme.subtleText}`}>Total Budgeted Hours</p>
-                <p className="text-lg font-bold">{totalBudgetHours.toFixed(2)}</p>
-            </div>
-            <div className="text-center">
-                <p className={`text-sm ${currentTheme.subtleText}`}>Total Allocated Hours</p>
-                <p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p>
-            </div>
-             <div className="text-center">
-                <p className={`text-sm ${currentTheme.subtleText}`}>Unallocated Hours</p>
-                <p className={`text-lg font-bold ${unallocatedHours < 0 ? 'text-red-500' : 'text-green-600'}`}>{unallocatedHours.toFixed(2)}</p>
+        <div className={`grid grid-cols-12 gap-2 items-center py-1 text-sm hover:bg-gray-500/10 rounded-md`} style={{ paddingLeft: `${indent}rem` }}>
+            <div className="col-span-3 font-semibold">{item.name}</div>
+            <div className="col-span-2">{item.trade}</div>
+            <div className="col-span-3">{item.activity?.description}</div>
+            <div className="col-span-2">{item.percentageOfParent}%</div>
+            <div className="col-span-2 flex gap-2">
+                <button onClick={() => setIsEditing(true)} className="text-blue-500">Edit</button>
+                <button onClick={() => onDelete(item.id)} className="text-red-500">Delete</button>
+                {type === 'main' && <button onClick={() => onAddSubset(item.id)} className="text-green-500 text-xs">+ Sub</button>}
             </div>
         </div>
-    )
-}
+    );
+};
+
 
 const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
-    const [draftData, setDraftData] = useState(null);
+    const [breakdown, setBreakdown] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [newSubset, setNewSubset] = useState({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
-    const [editingSubsetId, setEditingSubsetId] = useState(null);
-    const [editingSubsetData, setEditingSubsetData] = useState(null);
+    const [baseActivities, setBaseActivities] = useState({});
     const [collapsedSections, setCollapsedSections] = useState({
         projectBreakdown: false,
         sheetmetal: true,
@@ -197,15 +285,10 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         coordination: true,
         gis: true,
     });
-    const isPCL = accessLevel === 'pcl';
+    const isTCL = accessLevel === 'tcl';
+    const disciplineOptions = ["Duct", "Piping", "Plumbing", "BIM", "Structural", "Coordination", "GIS/GPS"];
 
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
-
-    const allActivitiesList = useMemo(() => {
-        if (!draftData) return [];
-        return Object.values(draftData.activities).flat();
-    }, [draftData]);
-
 
     const groupActivities = (activityArray) => {
         const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
@@ -221,51 +304,49 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             return acc;
         }, defaultGroups);
     };
-
-    const calculateRollups = useCallback((activities, subsets) => {
+    
+    const calculateActivityCompletion = useCallback((activities, breakdownData) => {
         const newActivities = JSON.parse(JSON.stringify(activities));
-        
-        Object.keys(newActivities).forEach(group => {
-            if (newActivities[group]) { // Check if group exists
-                newActivities[group].forEach(activity => {
-                    const relevantSubsets = subsets.filter(s => s.activityId === activity.id);
-                    
-                    const totalHoursUsed = relevantSubsets.reduce((sum, s) => sum + (Number(s.hoursUsed) || 0), 0);
-                    
-                    const totalPercentComplete = relevantSubsets.reduce((sum, s) => {
-                        const subsetPercentOfProject = Number(s.percentageOfProject) || 0;
-                        const subsetPercentComplete = Number(s.percentComplete) || 0;
-                        return sum + ((subsetPercentOfProject / 100) * subsetPercentComplete);
-                    }, 0);
+        const allActivitiesList = Object.values(newActivities).flat();
 
-                    activity.hoursUsed = totalHoursUsed;
-                    activity.percentComplete = totalPercentComplete; 
-                });
-            }
+        allActivitiesList.forEach(activity => {
+            let totalWeightedPercentComplete = 0;
+            
+            (breakdownData || []).forEach(mainSet => {
+                if (mainSet.activityId === activity.id) {
+                    (mainSet.subsets || []).forEach(subset => {
+                        const mainSetWeight = (mainSet.percentageOfParent || 0) / 100;
+                        const subsetWeight = (subset.percentageOfParent || 0) / 100;
+                        const subsetPercentComplete = (subset.percentComplete || 0);
+                        
+                        totalWeightedPercentComplete += mainSetWeight * subsetWeight * (subsetPercentComplete / 100);
+                    });
+                }
+            });
+            activity.percentComplete = totalWeightedPercentComplete * 100;
         });
-        return newActivities;
+
+        return groupActivities(allActivitiesList);
     }, []);
 
     useEffect(() => {
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            let initialData;
-            const defaultActivityGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
-
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // FIX: Merge loaded activities with default structure to ensure all keys exist
-                const activities = { ...defaultActivityGroups, ...(data.activities || {}) };
-                const subsets = data.subsets || [];
-                initialData = { activities, subsets };
+                const breakdownData = data.breakdown || [];
+                const activitiesData = data.activities || groupActivities(initialActivityData);
+                
+                const rolledUpActivities = calculateActivityCompletion(activitiesData, breakdownData);
+
+                setBreakdown(breakdownData);
+                setBaseActivities(rolledUpActivities);
             } else {
-                const initialGroupedData = groupActivities(initialActivityData);
-                initialData = { activities: initialGroupedData, subsets: [] };
+                const initialActivities = groupActivities(initialActivityData);
+                const initialData = { breakdown: [], activities: initialActivities };
                 setDoc(docRef, initialData);
+                setBreakdown([]);
+                setBaseActivities(initialActivities);
             }
-            const rolledUpActivities = calculateRollups(initialData.activities, initialData.subsets);
-            const fullData = {...initialData, activities: rolledUpActivities};
-            
-            setDraftData(JSON.parse(JSON.stringify(fullData)));
             setLoading(false);
         }, (error) => {
             console.error("Error fetching project data:", error);
@@ -273,305 +354,240 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         });
 
         return () => unsubscribe();
-    }, [projectId, docRef, calculateRollups]);
+    }, [docRef, calculateActivityCompletion]);
     
-    useEffect(() => {
-        if (draftData) {
-            const rolledUpActivities = calculateRollups(draftData.activities, draftData.subsets);
-            if(JSON.stringify(rolledUpActivities) !== JSON.stringify(draftData.activities)){
-                setDraftData(prev => ({ ...prev, activities: rolledUpActivities }));
-            }
-        }
-    }, [draftData, calculateRollups]);
+    const availableActivities = useMemo(() => Object.values(baseActivities).flat(), [baseActivities]);
 
-
+    const handleSaveBreakdown = async (newBreakdown) => {
+        await setDoc(docRef, { breakdown: newBreakdown }, { merge: true });
+        showToast("Breakdown saved!");
+    };
+    
     const handleActivityChange = useCallback((group, index, field, value) => {
-        setDraftData(prevDraft => {
-            const newActivities = { ...prevDraft.activities };
-            const newGroup = [...newActivities[group]];
-            newGroup[index] = { ...newGroup[index], [field]: value };
-            newActivities[group] = newGroup;
-
-            return {
-                ...prevDraft,
-                activities: newActivities
-            };
-        });
-    }, []);
+        const updatedActivities = { ...baseActivities };
+        const numericValue = (field === 'estimatedHours' || field === 'hoursUsed') ? Number(value) : value;
+        updatedActivities[group][index] = { ...updatedActivities[group][index], [field]: numericValue };
+        
+        setBaseActivities(updatedActivities);
+        setDoc(docRef, { activities: updatedActivities }, { merge: true });
+    }, [baseActivities, docRef]);
     
-    const handleSaveChanges = async (e) => {
-        e.stopPropagation();
-        const dataToSave = JSON.parse(JSON.stringify(draftData));
-
-        dataToSave.subsets.forEach(subset => {
-            subset.percentageOfProject = Number(subset.percentageOfProject) || 0;
-            subset.percentComplete = Number(subset.percentComplete) || 0;
-            subset.hoursUsed = Number(subset.hoursUsed) || 0;
-            subset.budget = Number(subset.budget) || 0;
-        });
-
-        for (const groupKey of Object.keys(dataToSave.activities)) {
-            dataToSave.activities[groupKey].forEach(activity => {
-                delete activity.percentComplete;
-                delete activity.hoursUsed;
-            });
-        }
-
-        await setDoc(docRef, dataToSave, { merge: true });
-        if (!isPCL) {
-          showToast("Changes saved!");
-        }
-    };
-    
-    const handleEditingSubsetChange = (field, value) => {
-        setEditingSubsetData(prev => ({ ...prev, [field]: value }));
+    const handleAddMainSet = () => {
+        const newMainSet = {
+            id: `main_${Date.now()}`,
+            name: '',
+            activityId: '',
+            percentageOfParent: 0,
+            subsets: []
+        };
+        setBreakdown(prev => [...prev, newMainSet]);
     };
 
-    const handleSubsetFieldChange = useCallback((subsetId, field, value) => {
-        setDraftData(prevDraft => {
-            const newSubsets = prevDraft.subsets.map(s => {
-                if (s.id === subsetId) {
-                    const numericValue = Number(value);
-                    return { ...s, [field]: isNaN(numericValue) ? 0 : numericValue };
+    const handleSaveItem = (itemData) => {
+        const { activity, parentHours, ...dataToSave } = itemData;
+
+        let newBreakdown;
+        if (dataToSave.id.startsWith('main_')) {
+            newBreakdown = breakdown.map(main => main.id === dataToSave.id ? dataToSave : main);
+        } else {
+            newBreakdown = breakdown.map(main => {
+                const subsetIndex = (main.subsets || []).findIndex(sub => sub.id === dataToSave.id);
+                if (subsetIndex > -1) {
+                    const newSubsets = [...main.subsets];
+                    newSubsets[subsetIndex] = dataToSave;
+                    return { ...main, subsets: newSubsets };
                 }
-                return s;
+                return main;
             });
-            return { ...prevDraft, subsets: newSubsets };
-        });
-    }, []);
+        }
+        setBreakdown(newBreakdown);
+        handleSaveBreakdown(newBreakdown);
+    };
 
+    const handleDeleteItem = (itemId) => {
+        let newBreakdown;
+        if (itemId.startsWith('main_')) {
+            newBreakdown = breakdown.filter(main => main.id !== itemId);
+        } else {
+            newBreakdown = breakdown.map(main => {
+                return { ...main, subsets: (main.subsets || []).filter(sub => sub.id !== itemId) };
+            });
+        }
+        setBreakdown(newBreakdown);
+        handleSaveBreakdown(newBreakdown);
+    };
 
-    const handleAddNewSubset = () => {
-        if (!newSubset.name.trim()) return;
-        const subsetToAdd = { 
-            ...newSubset, 
-            id: `sub_${Date.now()}`, 
-            percentageOfProject: Number(newSubset.percentageOfProject) || 0,
-            percentComplete: Number(newSubset.percentComplete) || 0,
-            hoursUsed: Number(newSubset.hoursUsed) || 0,
-            budget: Number(newSubset.budget) || 0,
+    const handleAddSubset = (mainSetId) => {
+        const newSubset = {
+            id: `sub_${Date.now()}`,
+            name: '',
+            trade: 'Duct',
+            percentageOfParent: 0,
+            percentComplete: 0,
         };
-        setDraftData(prevDraft => ({
-            ...prevDraft,
-            subsets: [...(prevDraft.subsets || []), subsetToAdd]
-        }));
-        setNewSubset({ name: '', activityId: '', percentageOfProject: 0, percentComplete: 0, hoursUsed: 0, budget: 0 });
+        const newBreakdown = breakdown.map(main => {
+            if (main.id === mainSetId) {
+                return { ...main, subsets: [...(main.subsets || []), newSubset] };
+            }
+            return main;
+        });
+        setBreakdown(newBreakdown);
     };
 
-    const handleUpdateSubset = () => {
-        if (!editingSubsetData || !editingSubsetData.name.trim()) return;
-        setDraftData(prevDraft => ({
-            ...prevDraft,
-            subsets: prevDraft.subsets.map(s => 
-                s.id === editingSubsetId 
-                ? { ...editingSubsetData, 
-                    percentageOfProject: Number(editingSubsetData.percentageOfProject) || 0,
-                    percentComplete: Number(editingSubsetData.percentComplete) || 0,
-                    hoursUsed: Number(editingSubsetData.hoursUsed) || 0,
-                    budget: Number(editingSubsetData.budget) || 0,
-                  } 
-                : s
-            )
-        }));
-        setEditingSubsetId(null);
-        setEditingSubsetData(null);
-    };
-
-    const handleDeleteSubset = (subsetId) => {
-        setDraftData(prevDraft => ({
-            ...prevDraft,
-            subsets: prevDraft.subsets.filter(s => s.id !== subsetId)
-        }));
+    const handleTCLUpdate = (subsetId, percent) => {
+        const newBreakdown = breakdown.map(main => {
+            const subsetIndex = (main.subsets || []).findIndex(sub => sub.id === subsetId);
+            if (subsetIndex > -1) {
+                const newSubsets = [...main.subsets];
+                newSubsets[subsetIndex] = { ...newSubsets[subsetIndex], percentComplete: Number(percent) };
+                return { ...main, subsets: newSubsets };
+            }
+            return main;
+        });
+        setBreakdown(newBreakdown);
+        handleSaveBreakdown(newBreakdown);
     };
     
-    const handleAddNewActivity = useCallback((group) => {
-        const newActivity = {
-            id: `act_${Date.now()}`,
-            description: "New Activity",
-            chargeCode: "",
-            estimatedHours: 0,
-            percentComplete: 0,
-            hoursUsed: 0,
-        };
-        setDraftData(prevDraft => ({
-            ...prevDraft,
-            activities: {
-                ...prevDraft.activities,
-                [group]: [...prevDraft.activities[group], newActivity]
-            }
-        }));
-    }, []);
-
-    const handleDeleteActivity = useCallback((group, index) => {
-        setDraftData(prevDraft => {
-            const newGroup = [...prevDraft.activities[group]];
-            const deletedActivityId = newGroup[index].id;
-            newGroup.splice(index, 1);
-            return {
-                ...prevDraft,
-                activities: {
-                    ...prevDraft.activities,
-                    [group]: newGroup
-                },
-                subsets: prevDraft.subsets.filter(s => s.activityId !== deletedActivityId)
-            };
-        });
-    }, []);
-
     const handleToggleCollapse = (e, section) => {
         e.stopPropagation();
         setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
     const activityTotals = useMemo(() => {
-        if (!draftData) return null;
-        const allActivities = Object.values(draftData.activities).flat();
+        if (!baseActivities) return { estimated: 0, used: 0, totalActualCost: 0 };
+        const allActivities = Object.values(baseActivities).flat();
+        
         return allActivities.reduce((acc, activity) => {
-            acc.estimated += Number(activity.estimatedHours || 0);
-            acc.used += Number(activity.hoursUsed || 0);
-            return acc;
-        }, { estimated: 0, used: 0 });
-    }, [draftData]);
+            const estHours = Number(activity?.estimatedHours || 0);
+            const usedHours = Number(activity?.hoursUsed || 0);
+            
+            const groupKey = Object.keys(baseActivities).find(key => baseActivities[key].includes(activity));
+            const useBimRate = groupKey === 'bim' || activity.description === "Project Setup";
+            const rateToUse = useBimRate ? (project.bimBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
 
-    if (loading || !draftData || !project || !activityTotals) return <div className="p-4 text-center">Loading Project Details...</div>;
+            acc.estimated += estHours;
+            acc.used += usedHours;
+            acc.totalActualCost += usedHours * rateToUse;
+
+            return acc;
+        }, { estimated: 0, used: 0, totalActualCost: 0 });
+    }, [baseActivities, project.blendedRate, project.bimBlendedRate]);
+
+    const flatSubsetsForTCL = useMemo(() => {
+        if (!isTCL) return [];
+        return breakdown.flatMap(mainSet => {
+            const activity = availableActivities.find(a => a.id === mainSet.activityId);
+            return (mainSet.subsets || []).map(subset => ({
+                ...subset,
+                mainSetName: mainSet.name,
+                activityDescription: activity?.description || 'N/A'
+            }));
+        });
+    }, [breakdown, availableActivities, isTCL]);
+
+    if (loading) return <div className="p-4 text-center">Loading Project Details...</div>;
     
+    const totalProjectHours = activityTotals.estimated;
+
     return (
         <div className="space-y-6 mt-4 border-t pt-4">
-             {!isPCL && (
-                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" onClick={e => e.stopPropagation()}>
-                    <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} />
-                    <HourSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} />
-                 </div>
-             )}
+            <FinancialSummary project={project} activityTotals={activityTotals} baseActivities={baseActivities} currentTheme={currentTheme} />
             
-            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                 <button
-                    onClick={(e) => handleToggleCollapse(e, 'projectBreakdown')}
-                    className={`w-full p-3 text-left font-bold flex justify-between items-center ${currentTheme.altRowBg} hover:bg-opacity-75 transition-colors`}
-                >
-                    <h3 className="text-lg font-semibold">Project Breakdown</h3>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${collapsedSections.projectBreakdown ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-                {!collapsedSections.projectBreakdown && (
-                    <div className="p-4" onClick={e => e.stopPropagation()}>
-                        <div className={`space-y-2 mb-4 ${isPCL ? 'w-full md:w-1/3' : ''}`}>
-                            <div className={`hidden sm:grid ${isPCL ? 'grid-cols-4' : 'grid-cols-11'} gap-x-4 font-bold text-xs ${currentTheme.subtleText} px-2`}>
-                                <span className="col-span-2">Name</span>
-                                <span className="col-span-1">Activity</span>
-                                {!isPCL && <span className="col-span-1">Budget ($)</span>}
-                                {!isPCL && <span className="col-span-1">% of Project</span>}
-                                <span className="col-span-1">% Complete</span>
-                                {!isPCL && (
-                                    <>
-                                        <span className="col-span-1">Hours Used</span>
-                                        <span className="col-span-1">Earned ($)</span>
-                                        <span className="col-span-1">Actual ($)</span>
-                                        <span className="col-span-1">Productivity</span>
-                                        <span className="col-span-1">Actions</span>
-                                    </>
-                                )}
-                            </div>
-                            {(draftData.subsets || []).map((subset, index) => {
-                                const earned = (subset.budget || 0) * (subset.percentComplete || 0) / 100;
-                                const actual = (subset.hoursUsed || 0) * (project.blendedRate || 0);
-                                const productivity = actual > 0 ? earned / actual : 0;
-                                return (
-                                    <div key={subset.id} className={`grid grid-cols-1 ${isPCL ? 'sm:grid-cols-4' : 'sm:grid-cols-11'} gap-x-4 items-center p-2 ${currentTheme.altRowBg} rounded-md`}>
-                                        {editingSubsetId === subset.id && !isPCL ? (
-                                            <>
-                                                <input type="text" placeholder="Name" value={editingSubsetData.name} onChange={e => handleEditingSubsetChange('name', e.target.value)} className={`p-1 border rounded col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                <select value={editingSubsetData.activityId} onChange={e => handleEditingSubsetChange('activityId', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                                    <option value="">Select Activity...</option>
-                                                    {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
-                                                </select>
-                                                <input type="number" placeholder="Budget ($)" value={editingSubsetData.budget} onChange={e => handleEditingSubsetChange('budget', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                <input type="number" placeholder="% of Project" value={editingSubsetData.percentageOfProject} onChange={e => handleEditingSubsetChange('percentageOfProject', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                <input type="number" placeholder="% Complete" value={editingSubsetData.percentComplete} onChange={e => handleEditingSubsetChange('percentComplete', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                <input type="number" placeholder="Hours Used" value={editingSubsetData.hoursUsed} onChange={e => handleEditingSubsetChange('hoursUsed', e.target.value)} className={`p-1 border rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                <div className="col-span-3"></div>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={handleUpdateSubset} className="text-green-500 hover:text-green-700">Save</button>
-                                                    <button onClick={() => setEditingSubsetId(null)} className="text-gray-500 hover:text-gray-700">Cancel</button>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="font-medium col-span-2">{subset.name}</span>
-                                                <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{allActivitiesList.find(a => a.id === subset.activityId)?.description || 'N/A'}</span>
-                                                {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{formatCurrency(subset.budget || 0)}</span>}
-                                                {!isPCL && <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentageOfProject}%</span>}
-                                                
-                                                {isPCL ? (
-                                                    <div className="col-span-1">
-                                                        <input
-                                                            type="number"
-                                                            value={subset.percentComplete}
-                                                            onChange={(e) => handleSubsetFieldChange(subset.id, 'percentComplete', e.target.value)}
-                                                            onBlur={handleSaveChanges}
-                                                            className={`p-1 border-2 rounded w-full ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.borderColor} border-yellow-400`}
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.percentComplete}%</span>
-                                                )}
-
-                                                {!isPCL && (
-                                                    <>
-                                                        <span className={`text-sm ${currentTheme.subtleText} col-span-1`}>{subset.hoursUsed}</span>
-                                                        <span className={`text-sm font-semibold col-span-1`}>{formatCurrency(earned)}</span>
-                                                        <span className={`text-sm font-semibold col-span-1`}>{formatCurrency(actual)}</span>
-                                                        <span className={`text-sm font-bold col-span-1 ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</span>
-                                                        <div className="flex items-center gap-2 col-span-1">
-                                                            <button onClick={() => {setEditingSubsetId(subset.id); setEditingSubsetData({...subset});}} className="text-blue-500 hover:text-blue-700">Edit</button>
-                                                            <button onClick={() => handleDeleteSubset(subset.id)} className="text-red-500 hover:text-red-700">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                            )})}
+            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                <h3 className="text-lg font-semibold mb-2">Project Breakdown</h3>
+                {isTCL ? (
+                    <>
+                        <div className="grid grid-cols-12 gap-2 font-bold text-xs border-b pb-2 mb-2">
+                            <div className="col-span-3">Main</div>
+                            <div className="col-span-3">Sub</div>
+                            <div className="col-span-2">Trade</div>
+                            <div className="col-span-2">Activity</div>
+                            <div className="col-span-2">% Complete</div>
                         </div>
-                        {!isPCL && (
-                            <div className="grid grid-cols-1 sm:grid-cols-9 gap-2 items-center p-2 border-t pt-4">
-                                <input type="text" placeholder="Phase/Building/Area/Level" value={newSubset.name} onChange={e => setNewSubset({...newSubset, name: e.target.value})} className={`p-2 border rounded-md col-span-2 ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                <select value={newSubset.activityId} onChange={e => setNewSubset({...newSubset, activityId: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                    <option value="">Select Activity...</option>
-                                    {allActivitiesList.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
-                                </select>
-                                <input type="number" placeholder="Budget ($)" value={newSubset.budget} onChange={e => setNewSubset({...newSubset, budget: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                <input type="number" placeholder="% of Proj" value={newSubset.percentageOfProject} onChange={e => setNewSubset({...newSubset, percentageOfProject: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                <input type="number" placeholder="% Comp" value={newSubset.percentComplete} onChange={e => setNewSubset({...newSubset, percentComplete: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                <input type="number" placeholder="Hrs Used" value={newSubset.hoursUsed} onChange={e => setNewSubset({...newSubset, hoursUsed: e.target.value})} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                        <div className="space-y-1">
+                            {flatSubsetsForTCL.map(subset => (
+                                <div key={subset.id} className="grid grid-cols-12 gap-2 items-center py-1 text-sm">
+                                    <div className="col-span-3 font-semibold">{subset.mainSetName}</div>
+                                    <div className="col-span-3">{subset.name}</div>
+                                    <div className="col-span-2">{subset.trade}</div>
+                                    <div className="col-span-2">{subset.activityDescription}</div>
+                                    <div className="col-span-2">
+                                        <input 
+                                            type="number"
+                                            value={subset.percentComplete || 0}
+                                            onChange={(e) => handleTCLUpdate(subset.id, e.target.value)}
+                                            className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="grid grid-cols-12 gap-2 font-bold text-xs border-b pb-2 mb-2">
+                            <div className="col-span-3">Main / Subset</div>
+                            <div className="col-span-2">Trade</div>
+                            <div className="col-span-3">Activity</div>
+                            <div className="col-span-2">% of Parent</div>
+                            <div className="col-span-2">Actions</div>
+                        </div>
+                        <div className="space-y-1">
+                            {breakdown.map(mainSet => {
+                                const activity = availableActivities.find(a => a.id === mainSet.activityId);
+                                const mainSetWithActivity = {...mainSet, activity};
+                                const mainSetHours = (activity?.estimatedHours || 0) * (mainSet.percentageOfParent / 100);
 
-                                <button onClick={handleAddNewSubset} className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 col-span-2">Add Subset</button>
-                            </div>
-                        )}
-                    </div>
-                 )}
+                                return (
+                                    <div key={mainSet.id} className="border-b border-gray-600/50 pb-2">
+                                        <BreakdownRow 
+                                            item={mainSetWithActivity} 
+                                            type="main"
+                                            onSave={handleSaveItem}
+                                            onDelete={handleDeleteItem}
+                                            onAddSubset={handleAddSubset}
+                                            availableActivities={availableActivities}
+                                            project={project}
+                                            currentTheme={currentTheme}
+                                            isTCL={isTCL}
+                                            disciplineOptions={disciplineOptions}
+                                        />
+                                        {(mainSet.subsets || []).map(subset => (
+                                            <BreakdownRow 
+                                                key={subset.id}
+                                                item={{...subset, activity, parentHours: mainSetHours}}
+                                                type="sub"
+                                                indent={2}
+                                                onSave={handleSaveItem}
+                                                onDelete={handleDeleteItem}
+                                                project={project}
+                                                currentTheme={currentTheme}
+                                                isTCL={isTCL}
+                                                onPCLUpdate={handleTCLUpdate}
+                                                disciplineOptions={disciplineOptions}
+                                            />
+                                        ))}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        <button onClick={handleAddMainSet} className="text-sm text-blue-500 hover:underline mt-4">+ Add Main Set</button>
+                    </>
+                )}
             </div>
 
-            {!isPCL && (
+            {!isTCL && (
                 <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`} onClick={e => e.stopPropagation()}>
                      <div className="flex justify-between items-center mb-3">
                         <h3 className="text-lg font-semibold">Activity Tracker</h3>
-                        <button onClick={handleSaveChanges} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
-                            Save All Changes
-                        </button>
                      </div>
-                    <CollapsibleActivityTable title="Sheetmetal" data={draftData.activities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70 text-black" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="Piping" data={draftData.activities.piping} groupKey="piping" colorClass="bg-green-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="Plumbing" data={draftData.activities.plumbing} groupKey="plumbing" colorClass="bg-blue-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="BIM" data={draftData.activities.bim} groupKey="bim" colorClass="bg-indigo-600/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="Structural" data={draftData.activities.structural} groupKey="structural" colorClass="bg-amber-700/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.structural} onToggle={(e) => handleToggleCollapse(e, 'structural')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="Coordination" data={draftData.activities.coordination} groupKey="coordination" colorClass="bg-pink-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.coordination} onToggle={(e) => handleToggleCollapse(e, 'coordination')} project={project} currentTheme={currentTheme}/>
-                    <CollapsibleActivityTable title="GIS/GPS" data={draftData.activities.gis} groupKey="gis" colorClass="bg-teal-500/70 text-white" onAdd={handleAddNewActivity} onDelete={handleDeleteActivity} onChange={handleActivityChange} isCollapsed={collapsedSections.gis} onToggle={(e) => handleToggleCollapse(e, 'gis')} project={project} currentTheme={currentTheme}/>
+                    <CollapsibleActivityTable title="Sheetmetal" data={baseActivities.sheetmetal} groupKey="sheetmetal" colorClass="bg-yellow-400/70 text-black" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.sheetmetal} onToggle={(e) => handleToggleCollapse(e, 'sheetmetal')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
+                    <CollapsibleActivityTable title="Piping" data={baseActivities.piping} groupKey="piping" colorClass="bg-green-500/70 text-white" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.piping} onToggle={(e) => handleToggleCollapse(e, 'piping')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
+                    <CollapsibleActivityTable title="Plumbing" data={baseActivities.plumbing} groupKey="plumbing" colorClass="bg-blue-500/70 text-white" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.plumbing} onToggle={(e) => handleToggleCollapse(e, 'plumbing')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
+                    <CollapsibleActivityTable title="BIM" data={baseActivities.bim} groupKey="bim" colorClass="bg-indigo-600/70 text-white" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.bim} onToggle={(e) => handleToggleCollapse(e, 'bim')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
+                    <CollapsibleActivityTable title="Structural" data={baseActivities.structural} groupKey="structural" colorClass="bg-amber-700/70 text-white" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.structural} onToggle={(e) => handleToggleCollapse(e, 'structural')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
+                    <CollapsibleActivityTable title="Coordination" data={baseActivities.coordination} groupKey="coordination" colorClass="bg-pink-500/70 text-white" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.coordination} onToggle={(e) => handleToggleCollapse(e, 'coordination')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
+                    <CollapsibleActivityTable title="GIS/GPS" data={baseActivities.gis} groupKey="gis" colorClass="bg-teal-500/70 text-white" onAdd={() => {}} onDelete={() => {}} onChange={handleActivityChange} isCollapsed={collapsedSections.gis} onToggle={(e) => handleToggleCollapse(e, 'gis')} project={project} currentTheme={currentTheme} totalProjectHours={totalProjectHours} accessLevel={accessLevel}/>
                      <div className={`${currentTheme.altRowBg} font-bold p-2 flex justify-end gap-x-6`}>
                         <span className="text-right">Totals:</span>
                         <span>Est: {activityTotals.estimated.toFixed(2)}</span>
