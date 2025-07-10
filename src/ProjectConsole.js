@@ -533,8 +533,9 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
     const [collapsedSections, setCollapsedSections] = useState({});
     const [weeklyHours, setWeeklyHours] = useState({});
     
-    const tradeButtonLabels = ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"];
-    const tradeKeyMapping = {
+    const tradeButtonLabels = useMemo(() => ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"], []);
+    
+    const tradeKeyMapping = useMemo(() => ({
         Piping: 'piping',
         Duct: 'sheetmetal',
         Plumbing: 'plumbing',
@@ -542,13 +543,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         BIM: 'bim',
         Structural: 'structural',
         'GIS/GPS': 'gis',
-    };
+    }), []);
+
     const [activeTrades, setActiveTrades] = useState(tradeButtonLabels);
-    const activeTradeKeys = useMemo(() => activeTrades.map(label => tradeKeyMapping[label]), [activeTrades]);
+    const activeTradeKeys = useMemo(() => activeTrades.map(label => tradeKeyMapping[label]), [activeTrades, tradeKeyMapping]);
 
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
     
-    const tradeColorMapping = {
+    const tradeColorMapping = useMemo(() => ({
         piping: { bg: 'bg-green-500/70', text: 'text-white' },
         sheetmetal: { bg: 'bg-yellow-400/70', text: 'text-black' },
         plumbing: { bg: 'bg-blue-500/70', text: 'text-white' },
@@ -556,7 +558,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         bim: { bg: 'bg-indigo-600/70', text: 'text-white' },
         structural: { bg: 'bg-amber-700/70', text: 'text-white' },
         gis: { bg: 'bg-teal-500/70', text: 'text-white' },
-    };
+    }), []);
 
     const handleTradeFilterToggle = (tradeToToggle) => {
         setActiveTrades(prev => {
@@ -578,6 +580,45 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         }
     };
 
+    const handleToggleAllActionTracker = useCallback(() => {
+        const actionTrackerKeys = [];
+        if (projectData && projectData.mainItems) {
+            projectData.mainItems.forEach(main => {
+                const mainId = `main_${main.id}`;
+                actionTrackerKeys.push(mainId);
+                Object.keys(tradeColorMapping).forEach(trade => {
+                    const tradeId = `${mainId}_trade_${trade}`;
+                    actionTrackerKeys.push(tradeId);
+                });
+            });
+        }
+
+        const isAnyCollapsed = actionTrackerKeys.some(key => collapsedSections[key] !== false);
+        
+        setCollapsedSections(prev => {
+            const newCollapsedState = { ...prev };
+            actionTrackerKeys.forEach(key => {
+                newCollapsedState[key] = !isAnyCollapsed;
+            });
+            return newCollapsedState;
+        });
+    }, [projectData, tradeColorMapping, collapsedSections]);
+
+    const isAnyActionTrackerSectionCollapsed = useMemo(() => {
+        if (!projectData || !projectData.mainItems) return true;
+        const actionTrackerKeys = [];
+        projectData.mainItems.forEach(main => {
+            const mainId = `main_${main.id}`;
+            actionTrackerKeys.push(mainId);
+            Object.keys(tradeColorMapping).forEach(trade => {
+                const tradeId = `${mainId}_trade_${trade}`;
+                actionTrackerKeys.push(tradeId);
+            });
+        });
+        return actionTrackerKeys.some(key => collapsedSections[key] !== false);
+    }, [collapsedSections, projectData, tradeColorMapping]);
+
+
     useEffect(() => {
         const fetchWeeklyHours = async () => {
             const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${projectId}/weeklyHours`);
@@ -595,7 +636,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 
     useEffect(() => {
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            let initialLoad = projectData === null;
+            const initialLoad = projectData === null;
             
             if (docSnap.exists()) {
                 const data = docSnap.data();
@@ -632,7 +673,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         });
 
         return () => unsubscribe();
-    }, [docRef]);
+    }, [docRef, projectData, tradeColorMapping]);
     
     const groupActivities = (activityArray) => {
         const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
@@ -894,12 +935,19 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                     
                     {projectData?.mainItems && projectData.mainItems.length > 0 && (
                          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                            <button onClick={() => handleToggleCollapse('actionTracker')} className="w-full text-left font-bold flex justify-between items-center mb-2">
-                                <h3 className="text-lg font-semibold">Action Tracker</h3>
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.actionTracker ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
+                            <div className="w-full flex justify-between items-center mb-2">
+                                <button onClick={() => handleToggleCollapse('actionTracker')} className="flex items-center text-left font-bold">
+                                    <h3 className="text-lg font-semibold">Action Tracker</h3>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.actionTracker ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                {!collapsedSections.actionTracker && (
+                                     <button onClick={handleToggleAllActionTracker} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                                        {isAnyActionTrackerSectionCollapsed ? 'Expand All' : 'Collapse All'}
+                                    </button>
+                                )}
+                            </div>
                             {!collapsedSections.actionTracker && (
                                 <div className="pt-2 mt-2 border-t border-gray-500/20">
                                     <ActionTracker 
@@ -1018,8 +1066,6 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             })
             .sort((a, b) => a.projectId.localeCompare(b.projectId, undefined, { numeric: true }));
     }, [projects, assignments, filters]);
-
-    const isViewer = accessLevel === 'viewer';
     
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
