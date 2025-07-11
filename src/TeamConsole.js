@@ -67,7 +67,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [confirmAction, setConfirmAction] = useState(null);
     const [visibleEmployees, setVisibleEmployees] = useState(15);
     const [assignmentSortBy, setAssignmentSortBy] = useState('projectName'); // 'projectName' or 'projectId'
-    const [isCondensedView, setIsCondensedView] = useState(false);
+    const [isCondensedView, setIsCondensedView] = useState(true);
 
     const getMostRecentMonday = () => {
         const today = new Date();
