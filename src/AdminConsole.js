@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 
 const useDebounce = (value, delay) => {
@@ -43,7 +43,7 @@ const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
 const disciplineOptions = ["Duct", "Piping", "Plumbing", "BIM", "Structural", "Coordination", "GIS/GPS"];
 
 const statusDescriptions = {
-    Planning: "Estimating",
+    Planning: "Estimated",
     Conducting: "Booked but not Sold",
     Controlling: "Operational",
     Archive: "Completed"
@@ -178,29 +178,31 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         setDragState(prev => ({ ...prev, selection: newSelection }));
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = useCallback(() => {
         if (!dragState) return;
 
         const { startTrade, fillValue, selection } = dragState;
-        const updatedHours = { ...weeklyHours[startTrade] };
-
-        Object.keys(selection).forEach(week => {
-            updatedHours[week] = fillValue;
+        
+        setWeeklyHours(prevWeeklyHours => {
+            const updatedHours = { ...(prevWeeklyHours[startTrade] || {}) };
+            Object.keys(selection).forEach(week => {
+                updatedHours[week] = fillValue;
+            });
+            return {
+                ...prevWeeklyHours,
+                [startTrade]: updatedHours
+            };
         });
 
-        setWeeklyHours(prev => ({
-            ...prev,
-            [startTrade]: updatedHours
-        }));
         setDragState(null);
-    };
+    }, [dragState]);
     
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
         return () => {
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [dragState]);
+    }, [handleMouseUp]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -294,6 +296,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [projectSortBy, setProjectSortBy] = useState('projectId');
     const [activeStatuses, setActiveStatuses] = useState(["Planning", "Conducting", "Controlling"]);
     const [expandedProjectId, setExpandedProjectId] = useState(null);
+    const [collapsedSections, setCollapsedSections] = useState({ addEmployee: true, addProject: true });
+
+    const handleToggleCollapse = (section) => {
+        setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    };
 
     const handleStatusFilterToggle = (statusToToggle) => {
         setActiveStatuses(prev => {
@@ -492,20 +499,29 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                 {/* Employee Content */}
                 <div>
-                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                        <h3 className="font-semibold mb-2">Add New Employee</h3>
-                        <div className="space-y-2 mb-4">
-                            <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                {titleOptions.map(title => (
-                                    <option key={title} value={title}>{title}</option>
-                                ))}
-                            </select>
-                            <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                        </div>
-                        <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                        <button onClick={() => handleToggleCollapse('addEmployee')} className="w-full flex justify-between items-center font-semibold mb-2">
+                            <h3>Add New Employee</h3>
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addEmployee ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        {!collapsedSections.addEmployee && (
+                            <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
+                                <div className="space-y-2 mb-4">
+                                    <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                        {titleOptions.map(title => (
+                                            <option key={title} value={title}>{title}</option>
+                                        ))}
+                                    </select>
+                                    <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                </div>
+                                <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-2">
                         {sortedEmployees.map((e, index) => {
@@ -548,38 +564,47 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 
                 {/* Project Content */}
                 <div>
-                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${isEditing ? 'opacity-50' : ''}`}>
-                        <h3 className="font-semibold mb-2">Add New Project</h3>
-                        <div className="space-y-2 mb-4">
-                            <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                {projectStatuses.map(status => (
-                                    <option key={status} value={status}>{status}</option>
-                                ))}
-                            </select>
-                            <div className="flex items-center gap-2">
-                                <label className="w-32">Initial Budget ($):</label>
-                                <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                        <button onClick={() => handleToggleCollapse('addProject')} className="w-full flex justify-between items-center font-semibold mb-2">
+                            <h3>Add New Project</h3>
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addProject ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        {!collapsedSections.addProject && (
+                            <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
+                                <div className="space-y-2 mb-4">
+                                    <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                        {projectStatuses.map(status => (
+                                            <option key={status} value={status}>{status}</option>
+                                        ))}
+                                    </select>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Initial Budget ($):</label>
+                                        <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Blended Rate ($/hr):</label>
+                                        <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">BIM Blended Rate ($/hr):</label>
+                                        <input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Contingency ($):</label>
+                                        <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="w-32">Project Dashboard:</label>
+                                        <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                    </div>
+                                </div>
+                                <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <label className="w-32">Blended Rate ($/hr):</label>
-                                <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <label className="w-32">BIM Blended Rate ($/hr):</label>
-                                <input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <label className="w-32">Contingency ($):</label>
-                                <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <label className="w-32">Project Dashboard:</label>
-                                <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                            </div>
-                        </div>
-                        <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
+                        )}
                     </div>
 
                     <div className="space-y-2 mb-8">

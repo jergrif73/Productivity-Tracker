@@ -92,37 +92,80 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
     )
 }
 
-const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme }) => {
-    const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', amount: 0 });
+const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project }) => {
+    const tradeOptions = ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"];
+    const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', trade: tradeOptions[0], hours: 0, rateType: 'Blend Rate' });
+
+    const blendedRate = project.blendedRate || 0;
+    const bimBlendedRate = project.bimBlendedRate || 0;
+    const rateToUse = newImpact.rateType === 'BIM Blend Rate' ? bimBlendedRate : blendedRate;
+    const calculatedAmount = (Number(newImpact.hours) || 0) * rateToUse;
 
     const handleAdd = () => {
-        if (newImpact.description && newImpact.amount !== 0) {
-            onAdd({ ...newImpact, id: `impact_${Date.now()}` });
-            setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', amount: 0 });
+        if (newImpact.description && newImpact.hours > 0 && newImpact.trade) {
+            onAdd({ 
+                ...newImpact, 
+                id: `impact_${Date.now()}`,
+                amount: calculatedAmount 
+            });
+            setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', trade: tradeOptions[0], hours: 0, rateType: 'Blend Rate' });
         }
     };
 
+    const handleInputChange = (field, value) => {
+        setNewImpact(prev => ({...prev, [field]: value}));
+    };
+
     return (
-        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-            <h3 className="text-lg font-semibold mb-2">Budget Impact Log</h3>
-            <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
-                {(impacts || []).map(impact => (
-                    <div key={impact.id} className={`grid grid-cols-12 gap-2 text-sm p-2 rounded ${currentTheme.altRowBg}`}>
-                        <div className="col-span-3">{new Date(impact.date + 'T00:00:00').toLocaleDateString()}</div>
-                        <div className="col-span-6">{impact.description}</div>
-                        <div className={`col-span-2 text-right ${impact.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(impact.amount)}</div>
-                        <div className="col-span-1 text-right">
-                            <button onClick={() => onDelete(impact.id)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="grid grid-cols-12 gap-2 items-center border-t pt-2">
-                <input type="date" value={newImpact.date} onChange={e => setNewImpact({...newImpact, date: e.target.value})} className={`col-span-3 p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                <input type="text" placeholder="Description" value={newImpact.description} onChange={e => setNewImpact({...newImpact, description: e.target.value})} className={`col-span-5 p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                <input type="number" placeholder="Amount" value={newImpact.amount} onChange={e => setNewImpact({...newImpact, amount: Number(e.target.value)})} className={`col-span-3 p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                <button onClick={handleAdd} className={`col-span-1 p-1 rounded ${currentTheme.buttonBg} hover:bg-opacity-80`}>Add</button>
-            </div>
+        <div className="space-y-2">
+            <table className="min-w-full text-sm table-fixed">
+                <thead className={currentTheme.altRowBg}>
+                    <tr>
+                        <th className="p-2 text-left font-semibold w-[10%]">Date</th>
+                        <th className="p-2 text-left font-semibold w-[35%]">Description</th>
+                        <th className="p-2 text-left font-semibold w-[15%]">Trade</th>
+                        <th className="p-2 text-left font-semibold w-[15%]">Hours</th>
+                        <th className="p-2 text-left font-semibold w-[15%]">Rate Type</th>
+                        <th className="p-2 text-left font-semibold w-[10%]">Impact ($)</th>
+                        <th className="p-2 text-left font-semibold w-[5%]"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {(impacts || []).map(impact => (
+                        <tr key={impact.id} className="border-b border-gray-500/20">
+                            <td className="p-2">{new Date(impact.date + 'T00:00:00').toLocaleDateString()}</td>
+                            <td className="p-2 truncate">{impact.description}</td>
+                            <td className="p-2">{impact.trade}</td>
+                            <td className="p-2">{impact.hours}</td>
+                            <td className="p-2">{impact.rateType}</td>
+                            <td className={`p-2 ${impact.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(impact.amount)}</td>
+                            <td className="p-2 text-right">
+                                <button onClick={() => onDelete(impact.id)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+                 <tfoot>
+                    <tr>
+                        <td className="p-1"><input type="date" value={newImpact.date} onChange={e => handleInputChange('date', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
+                        <td className="p-1"><input type="text" placeholder="Description" value={newImpact.description} onChange={e => handleInputChange('description', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
+                        <td className="p-1">
+                            <select value={newImpact.trade} onChange={e => handleInputChange('trade', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                {tradeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        </td>
+                        <td className="p-1"><input type="number" placeholder="Hours" value={newImpact.hours} onChange={e => handleInputChange('hours', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
+                        <td className="p-1">
+                             <select value={newImpact.rateType} onChange={e => handleInputChange('rateType', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="Blend Rate">Blend Rate</option>
+                                <option value="BIM Blend Rate">BIM Blend Rate</option>
+                            </select>
+                        </td>
+                        <td className="p-1 text-center">{formatCurrency(calculatedAmount)}</td>
+                        <td className="p-1"><button onClick={handleAdd} className={`w-full p-1 rounded ${currentTheme.buttonBg} hover:bg-opacity-80`}>Add</button></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
     );
 };
@@ -530,7 +573,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
 const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [collapsedSections, setCollapsedSections] = useState({});
+    const [collapsedSections, setCollapsedSections] = useState({ budgetLog: true, financialForecast: true });
     const [weeklyHours, setWeeklyHours] = useState({});
     
     const tradeButtonLabels = useMemo(() => ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"], []);
@@ -644,7 +687,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 const activities = data.activities ? { ...defaultGroups, ...data.activities } : defaultGroups;
                 
                 if (initialLoad) {
-                    const initialCollapsedState = { mainsManagement: true, actionTracker: true };
+                    const initialCollapsedState = { mainsManagement: true, actionTracker: true, budgetLog: true, financialForecast: true };
                     Object.keys(activities).forEach(group => {
                         initialCollapsedState[`group_${group}`] = true;
                     });
@@ -663,7 +706,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 setDoc(docRef, initialData);
                 setProjectData(initialData);
                  if (initialLoad) {
-                    setCollapsedSections({ mainsManagement: true, actionTracker: true });
+                    setCollapsedSections({ mainsManagement: true, actionTracker: true, budgetLog: true, financialForecast: true });
                 }
             }
             setLoading(false);
@@ -904,8 +947,32 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 <>
                     <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
-                        <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} />
+                        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                             <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
+                                <h3 className="text-lg font-semibold">Financial Forecast</h3>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.financialForecast ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            {!collapsedSections.financialForecast && (
+                                <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                    <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
+                                </div>
+                            )}
+                        </div>
+                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                            <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
+                                <h3 className="text-lg font-semibold">Budget Impact Log</h3>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.budgetLog ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            {!collapsedSections.budgetLog && (
+                                <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                    <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} project={project} />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </>
             )}
@@ -960,7 +1027,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                         currentTheme={currentTheme}
                                         tradeColorMapping={tradeColorMapping}
                                         isTradePercentageEditable={accessLevel === 'taskmaster'}
-                                        isActivityCompletionEditable={true}
+                                        isActivityCompletionEditable={accessLevel === 'tcl'}
                                         collapsedSections={collapsedSections}
                                         onToggle={handleToggleCollapse}
                                         activeTrades={activeTradeKeys}
@@ -974,7 +1041,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 {accessLevel === 'taskmaster' && (
                     <div className="w-full md:w-2/3">
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                            <h3 className="text-lg font-semibold mb-2">Activity Tracker</h3>
+                            <h3 className="text-lg font-semibold mb-2">Activity Values Breakdown</h3>
                             <div className="space-y-1">
                                 {Object.entries(projectData.activities)
                                     .filter(([group]) => activeTradeKeys.includes(group))

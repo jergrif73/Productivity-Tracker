@@ -18,7 +18,7 @@ const Tooltip = ({ text, children }) => {
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
 const statusDescriptions = {
-    Planning: "Estimating",
+    Planning: "Estimated",
     Conducting: "Booked but not Sold",
     Controlling: "Operational",
     Archive: "Completed"
