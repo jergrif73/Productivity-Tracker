@@ -72,6 +72,8 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const [dragFillEnd, setDragFillEnd] = useState(null);
     const [editingCell, setEditingCell] = useState(null);
     const popupRef = useRef(null);
+    const [isCondensedView, setIsCondensedView] = useState(true);
+    const [expandedProjectIds, setExpandedProjectIds] = useState(new Set());
 
     const isTaskmaster = accessLevel === 'taskmaster';
     
@@ -246,6 +248,26 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         setDragFillEnd(null);
     }, [dragFillStart, dragFillEnd, weekDates, appId, db, showToast]);
     
+    const toggleProjectExpansion = (projectId) => {
+        setExpandedProjectIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(projectId)) {
+                newSet.delete(projectId);
+            } else {
+                newSet.add(projectId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleToggleAllProjects = () => {
+        if (expandedProjectIds.size === groupedData.length) {
+            setExpandedProjectIds(new Set());
+        } else {
+            setExpandedProjectIds(new Set(groupedData.map(p => p.id)));
+        }
+    };
+
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
         return () => window.removeEventListener('mouseup', handleMouseUp);
@@ -271,7 +293,15 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                      <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
                  </div>
                  <div className="flex items-center gap-2">
-                    <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                    <button onClick={() => setIsCondensedView(!isCondensedView)} className={`px-3 py-1 text-sm rounded-md ${isCondensedView ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>
+                        {isCondensedView ? 'Detailed View' : 'Condensed View'}
+                    </button>
+                    {isCondensedView && (
+                        <button onClick={handleToggleAllProjects} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                            {expandedProjectIds.size === groupedData.length ? 'Collapse All' : 'Expand All'}
+                        </button>
+                    )}
+                    <span className={`text-sm font-medium ${currentTheme.subtleText} ml-4`}>Sort by:</span>
                     <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
                     <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
                  </div>
@@ -310,44 +340,53 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                         </tr>
                     </thead>
                     <tbody>
-                        {groupedData.map(project => (
-                            <React.Fragment key={project.id}>
-                                <tr className={`${currentTheme.altRowBg} sticky top-10`}>
-                                    <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor}`}>
-                                        {project.name} ({project.projectId})
-                                    </th>
-                                </tr>
-                                {project.assignments.map(assignment => {
-                                    const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
-                                    return (
-                                        <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
-                                            <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
-                                            <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
-                                            <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
-                                            {weekDates.map((weekStart, weekIndex) => {
-                                                const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-                                                const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
-                                                let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
-                                                const tooltipText = isAssigned ? `Trade: ${assignment.trade || 'N/A'}` : '';
+                        {groupedData.map(project => {
+                            const isProjectExpanded = expandedProjectIds.has(project.id);
+                            return (
+                                <React.Fragment key={project.id}>
+                                    <tr className={`${currentTheme.altRowBg} sticky top-10`}>
+                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => isCondensedView && toggleProjectExpansion(project.id)}>
+                                            <div className="flex items-center">
+                                                {isCondensedView && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isProjectExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                )}
+                                                {project.name} ({project.projectId})
+                                            </div>
+                                        </th>
+                                    </tr>
+                                    {(!isCondensedView || isProjectExpanded) && project.assignments.map(assignment => {
+                                        const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
+                                        return (
+                                            <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
+                                                <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
+                                                <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
+                                                <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
+                                                {weekDates.map((weekStart, weekIndex) => {
+                                                    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+                                                    const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
+                                                    let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
+                                                    const tooltipText = isAssigned ? `Trade: ${assignment.trade || 'N/A'}` : '';
 
-                                                let isFillHighlighted = false;
-                                                if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
-                                                    const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                    if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
-                                                }
+                                                    let isFillHighlighted = false;
+                                                    if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
+                                                        const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
+                                                        const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex);
+                                                        if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
+                                                    }
 
-                                                return (
-                                                    <td key={weekStart.toISOString()} 
-                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
-                                                        onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
-                                                        onClick={(e) => handleCellClick(e, assignment, weekIndex)}
-                                                    >
-                                                        {(isAssigned || isFillHighlighted) && (
-                                                          <Tooltip text={tooltipText}>
-                                                              <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
-                                                                  <span>{assignment.allocation}%</span>
-                                                                  {isTaskmaster && isAssigned && (
+                                                    return (
+                                                        <td key={weekStart.toISOString()} 
+                                                            className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
+                                                            onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
+                                                            onClick={(e) => handleCellClick(e, assignment, weekIndex)}
+                                                        >
+                                                            {(isAssigned || isFillHighlighted) && (
+                                                            <Tooltip text={tooltipText}>
+                                                                <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                    <span>{assignment.allocation}%</span>
+                                                                    {isTaskmaster && isAssigned && (
                                                                     <div 
                                                                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                         onMouseDown={(e) => {
@@ -357,18 +396,19 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                     >
                                                                         <div className="h-full w-1 bg-white/50 rounded"></div>
                                                                     </div>
-                                                                  )}
-                                                              </div>
-                                                          </Tooltip>
-                                                        )}
-                                                    </td>
-                                                )
-                                            })}
-                                        </tr>
-                                    )
-                                })}
-                            </React.Fragment>
-                        ))}
+                                                                    )}
+                                                                </div>
+                                                            </Tooltip>
+                                                            )}
+                                                        </td>
+                                                    )
+                                                })}
+                                            </tr>
+                                        )
+                                    })}
+                                </React.Fragment>
+                            )
+                        })}
                     </tbody>
                 </table>
             </div>
