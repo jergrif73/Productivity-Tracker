@@ -661,6 +661,25 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         return actionTrackerKeys.some(key => collapsedSections[key] !== false);
     }, [collapsedSections, projectData, tradeColorMapping]);
 
+    const handleToggleAllActivityBreakdown = useCallback(() => {
+        if (!projectData || !projectData.activities) return;
+        const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
+        const isAnyCollapsed = breakdownKeys.some(key => collapsedSections[key] !== false);
+        setCollapsedSections(prev => {
+            const newState = {...prev};
+            breakdownKeys.forEach(key => {
+                newState[key] = !isAnyCollapsed;
+            });
+            return newState;
+        });
+    }, [projectData, collapsedSections]);
+
+    const isAnyActivityBreakdownCollapsed = useMemo(() => {
+        if (!projectData || !projectData.activities) return true;
+        const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
+        return breakdownKeys.some(key => collapsedSections[key] !== false);
+    }, [projectData, collapsedSections]);
+
 
     useEffect(() => {
         const fetchWeeklyHours = async () => {
@@ -1041,7 +1060,12 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 {accessLevel === 'taskmaster' && (
                     <div className="w-full md:w-2/3">
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                            <h3 className="text-lg font-semibold mb-2">Activity Values Breakdown</h3>
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
+                                <button onClick={handleToggleAllActivityBreakdown} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                                    {isAnyActivityBreakdownCollapsed ? 'Expand All' : 'Collapse All'}
+                                </button>
+                            </div>
                             <div className="space-y-1">
                                 {Object.entries(projectData.activities)
                                     .filter(([group]) => activeTradeKeys.includes(group))

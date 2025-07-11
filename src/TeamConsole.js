@@ -67,6 +67,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [confirmAction, setConfirmAction] = useState(null);
     const [visibleEmployees, setVisibleEmployees] = useState(15);
     const [assignmentSortBy, setAssignmentSortBy] = useState('projectName'); // 'projectName' or 'projectId'
+    const [isCondensedView, setIsCondensedView] = useState(false);
 
     const getMostRecentMonday = () => {
         const today = new Date();
@@ -215,13 +216,17 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 <span className={`mr-2 text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
                 <button onClick={() => setSortBy('firstName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
                 <button onClick={() => setSortBy('lastName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
+                <button onClick={() => setIsCondensedView(!isCondensedView)} className={`px-4 py-1.5 rounded-md text-sm ${isCondensedView ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>
+                    {isCondensedView ? 'Detailed View' : 'Condensed View'}
+                </button>
             </div>
             
             <div className={`flex-grow overflow-y-auto pr-2 ${currentTheme.cardBg} rounded-lg p-4 space-y-2`}>
                 <div className={`hidden md:grid grid-cols-12 gap-4 font-bold text-sm ${currentTheme.subtleText} px-4 py-2`}>
                     <div className="col-span-3">EMPLOYEE</div>
-                    <div className="col-span-7">PROJECT ASSIGNMENTS</div>
+                    <div className="col-span-6 text-center">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
+                    <div className="col-span-1"></div> {/* Placeholder for arrow column */}
                 </div>
                 {employeesWithSortedAssignments.slice(0, visibleEmployees).map((employeeData, index) => {
                     const { sortedAssignments, ...employee } = employeeData;
@@ -254,21 +259,25 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                 className="grid grid-cols-12 gap-4 items-center p-4 cursor-pointer"
                                 onClick={() => toggleEmployee(employee.id)}
                             >
-                                <div className="col-span-11 md:col-span-3">
+                                <div className="col-span-3">
                                     <p className="font-bold">{employee.firstName} {employee.lastName}</p>
-                                    <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
-                                    <p className={`text-xs ${currentTheme.subtleText}`}>ID: {employee.employeeId}</p>
-                                    <a href={`mailto:${employee.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-500 hover:underline">{employee.email}</a>
-                                    <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(employee);}} className="text-sm text-blue-500 hover:underline mt-2 block">View Skills</button>
+                                    {!isExpanded && !isCondensedView && (
+                                        <>
+                                            <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
+                                            <p className={`text-xs ${currentTheme.subtleText}`}>ID: {employee.employeeId}</p>
+                                            <a href={`mailto:${employee.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-500 hover:underline">{employee.email}</a>
+                                            <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(employee);}} className="text-sm text-blue-500 hover:underline mt-2 block">View Skills</button>
+                                        </>
+                                    )}
                                 </div>
-                                <div className="hidden md:col-span-7 md:block">
+                                <div className="col-span-6 text-center">
                                     {!isExpanded && (
                                         <p className={`text-sm ${currentTheme.subtleText}`}>
-                                            {sortedAssignments.length > 0 ? `${sortedAssignments.length} total assignment(s)` : 'No assignments'}
+                                            {sortedAssignments.length > 0 ? `${sortedAssignments.length} assignment(s)` : 'No assignments'}
                                         </p>
                                     )}
                                 </div>
-                                <div className="hidden md:col-span-2 md:block text-right">
+                                <div className="col-span-2 text-right">
                                      <p className={`font-bold text-lg ${weeklyAllocation > 100 ? 'text-red-500' : 'text-green-600'}`}>{weeklyAllocation}%</p>
                                 </div>
                                 <div className="col-span-1 flex justify-end items-center">

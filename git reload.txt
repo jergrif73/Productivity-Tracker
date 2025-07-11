@@ -1,5 +1,5 @@
 git add .
-git commit -m "Created Collapse/Expand All Button in Project Console"
+git commit -m "Refined the Project Console"
 git push origin main
 
 
