@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
@@ -138,15 +139,15 @@ const AttachmentSection = ({ attachments, onAdd, onDelete, currentTheme }) => {
         if (file) {
             onAdd(file);
         }
+         // Reset file input to allow uploading the same file again
+        event.target.value = null;
     };
 
     return (
         <div className="mt-2 space-y-2 text-xs">
             {(attachments || []).map(att => (
                 <div key={att.id} className={`flex items-center justify-between gap-2 p-1 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                    <Tooltip text="File download not implemented in this demo">
-                        <a href="#!" onClick={(e) => e.preventDefault()} className="flex-grow text-blue-400 hover:underline truncate cursor-pointer">{att.name}</a>
-                    </Tooltip>
+                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="flex-grow text-blue-400 hover:underline truncate cursor-pointer">{att.name}</a>
                     <button onClick={() => onDelete(att.id)} className="text-red-500 hover:text-red-700 font-semibold">&times;</button>
                 </div>
             ))}
@@ -167,6 +168,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     const [editingSubTaskData, setEditingSubTaskData] = useState(null);
     const [newWatcherId, setNewWatcherId] = useState('');
     const [isNewTask, setIsNewTask] = useState(true);
+    const [isUploading, setIsUploading] = useState(false);
     
     useEffect(() => {
         if (task && task.id) {
@@ -322,44 +324,93 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
         setTaskData(updatedTaskData);
     };
 
-    const handleAddAttachment = (file, subTaskId = null) => {
-        const newAttachment = {
-            id: `file_${Date.now()}`,
-            name: file.name,
-            url: '#', // Placeholder for demo. In real app, this would be a URL from storage.
-            createdAt: new Date().toISOString(),
-        };
+    const handleAddAttachment = async (file, subTaskId = null) => {
+        if (!task.id) {
+            onSetMessage({ text: "Please save the task before adding attachments.", isError: true });
+            return;
+        }
+        setIsUploading(true);
+        const storage = getStorage();
+        const fileId = `file_${Date.now()}`;
+        const filePath = subTaskId 
+            ? `attachments/${task.id}/${subTaskId}/${fileId}_${file.name}`
+            : `attachments/${task.id}/${fileId}_${file.name}`;
+        
+        const storageRef = ref(storage, filePath);
 
-        if (subTaskId) {
-            setTaskData(prev => ({
-                ...prev,
-                subTasks: prev.subTasks.map(st => 
-                    st.id === subTaskId 
-                    ? { ...st, attachments: [...(st.attachments || []), newAttachment] } 
-                    : st
-                )
-            }));
-        } else {
-            setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), newAttachment] }));
+        try {
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            const newAttachment = {
+                id: fileId,
+                name: file.name,
+                url: downloadURL,
+                fullPath: filePath,
+                createdAt: new Date().toISOString(),
+            };
+
+            if (subTaskId) {
+                setTaskData(prev => ({
+                    ...prev,
+                    subTasks: prev.subTasks.map(st => 
+                        st.id === subTaskId 
+                        ? { ...st, attachments: [...(st.attachments || []), newAttachment] } 
+                        : st
+                    )
+                }));
+            } else {
+                setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), newAttachment] }));
+            }
+            onSetMessage({ text: "File attached. Save to confirm." });
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            onSetMessage({ text: "File upload failed.", isError: true });
+        } finally {
+            setIsUploading(false);
         }
     };
     
-    const handleDeleteAttachment = (attachmentId, subTaskId = null) => {
+    const handleDeleteAttachment = async (attachmentId, subTaskId = null) => {
+        let attachmentToDelete;
         if (subTaskId) {
-            setTaskData(prev => ({
-                ...prev,
-                subTasks: prev.subTasks.map(st => {
-                    if (st.id === subTaskId) {
-                        return { ...st, attachments: st.attachments.filter(att => att.id !== attachmentId) };
-                    }
-                    return st;
-                })
-            }));
+            const subTask = taskData.subTasks.find(st => st.id === subTaskId);
+            attachmentToDelete = subTask?.attachments.find(att => att.id === attachmentId);
         } else {
-            setTaskData(prev => ({
-                ...prev,
-                attachments: prev.attachments.filter(att => att.id !== attachmentId)
-            }));
+            attachmentToDelete = taskData.attachments.find(att => att.id === attachmentId);
+        }
+
+        if (!attachmentToDelete || !attachmentToDelete.fullPath) {
+            onSetMessage({ text: "Could not find attachment to delete.", isError: true });
+            return;
+        }
+
+        const storage = getStorage();
+        const fileRef = ref(storage, attachmentToDelete.fullPath);
+
+        try {
+            await deleteObject(fileRef);
+
+            if (subTaskId) {
+                setTaskData(prev => ({
+                    ...prev,
+                    subTasks: prev.subTasks.map(st => {
+                        if (st.id === subTaskId) {
+                            return { ...st, attachments: st.attachments.filter(att => att.id !== attachmentId) };
+                        }
+                        return st;
+                    })
+                }));
+            } else {
+                setTaskData(prev => ({
+                    ...prev,
+                    attachments: prev.attachments.filter(att => att.id !== attachmentId)
+                }));
+            }
+            onSetMessage({ text: "Attachment deleted. Save to confirm." });
+        } catch (error) {
+            console.error("Error deleting file:", error);
+            onSetMessage({ text: "Failed to delete attachment from storage.", isError: true });
         }
     };
     
@@ -371,6 +422,11 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     return (
         <Modal onClose={onClose} currentTheme={currentTheme}>
             <div className="relative">
+                 {isUploading && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <p className="text-white font-bold">Uploading...</p>
+                    </div>
+                )}
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
                     
