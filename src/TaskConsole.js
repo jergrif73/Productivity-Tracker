@@ -327,7 +327,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
     };
 
     const handleAddAttachment = async (file, subTaskId = null) => {
-        if (!taskData.id) {
+        if (isNewTask) {
             setModalMessage({ text: "Please save the task before adding attachments.", type: 'error' });
             setTimeout(() => setModalMessage(null), 3000);
             return;
