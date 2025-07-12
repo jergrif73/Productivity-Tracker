@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-// --- (Modal components would be imported from their own files in a full refactor) ---
-// For now, let's assume these are available or passed in.
+// --- Helper Components ---
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
     if (!isOpen) return null;
     return (
@@ -66,7 +65,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
     const [confirmAction, setConfirmAction] = useState(null);
     const [visibleEmployees, setVisibleEmployees] = useState(15);
-    const [assignmentSortBy, setAssignmentSortBy] = useState('projectName'); // 'projectName' or 'projectId'
+    const [assignmentSortBy, setAssignmentSortBy] = useState('projectName');
     const [isCondensedView, setIsCondensedView] = useState(true);
 
     const getMostRecentMonday = () => {
@@ -224,9 +223,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             <div className={`flex-grow overflow-y-auto pr-2 ${currentTheme.cardBg} rounded-lg p-4 space-y-2`}>
                 <div className={`hidden md:grid grid-cols-12 gap-4 font-bold text-sm ${currentTheme.subtleText} px-4 py-2`}>
                     <div className="col-span-3">EMPLOYEE</div>
-                    <div className="col-span-6 text-center">PROJECT ASSIGNMENTS</div>
+                    <div className="col-span-7 text-center">PROJECT ASSIGNMENTS</div>
                     <div className="col-span-2 text-right">CURRENT WEEK %</div>
-                    <div className="col-span-1"></div> {/* Placeholder for arrow column */}
                 </div>
                 {employeesWithSortedAssignments.slice(0, visibleEmployees).map((employeeData, index) => {
                     const { sortedAssignments, ...employee } = employeeData;
@@ -242,15 +240,14 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     
                     const weeklyAllocation = sortedAssignments.reduce((sum, a) => {
                         if (!a.startDate || !a.endDate) return sum;
-                        const assignStart = new Date(a.startDate);
-                        const assignEnd = new Date(a.endDate);
+                        const assignStart = new Date(a.startDate + 'T00:00:00');
+                        const assignEnd = new Date(a.endDate + 'T00:00:00');
                         if (assignStart <= weekEnd && assignEnd >= weekStart) {
                             return sum + Number(a.allocation || 0);
                         }
                         return sum;
                     }, 0);
 
-                    const employeeNewAssignments = newAssignments[employee.id] || [];
                     const isExpanded = expandedEmployeeId === employee.id;
 
                     return (
@@ -261,7 +258,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                             >
                                 <div className="col-span-3">
                                     <p className="font-bold">{employee.firstName} {employee.lastName}</p>
-                                    {!isExpanded && !isCondensedView && (
+                                    {!isCondensedView && !isExpanded && (
                                         <>
                                             <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
                                             <p className={`text-xs ${currentTheme.subtleText}`}>ID: {employee.employeeId}</p>
@@ -270,14 +267,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                         </>
                                     )}
                                 </div>
-                                <div className="col-span-6 text-center">
-                                    {!isExpanded && (
-                                        <p className={`text-sm ${currentTheme.subtleText}`}>
-                                            {sortedAssignments.length > 0 ? `${sortedAssignments.length} assignment(s)` : 'No assignments'}
-                                        </p>
-                                    )}
+                                <div className="col-span-7 text-center">
+                                    <p className={`text-sm ${currentTheme.subtleText}`}>
+                                        {sortedAssignments.length > 0 ? `${sortedAssignments.length} assignment(s)` : 'No assignments'}
+                                    </p>
                                 </div>
-                                <div className="col-span-2 text-right">
+                                <div className="col-span-1 text-right">
                                      <p className={`font-bold text-lg ${weeklyAllocation > 100 ? 'text-red-500' : 'text-green-600'}`}>{weeklyAllocation}%</p>
                                 </div>
                                 <div className="col-span-1 flex justify-end items-center">
@@ -289,7 +284,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                             {isExpanded && (
                                 <div className={`p-4 border-t ${currentTheme.borderColor}`}>
                                     <div className="grid grid-cols-12 gap-4 items-start">
-                                        <div className="col-span-12 md:col-start-4 md:col-span-7 space-y-2">
+                                        <div className="col-span-12 md:col-start-4 md:col-span-9 space-y-2">
                                             <div className="flex justify-between items-center mb-2">
                                                 <h4 className={`font-semibold ${currentTheme.textColor}`}>All Project Assignments</h4>
                                                 <div className="flex items-center gap-2 text-xs">
@@ -312,17 +307,13 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                                 <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => confirmDeleteAssignment(asn.id)} currentTheme={currentTheme} />
                                             )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
                                              
-                                            {employeeNewAssignments.map(asn => (
+                                            {(newAssignments[employee.id] || []).map(asn => (
                                                 <div key={asn.id} className="relative p-4 border border-dashed border-blue-400 rounded-lg">
                                                     <InlineAssignmentEditor db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
                                                     <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="mt-2 bg-green-500 text-white px-3 py-1 text-sm rounded hover:bg-green-600">Save New Assignment</button>
                                                 </div>
                                             ))}
                                             <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
-                                        </div>
-                                         <div className="col-span-12 md:col-span-2 text-right md:hidden">
-                                            <p className="font-semibold">Current Week %</p>
-                                            <p className={`font-bold text-lg ${weeklyAllocation > 100 ? 'text-red-500' : 'text-green-600'}`}>{weeklyAllocation}%</p>
                                         </div>
                                     </div>
                                 </div>
