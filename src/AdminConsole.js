@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 
+// --- Helper Components ---
+
 const useDebounce = (value, delay) => {
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
@@ -32,6 +34,176 @@ const Tooltip = ({ text, children }) => {
         </div>
     );
 };
+
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex justify-center items-center">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
+                <h3 className="text-lg font-bold mb-4">{title}</h3>
+                <div className={`mb-6 ${currentTheme.subtleText}`}>{children}</div>
+                <div className="flex justify-end gap-4">
+                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80`}>Cancel</button>
+                    <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Confirm</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const BubbleRating = ({ score, onScoreChange, currentTheme }) => {
+    return (
+        <div className="flex items-center space-x-1 flex-wrap">
+            {[...Array(10)].map((_, i) => {
+                const ratingValue = i + 1;
+                return (
+                    <div key={ratingValue} className="flex flex-col items-center">
+                        <span className={`text-xs ${currentTheme.textColor}`}>{ratingValue}</span>
+                        <button
+                            type="button"
+                            onClick={() => onScoreChange(ratingValue)}
+                            className={`w-5 h-5 rounded-full border border-gray-400 transition-colors ${ratingValue <= score ? 'bg-blue-500' : 'bg-gray-200 hover:bg-blue-200'}`}
+                        />
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast }) => {
+    const [editableEmployee, setEditableEmployee] = useState(null);
+    const [newDiscipline, setNewDiscipline] = useState('');
+
+    const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
+    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
+    
+    useEffect(() => {
+        if (employee) {
+            setEditableEmployee({ ...employee });
+        }
+    }, [employee]);
+
+    if (!editableEmployee) return null;
+
+    const handleSkillChange = (skillName, score) => {
+        setEditableEmployee(prev => ({
+            ...prev,
+            skills: { ...prev.skills, [skillName]: score }
+        }));
+    };
+    
+    const handleAddDiscipline = () => {
+        if (newDiscipline && editableEmployee) {
+            const currentDisciplines = editableEmployee.disciplineSkillsets || {};
+            if (!currentDisciplines.hasOwnProperty(newDiscipline)) {
+                setEditableEmployee(prev => ({
+                    ...prev,
+                    disciplineSkillsets: { ...(prev.disciplineSkillsets || {}), [newDiscipline]: 0 }
+                }));
+                setNewDiscipline('');
+            }
+        }
+    };
+    
+    const handleRemoveDiscipline = (disciplineToRemove) => {
+        setEditableEmployee(prev => {
+            const { [disciplineToRemove]: _, ...remaining } = prev.disciplineSkillsets;
+            return { ...prev, disciplineSkillsets: remaining };
+        });
+    };
+    
+    const handleDisciplineRatingChange = (name, score) => {
+        setEditableEmployee(prev => ({
+            ...prev,
+            disciplineSkillsets: {
+                ...prev.disciplineSkillsets,
+                [name]: score,
+            },
+        }));
+    };
+
+    const handleSaveChanges = () => {
+        onSave(editableEmployee);
+        showToast("Changes saved successfully!");
+        onClose();
+    };
+
+    const handleDataChange = (e) => {
+        const { name, value } = e.target;
+        setEditableEmployee(prev => ({ ...prev, [name]: value }));
+    };
+
+    return (
+         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto`}>
+                <div className="flex justify-between items-center mb-4">
+                     <h2 className="text-2xl font-bold">Edit Employee: {employee.firstName} {employee.lastName}</h2>
+                    <button onClick={onClose} className={`text-2xl font-bold ${currentTheme.subtleText} hover:${currentTheme.textColor}`}>&times;</button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Basic Info Section */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold border-b pb-2">Basic Info</h3>
+                        <input name="firstName" value={editableEmployee.firstName} onChange={handleDataChange} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                        <input name="lastName" value={editableEmployee.lastName} onChange={handleDataChange} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                        <input type="email" name="email" value={editableEmployee.email || ''} onChange={handleDataChange} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                        <select name="title" value={editableEmployee.title || ''} onChange={handleDataChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                            <option value="" disabled>Select a Title</option>
+                            {titleOptions.map(title => <option key={title} value={title}>{title}</option>)}
+                        </select>
+                        <input name="employeeId" value={editableEmployee.employeeId} onChange={handleDataChange} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    </div>
+
+                    {/* Skills & Disciplines Section */}
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Skill Assessment</h3>
+                            <div className="space-y-4">
+                                {skillCategories.map(skill => (
+                                    <div key={skill}>
+                                        <label className="font-medium">{skill}</label>
+                                        <BubbleRating 
+                                            score={editableEmployee.skills?.[skill] || 0}
+                                            onScoreChange={(score) => handleSkillChange(skill, score)}
+                                            currentTheme={currentTheme}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-lg font-semibold border-b pb-2 mb-4">Discipline Skillsets</h3>
+                            <div className="flex items-center gap-2 mb-4 flex-wrap">
+                                <select value={newDiscipline} onChange={(e) => setNewDiscipline(e.target.value)} className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                    <option value="">Select a discipline...</option>
+                                    {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                                <button onClick={handleAddDiscipline} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Add Discipline</button>
+                            </div>
+                            <div className="space-y-4">
+                                {Object.entries(editableEmployee.disciplineSkillsets || {}).map(([name, score]) => (
+                                    <div key={name} className={`p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor}`}>
+                                        <div className="flex justify-between items-start">
+                                        <span className="font-medium">{name}</span>
+                                        <button onClick={() => handleRemoveDiscipline(name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                        </div>
+                                        <BubbleRating score={score} onScoreChange={(newScore) => handleDisciplineRatingChange(name, newScore)} currentTheme={currentTheme} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex justify-end mt-6 pt-4 border-t">
+                     <button onClick={handleSaveChanges} className="w-full bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save All Changes</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const titleOptions = [
     "Detailer I", "Detailer II", "Detailer III", "BIM Specialist", "Programmatic Detailer",
@@ -197,6 +369,42 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         setDragState(null);
     }, [dragState]);
     
+    const handlePaste = (event, startTrade, startWeekDate) => {
+        event.preventDefault();
+        const pasteData = event.clipboardData.getData('text');
+        const rows = pasteData.split(/\r?\n/).filter(row => row.length > 0);
+        const parsedData = rows.map(row => row.split('\t'));
+
+        const startTradeIndex = activeTrades.indexOf(startTrade);
+        const startWeekIndex = weekDates.indexOf(startWeekDate);
+
+        if (startTradeIndex === -1 || startWeekIndex === -1) return;
+
+        const newWeeklyHours = { ...weeklyHours };
+
+        parsedData.forEach((rowData, rowIndex) => {
+            const currentTradeIndex = startTradeIndex + rowIndex;
+            if (currentTradeIndex < activeTrades.length) {
+                const currentTrade = activeTrades[currentTradeIndex];
+                if (!newWeeklyHours[currentTrade]) {
+                    newWeeklyHours[currentTrade] = {};
+                }
+
+                rowData.forEach((cellData, colIndex) => {
+                    const currentWeekIndex = startWeekIndex + colIndex;
+                    if (currentWeekIndex < weekDates.length) {
+                        const currentWeek = weekDates[currentWeekIndex];
+                        const value = parseInt(cellData, 10);
+                        if (!isNaN(value)) {
+                            newWeeklyHours[currentTrade][currentWeek] = value;
+                        }
+                    }
+                });
+            }
+        });
+        setWeeklyHours(newWeeklyHours);
+    };
+
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
         return () => {
@@ -242,10 +450,14 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                         <button onClick={() => handleDeleteTrade(trade)} className="text-red-500 hover:text-red-700 ml-2 font-bold text-lg">&times;</button>
                                     </div>
                                 </td>
-                                {weekDates.map(week => {
+                                {weekDates.map((week, weekIndex) => {
                                     const isSelected = dragState?.startTrade === trade && dragState?.selection[week];
                                     return (
-                                    <td key={`${trade}-${week}`} className={`p-0 border relative ${currentTheme.borderColor}`} onMouseEnter={() => handleMouseEnter(trade, week)}>
+                                    <td key={`${trade}-${week}`} 
+                                        className={`p-0 border relative ${currentTheme.borderColor}`} 
+                                        onMouseEnter={() => handleMouseEnter(trade, week)}
+                                        onPaste={(e) => handlePaste(e, trade, week)}
+                                    >
                                         <input
                                             type="number"
                                             value={weeklyHours[trade]?.[week] || ''}
@@ -288,8 +500,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
     
-    const [editingEmployeeId, setEditingEmployeeId] = useState(null);
-    const [editingEmployeeData, setEditingEmployeeData] = useState(null);
+    const [editingEmployee, setEditingEmployee] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectData, setEditingProjectData] = useState(null);
     const [employeeSortBy, setEmployeeSortBy] = useState('firstName');
@@ -297,6 +508,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [activeStatuses, setActiveStatuses] = useState(["Planning", "Conducting", "Controlling"]);
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [collapsedSections, setCollapsedSections] = useState({ addEmployee: true, addProject: true });
+    const [confirmAction, setConfirmAction] = useState(null);
+    const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+    const [projectSearchTerm, setProjectSearchTerm] = useState('');
+
 
     const handleToggleCollapse = (section) => {
         setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -328,17 +543,27 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         }
     };
 
-    const sortedEmployees = useMemo(() => {
-        return [...detailers].sort((a, b) => {
+    const filteredEmployees = useMemo(() => {
+        const sorted = [...detailers].sort((a, b) => {
             if (employeeSortBy === 'lastName') {
                 return a.lastName.localeCompare(b.lastName);
             }
             return a.firstName.localeCompare(b.firstName);
         });
-    }, [detailers, employeeSortBy]);
 
-    const sortedProjects = useMemo(() => {
-        return [...projects]
+        if (!employeeSearchTerm) return sorted;
+
+        const lowercasedTerm = employeeSearchTerm.toLowerCase();
+        return sorted.filter(e => 
+            e.firstName.toLowerCase().includes(lowercasedTerm) ||
+            e.lastName.toLowerCase().includes(lowercasedTerm) ||
+            e.employeeId.includes(lowercasedTerm) ||
+            (e.email || '').toLowerCase().includes(lowercasedTerm)
+        );
+    }, [detailers, employeeSortBy, employeeSearchTerm]);
+
+    const filteredProjects = useMemo(() => {
+        const sorted = [...projects]
             .filter(p => {
                 const projectStatus = p.status || (p.archived ? "Archive" : "Controlling");
                 return activeStatuses.includes(projectStatus);
@@ -349,7 +574,15 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 }
                 return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
             });
-    }, [projects, projectSortBy, activeStatuses]);
+        
+        if (!projectSearchTerm) return sorted;
+
+        const lowercasedTerm = projectSearchTerm.toLowerCase();
+        return sorted.filter(p => 
+            p.name.toLowerCase().includes(lowercasedTerm) ||
+            p.projectId.toLowerCase().includes(lowercasedTerm)
+        );
+    }, [projects, projectSortBy, activeStatuses, projectSearchTerm]);
 
 
     const handleAdd = async (type) => {
@@ -385,64 +618,100 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         const collectionName = type === 'employee' ? 'detailers' : 'projects';
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
         showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
+        setConfirmAction(null);
     };
     
-    const handleEdit = (type, item) => {
-        if (type === 'employee') {
-            setEditingProjectId(null); 
-            setEditingEmployeeId(item.id);
-            setEditingEmployeeData({ ...item });
-        } else if (type === 'project') {
-            setEditingEmployeeId(null);
-            setEditingProjectId(item.id);
-            setEditingProjectData({ status: "Controlling", ...item }); // Default to controlling if no status
-        }
+    const confirmDelete = (type, item) => {
+        const name = type === 'employee' ? `${item.firstName} ${item.lastName}` : item.name;
+        setConfirmAction({
+            title: `Delete ${type}`,
+            message: `Are you sure you want to permanently delete ${name}? This action cannot be undone.`,
+            action: () => handleDelete(type, item.id)
+        });
+    };
+    
+    const handleEditProject = (project) => {
+        setEditingProjectId(project.id);
+        setEditingProjectData({ status: "Controlling", ...project });
     };
 
-    const handleCancel = () => {
-        setEditingEmployeeId(null);
+    const handleUpdateProject = async () => {
+        if (!editingProjectData) return;
+        const { id, ...data } = editingProjectData;
+        const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, id);
+        await updateDoc(projectRef, {
+            ...data,
+            initialBudget: Number(data.initialBudget),
+            blendedRate: Number(data.blendedRate),
+            bimBlendedRate: Number(data.bimBlendedRate),
+            contingency: Number(data.contingency),
+            archived: data.status === "Archive",
+        });
         setEditingProjectId(null);
+        setEditingProjectData(null);
+        showToast('Project updated successfully.');
     };
 
-    const handleUpdate = async (type) => {
-        try {
-            if (type === 'employee') {
-                const { id, ...data } = editingEmployeeData;
-                const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, id);
-                await updateDoc(employeeRef, data);
-            } else if (type === 'project') {
-                const { id, ...data } = editingProjectData;
-                const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, id);
-                await updateDoc(projectRef, {
-                    ...data,
-                    initialBudget: Number(data.initialBudget),
-                    blendedRate: Number(data.blendedRate),
-                    bimBlendedRate: Number(data.bimBlendedRate),
-                    contingency: Number(data.contingency),
-                    archived: data.status === "Archive",
-                });
-            }
-            handleCancel();
-            showToast('Item updated successfully.');
-        } catch (error) {
-            console.error("Error updating document: ", error);
-            showToast("Failed to update item.", 'error');
-        }
+    const handleUpdateEmployee = async (employeeData) => {
+        const { id, ...data } = employeeData;
+        const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, id);
+        await updateDoc(employeeRef, data);
     };
     
     const handleEditDataChange = (e, type) => {
         const { name, value } = e.target;
-        if (type === 'employee') {
-            setEditingEmployeeData(prev => ({ ...prev, [name]: value }));
-        } else if (type === 'project') {
+        if (type === 'project') {
             setEditingProjectData(prev => ({ ...prev, [name]: value }));
         }
     };
     
-    const isEditing = editingEmployeeId || editingProjectId;
+    const isEditing = editingEmployee || editingProjectId;
     
+    if (expandedProjectId) {
+        const project = projects.find(p => p.id === expandedProjectId);
+        return (
+            <div className={`p-4 ${currentTheme.consoleBg} h-full`}>
+                <div 
+                    className="cursor-pointer mb-4" 
+                    onClick={() => setExpandedProjectId(null)}
+                >
+                    <h2 className="text-2xl font-bold text-blue-500 hover:underline">&larr; Back to All Projects</h2>
+                    <p className="text-lg font-semibold">{project.name} ({project.projectId})</p>
+                </div>
+                <WeeklyTimeline 
+                    project={project}
+                    db={db}
+                    appId={appId}
+                    currentTheme={currentTheme}
+                    showToast={showToast}
+                />
+            </div>
+        )
+    }
+
     return (
         <div className="p-4">
+            {editingEmployee && (
+                <EditEmployeeModal 
+                    employee={editingEmployee}
+                    onSave={handleUpdateEmployee}
+                    onClose={() => setEditingEmployee(null)}
+                    currentTheme={currentTheme}
+                    showToast={showToast}
+                />
+            )}
+            <ConfirmationModal
+                isOpen={!!confirmAction}
+                onClose={() => setConfirmAction(null)}
+                onConfirm={() => {
+                    if(confirmAction?.action) confirmAction.action();
+                }}
+                title={confirmAction?.title}
+                currentTheme={currentTheme}
+            >
+                {confirmAction?.message}
+            </ConfirmationModal>
+
             {/* --- CSS to hide number input arrows --- */}
             <style>{`
                 .no-arrows::-webkit-inner-spin-button,
@@ -478,9 +747,9 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                    <div></div> {/* Empty div for alignment */}
-                    <div className="flex items-center justify-end gap-2">
-                        <span className="text-sm font-medium">Show:</span>
+                    <input type="text" placeholder="Search employees..." value={employeeSearchTerm} onChange={(e) => setEmployeeSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    <div className="flex items-center gap-2">
+                        <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                         {projectStatuses.map(status => (
                              <Tooltip key={status} text={statusDescriptions[status]}>
                                 <button 
@@ -524,39 +793,21 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                         )}
                     </div>
                     <div className="space-y-2">
-                        {sortedEmployees.map((e, index) => {
+                        {filteredEmployees.map((e, index) => {
                             const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                             return (
                             <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                                {editingEmployeeId === e.id ? (
-                                    <div className="space-y-2">
-                                        <input name="firstName" value={editingEmployeeData.firstName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <input name="lastName" value={editingEmployeeData.lastName} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <input type="email" name="email" value={editingEmployeeData.email} onChange={evt => handleEditDataChange(evt, 'employee')} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <select name="title" value={editingEmployeeData.title} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                            {titleOptions.map(title => (
-                                                <option key={title} value={title}>{title}</option>
-                                            ))}
-                                        </select>
-                                        <input name="employeeId" value={editingEmployeeData.employeeId} onChange={evt => handleEditDataChange(evt, 'employee')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleUpdate('employee')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                            <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                        </div>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p>{e.firstName} {e.lastName}</p>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
+                                        <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
                                     </div>
-                                ) : (
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p>{e.firstName} {e.lastName}</p>
-                                            <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
-                                            <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => handleEdit('employee', e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
-                                            <button onClick={() => handleDelete('employee', e.id)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
-                                        </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setEditingEmployee(e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
+                                        <button onClick={() => confirmDelete('employee', e)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         )})}
                     </div>
@@ -608,10 +859,9 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     </div>
 
                     <div className="space-y-2 mb-8">
-                        {sortedProjects.map((p, index) => {
+                        {filteredProjects.map((p, index) => {
                             const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                             const currentStatus = p.status || (p.archived ? "Archive" : "Controlling");
-                            const isExpanded = expandedProjectId === p.id;
                             
                             return (
                                 <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
@@ -645,12 +895,12 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                         </div>
                                         <div className="flex gap-2 pt-4">
-                                            <button onClick={() => handleUpdate('project')} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                            <button onClick={handleCancel} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
+                                            <button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                            <button onClick={() => setEditingProjectId(null)} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="cursor-pointer" onClick={() => setExpandedProjectId(isExpanded ? null : p.id)}>
+                                    <div className="cursor-pointer" onClick={() => setExpandedProjectId(p.id)}>
                                         <div className="flex justify-between items-center">
                                             <div>
                                                 <p className="font-semibold">{p.name} ({p.projectId})</p>
@@ -667,19 +917,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                         </button>
                                                     </Tooltip>
                                                 ))}
-                                                <button onClick={(e) => { e.stopPropagation(); handleEdit('project', p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
-                                                <button onClick={(e) => { e.stopPropagation(); handleDelete('project', p.id); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleEditProject(p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
+                                                <button onClick={(e) => { e.stopPropagation(); confirmDelete('project', p); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
                                             </div>
                                         </div>
-                                        {isExpanded && (
-                                            <WeeklyTimeline 
-                                                project={p}
-                                                db={db}
-                                                appId={appId}
-                                                currentTheme={currentTheme}
-                                                showToast={showToast}
-                                            />
-                                        )}
                                     </div>
                                 )}
                             </div>

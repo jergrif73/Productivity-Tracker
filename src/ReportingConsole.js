@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
-const ReportingConsole = ({ projects, detailers, assignments, tasks, currentTheme }) => {
+const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme }) => {
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [selectedProjectId, setSelectedProjectId] = useState('');
     const [reportData, setReportData] = useState(null);
     const [reportHeaders, setReportHeaders] = useState([]);
 
@@ -19,6 +20,14 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         return diffDays;
     };
+
+    const projectActivitiesMap = useMemo(() => {
+        const map = new Map();
+        allProjectActivities.forEach(activityDoc => {
+            map.set(activityDoc.id, activityDoc.activities);
+        });
+        return map;
+    }, [allProjectActivities]);
 
     const handleGenerateReport = () => {
         let data = [];
@@ -100,12 +109,74 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
                         ];
                     });
                 break;
+            
+            case 'forecast-vs-actual':
+                headers = ["Project Name", "Project ID", "Forecasted Hours", "Assigned Hours", "Actual Burn (Hrs)", "Variance (Forecast - Actual)"];
+                let projectsToReport = projects.filter(p => !p.archived);
+
+                if (selectedProjectId) {
+                    projectsToReport = projects.filter(p => p.id === selectedProjectId);
+                } else if (sDate && eDate) {
+                    const activeProjectIds = new Set();
+                    assignments.forEach(ass => {
+                        const assStartDate = new Date(ass.startDate);
+                        const assEndDate = new Date(ass.endDate);
+                        if(assStartDate <= eDate && assEndDate >= sDate) {
+                            activeProjectIds.add(ass.projectId);
+                        }
+                    });
+                    projectsToReport = projectsToReport.filter(p => activeProjectIds.has(p.id));
+                }
+                
+                data = projectsToReport.map(p => {
+                        const projectActivities = projectActivitiesMap.get(p.id);
+
+                        // Actual Burn
+                        const actualBurn = projectActivities 
+                            ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.hoursUsed) || 0), 0)
+                            : 0;
+
+                        // Assigned Supply
+                        const assignedHours = assignments
+                            .filter(a => a.projectId === p.id)
+                            .reduce((sum, ass) => {
+                                const assignmentStart = new Date(ass.startDate);
+                                const assignmentEnd = new Date(ass.endDate);
+                                const diffTime = Math.abs(assignmentEnd - assignmentStart);
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                const workDays = Math.ceil(diffDays * (5/7)); // Approx.
+                                return sum + (workDays * 8 * (Number(ass.allocation) / 100));
+                            }, 0);
+
+                        // Forecasted Demand
+                        const forecastedHours = projectActivities
+                            ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.estimatedHours) || 0), 0)
+                            : 0;
+
+                        const variance = forecastedHours - actualBurn;
+
+                        return [
+                            p.name,
+                            p.projectId,
+                            forecastedHours.toFixed(2),
+                            assignedHours.toFixed(2),
+                            actualBurn.toFixed(2),
+                            variance.toFixed(2)
+                        ];
+                    });
+                break;
+
 
             default:
                 break;
         }
         setReportData(data);
         setReportHeaders(headers);
+    };
+
+    const handleClearReport = () => {
+        setReportData(null);
+        setReportHeaders([]);
     };
 
     const exportToCSV = () => {
@@ -129,7 +200,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
             <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting Console</h2>
 
             <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4`}>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                     <div>
                         <label className="block text-sm font-medium mb-1">Report Type</label>
                         <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
@@ -137,6 +208,19 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
                             <option value="project-hours">Project Hours Summary</option>
                             <option value="detailer-workload">Detailer Workload Summary</option>
                             <option value="task-status">Task Status Report</option>
+                            <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium mb-1">Project</label>
+                        <select 
+                            value={selectedProjectId} 
+                            onChange={e => setSelectedProjectId(e.target.value)} 
+                            className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            disabled={reportType !== 'forecast-vs-actual'}
+                        >
+                            <option value="">All Projects</option>
+                            {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
                     <div>
@@ -155,7 +239,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, currentThem
                  <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xl font-semibold">Report Results</h3>
-                        <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                        <div className="flex gap-2">
+                             <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                             <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full">

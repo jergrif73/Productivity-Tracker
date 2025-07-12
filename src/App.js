@@ -167,6 +167,7 @@ const App = () => {
     const [assignments, setAssignments] = useState([]);
     const [tasks, setTasks] = useState([]);
     const [taskLanes, setTaskLanes] = useState([]);
+    const [allProjectActivities, setAllProjectActivities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
@@ -237,6 +238,7 @@ const App = () => {
             assignments: setAssignments,
             tasks: setTasks,
             taskLanes: (data) => setTaskLanes(data.sort((a, b) => a.order - b.order)),
+            projectActivities: setAllProjectActivities,
         };
 
         const unsubscribers = Object.entries(collections).map(([name, setter]) => {
@@ -267,7 +269,7 @@ const App = () => {
             setLoginError('');
         } else if (username === 'Viewer' && password === 'Viewer8765') {
             setAccessLevel('viewer');
-            setView('projects');
+            setView('workloader');
             setIsLoggedIn(true);
             setLoginError('');
         } else {
@@ -292,15 +294,14 @@ const App = () => {
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
         { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg> },
         { id: 'forecast', label: 'Forecast', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C3.732 5.943 7.522 3 10 3s6.268 2.943 9.542 7c-3.274 4.057-7.03 7-9.542 7S3.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> },
-        { id: 'skills', label: 'Edit', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg> },
         { id: 'reporting', label: 'Reporting', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg> },
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
     ];
     
     const navConfig = {
-        taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'forecast', 'skills', 'reporting', 'admin'],
+        taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'forecast', 'reporting', 'admin'],
         tcl: ['projects', 'workloader', 'tasks', 'gantt'],
-        viewer: ['projects', 'workloader', 'tasks', 'gantt'],
+        viewer: ['workloader', 'tasks', 'gantt'],
         default: []
     };
 
@@ -328,8 +329,7 @@ const App = () => {
             case 'tasks': return <TaskConsole {...consoleProps} />;
             case 'gantt': return <GanttConsole {...consoleProps} />;
             case 'forecast': return <ForecastConsole {...consoleProps} />;
-            case 'skills': return <SkillsConsole {...consoleProps} />;
-            case 'reporting': return <ReportingConsole {...consoleProps} />;
+            case 'reporting': return <ReportingConsole {...consoleProps} allProjectActivities={allProjectActivities} />;
             case 'admin': return <AdminConsole {...consoleProps} />;
             default: return <div className="text-center p-10">Select a view from the navigation.</div>;
         }

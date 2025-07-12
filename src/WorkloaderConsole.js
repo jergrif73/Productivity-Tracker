@@ -72,7 +72,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const [dragFillEnd, setDragFillEnd] = useState(null);
     const [editingCell, setEditingCell] = useState(null);
     const popupRef = useRef(null);
-    const [isCondensedView, setIsCondensedView] = useState(true);
     const [expandedProjectIds, setExpandedProjectIds] = useState(new Set());
 
     const isTaskmaster = accessLevel === 'taskmaster';
@@ -246,7 +245,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
         setDragFillStart(null);
         setDragFillEnd(null);
-    }, [dragFillStart, dragFillEnd, weekDates, appId, db, showToast]);
+    }, [dragFillStart, dragFillEnd, weekDates, appId, db]);
     
     const toggleProjectExpansion = (projectId) => {
         setExpandedProjectIds(prev => {
@@ -293,14 +292,9 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                      <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
                  </div>
                  <div className="flex items-center gap-2">
-                    <button onClick={() => setIsCondensedView(!isCondensedView)} className={`px-3 py-1 text-sm rounded-md ${isCondensedView ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>
-                        {isCondensedView ? 'Detailed View' : 'Condensed View'}
+                    <button onClick={handleToggleAllProjects} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                        {expandedProjectIds.size === groupedData.length ? 'Collapse All' : 'Expand All'}
                     </button>
-                    {isCondensedView && (
-                        <button onClick={handleToggleAllProjects} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                            {expandedProjectIds.size === groupedData.length ? 'Collapse All' : 'Expand All'}
-                        </button>
-                    )}
                     <span className={`text-sm font-medium ${currentTheme.subtleText} ml-4`}>Sort by:</span>
                     <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
                     <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
@@ -345,18 +339,16 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             return (
                                 <React.Fragment key={project.id}>
                                     <tr className={`${currentTheme.altRowBg} sticky top-10`}>
-                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => isCondensedView && toggleProjectExpansion(project.id)}>
+                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleProjectExpansion(project.id)}>
                                             <div className="flex items-center">
-                                                {isCondensedView && (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isProjectExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                    </svg>
-                                                )}
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isProjectExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
                                                 {project.name} ({project.projectId})
                                             </div>
                                         </th>
                                     </tr>
-                                    {(!isCondensedView || isProjectExpanded) && project.assignments.map(assignment => {
+                                    {isProjectExpanded && project.assignments.map(assignment => {
                                         const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
                                         return (
                                             <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
