@@ -353,18 +353,21 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                 createdAt: new Date().toISOString(),
             };
 
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
+
             if (subTaskId) {
-                setTaskData(prev => ({
-                    ...prev,
-                    subTasks: prev.subTasks.map(st => 
-                        st.id === subTaskId 
-                        ? { ...st, attachments: [...(st.attachments || []), newAttachment] } 
-                        : st
-                    )
-                }));
+                const updatedSubTasks = taskData.subTasks.map(st => 
+                    st.id === subTaskId 
+                    ? { ...st, attachments: [...(st.attachments || []), newAttachment] } 
+                    : st
+                );
+                await updateDoc(taskRef, { subTasks: updatedSubTasks });
             } else {
-                setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), newAttachment] }));
+                const updatedAttachments = [...(taskData.attachments || []), newAttachment];
+                await updateDoc(taskRef, { attachments: updatedAttachments });
             }
+            setModalMessage({ text: "Attachment added!", type: 'success' });
+            setTimeout(() => setModalMessage(null), 3000);
         } catch (error) {
             console.error("Error uploading file:", error);
             setModalMessage({ text: "File upload failed.", type: 'error' });
@@ -395,22 +398,22 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
         try {
             await deleteObject(fileRef);
 
+            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
+
             if (subTaskId) {
-                setTaskData(prev => ({
-                    ...prev,
-                    subTasks: prev.subTasks.map(st => {
-                        if (st.id === subTaskId) {
-                            return { ...st, attachments: st.attachments.filter(att => att.id !== attachmentId) };
-                        }
-                        return st;
-                    })
-                }));
+                const updatedSubTasks = taskData.subTasks.map(st => {
+                    if (st.id === subTaskId) {
+                        return { ...st, attachments: st.attachments.filter(att => att.id !== attachmentId) };
+                    }
+                    return st;
+                });
+                await updateDoc(taskRef, { subTasks: updatedSubTasks });
             } else {
-                setTaskData(prev => ({
-                    ...prev,
-                    attachments: prev.attachments.filter(att => att.id !== attachmentId)
-                }));
+                const updatedAttachments = taskData.attachments.filter(att => att.id !== attachmentId);
+                await updateDoc(taskRef, { attachments: updatedAttachments });
             }
+            setModalMessage({ text: "Attachment deleted!", type: 'success' });
+            setTimeout(() => setModalMessage(null), 3000);
         } catch (error) {
             console.error("Error deleting file:", error);
             setModalMessage({ text: "Failed to delete attachment from storage.", type: 'error' });
@@ -427,7 +430,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
         <Modal onClose={onClose} currentTheme={currentTheme}>
             <div className="relative">
                  {isUploading && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded-lg">
                         <p className="text-white font-bold">Uploading...</p>
                     </div>
                 )}
@@ -819,7 +822,6 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                         projects={projects}
                         onClose={handleCloseModal}
                         onSave={handleSaveTask}
-                        onSetMessage={(msg) => showToast(msg.text, msg.isError ? 'error' : 'success')}
                         onDelete={() => setTaskToDelete(editingTask)}
                         currentTheme={currentTheme}
                         appId={appId}
