@@ -325,7 +325,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     };
 
     const handleAddAttachment = async (file, subTaskId = null) => {
-        if (!task.id) {
+        if (!taskData.id) {
             onSetMessage({ text: "Please save the task before adding attachments.", isError: true });
             return;
         }
@@ -333,8 +333,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
         const storage = getStorage();
         const fileId = `file_${Date.now()}`;
         const filePath = subTaskId 
-            ? `attachments/${task.id}/${subTaskId}/${fileId}_${file.name}`
-            : `attachments/${task.id}/${fileId}_${file.name}`;
+            ? `attachments/${taskData.id}/${subTaskId}/${fileId}_${file.name}`
+            : `attachments/${taskData.id}/${fileId}_${file.name}`;
         
         const storageRef = ref(storage, filePath);
 
@@ -362,7 +362,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
             } else {
                 setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), newAttachment] }));
             }
-            onSetMessage({ text: "File attached. Save to confirm." });
         } catch (error) {
             console.error("Error uploading file:", error);
             onSetMessage({ text: "File upload failed.", isError: true });
@@ -407,7 +406,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                     attachments: prev.attachments.filter(att => att.id !== attachmentId)
                 }));
             }
-            onSetMessage({ text: "Attachment deleted. Save to confirm." });
         } catch (error) {
             console.error("Error deleting file:", error);
             onSetMessage({ text: "Failed to delete attachment from storage.", isError: true });
