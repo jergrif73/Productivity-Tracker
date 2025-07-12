@@ -169,6 +169,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     const [newWatcherId, setNewWatcherId] = useState('');
     const [isNewTask, setIsNewTask] = useState(true);
     const [isUploading, setIsUploading] = useState(false);
+    const [modalMessage, setModalMessage] = useState(null);
     
     useEffect(() => {
         if (task && task.id) {
@@ -326,7 +327,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
 
     const handleAddAttachment = async (file, subTaskId = null) => {
         if (!taskData.id) {
-            onSetMessage({ text: "Please save the task before adding attachments.", isError: true });
+            setModalMessage({ text: "Please save the task before adding attachments.", type: 'error' });
+            setTimeout(() => setModalMessage(null), 3000);
             return;
         }
         setIsUploading(true);
@@ -364,7 +366,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
             }
         } catch (error) {
             console.error("Error uploading file:", error);
-            onSetMessage({ text: "File upload failed.", isError: true });
+            setModalMessage({ text: "File upload failed.", type: 'error' });
+            setTimeout(() => setModalMessage(null), 3000);
         } finally {
             setIsUploading(false);
         }
@@ -380,7 +383,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
         }
 
         if (!attachmentToDelete || !attachmentToDelete.fullPath) {
-            onSetMessage({ text: "Could not find attachment to delete.", isError: true });
+            setModalMessage({ text: "Could not find attachment to delete.", type: 'error' });
+            setTimeout(() => setModalMessage(null), 3000);
             return;
         }
 
@@ -408,7 +412,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
             }
         } catch (error) {
             console.error("Error deleting file:", error);
-            onSetMessage({ text: "Failed to delete attachment from storage.", isError: true });
+            setModalMessage({ text: "Failed to delete attachment from storage.", type: 'error' });
+            setTimeout(() => setModalMessage(null), 3000);
         }
     };
     
@@ -548,6 +553,12 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                            currentTheme={currentTheme}
                          />
                     </div>
+
+                    {modalMessage && (
+                        <div className={`p-2 text-center text-sm rounded-md ${modalMessage.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
+                            {modalMessage.text}
+                        </div>
+                    )}
 
                     <div className="flex justify-end gap-4 pt-4">
                         {!isNewTask && (
