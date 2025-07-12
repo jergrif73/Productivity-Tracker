@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
@@ -130,61 +130,37 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
     );
 };
 
-const AttachmentSection = ({ attachments, onAdd, onUpdate, onDelete, currentTheme }) => {
-    const [newUrl, setNewUrl] = useState('');
-    const [editingAttachment, setEditingAttachment] = useState(null); // { id: '...', url: '...' }
+const AttachmentSection = ({ attachments, onAdd, onDelete, currentTheme }) => {
+    const fileInputRef = React.useRef(null);
 
-    const handleAdd = () => {
-        if (newUrl.trim()) {
-            onAdd(newUrl.trim());
-            setNewUrl('');
-        }
-    };
-
-    const handleUpdate = () => {
-        if (editingAttachment && editingAttachment.url.trim()) {
-            onUpdate(editingAttachment.id, editingAttachment.url.trim());
-            setEditingAttachment(null);
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            onAdd(file);
         }
     };
 
     return (
         <div className="mt-2 space-y-2 text-xs">
             {(attachments || []).map(att => (
-                <div key={att.id} className={`flex items-center gap-2 p-1 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                    {editingAttachment?.id === att.id ? (
-                        <input
-                            type="text"
-                            value={editingAttachment.url}
-                            onChange={(e) => setEditingAttachment({ ...editingAttachment, url: e.target.value })}
-                            className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                            onBlur={handleUpdate}
-                            onKeyPress={e => e.key === 'Enter' && handleUpdate()}
-                            autoFocus
-                        />
-                    ) : (
-                         <a href={att.url} target="_blank" rel="noopener noreferrer" className="flex-grow text-blue-400 hover:underline truncate">{att.url}</a>
-                    )}
-                    <button onClick={() => setEditingAttachment({ ...att })} className="text-blue-500 hover:text-blue-700 font-semibold">Edit</button>
-                    <button onClick={() => onDelete(att.id)} className="text-red-500 hover:text-red-700 font-semibold">Del</button>
+                <div key={att.id} className={`flex items-center justify-between gap-2 p-1 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                    <Tooltip text="File download not implemented in this demo">
+                        <a href="#!" onClick={(e) => e.preventDefault()} className="flex-grow text-blue-400 hover:underline truncate cursor-pointer">{att.name}</a>
+                    </Tooltip>
+                    <button onClick={() => onDelete(att.id)} className="text-red-500 hover:text-red-700 font-semibold">&times;</button>
                 </div>
             ))}
              <div className="flex items-center gap-2 pt-2 border-t border-dashed mt-2">
-                <input
-                    type="text"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="Add URL link..."
-                    className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                />
-                <button onClick={handleAdd} className={`px-2 py-1 rounded hover:bg-opacity-80 ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>Add</button>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                <button onClick={() => fileInputRef.current.click()} className={`text-sm text-blue-500 hover:underline`}>+ Attach File</button>
             </div>
         </div>
     );
 };
 
+const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
 
-const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete, currentTheme }) => {
+const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete, currentTheme, appId }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
@@ -192,8 +168,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
     const [newWatcherId, setNewWatcherId] = useState('');
     const [isNewTask, setIsNewTask] = useState(true);
     
-    const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
-
     useEffect(() => {
         if (task && task.id) {
             const subTasksWithDetails = (task.subTasks || []).map(st => ({
@@ -348,8 +322,14 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
         setTaskData(updatedTaskData);
     };
 
-    const handleAddAttachment = (url, subTaskId = null) => {
-        const newAttachment = { id: `att_${Date.now()}`, url };
+    const handleAddAttachment = (file, subTaskId = null) => {
+        const newAttachment = {
+            id: `file_${Date.now()}`,
+            name: file.name,
+            url: '#', // Placeholder for demo. In real app, this would be a URL from storage.
+            createdAt: new Date().toISOString(),
+        };
+
         if (subTaskId) {
             setTaskData(prev => ({
                 ...prev,
@@ -363,26 +343,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
             setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), newAttachment] }));
         }
     };
-
-    const handleUpdateAttachment = (attachmentId, newUrl, subTaskId = null) => {
-        if (subTaskId) {
-            setTaskData(prev => ({
-                ...prev,
-                subTasks: prev.subTasks.map(st => {
-                    if (st.id === subTaskId) {
-                        return { ...st, attachments: st.attachments.map(att => att.id === attachmentId ? { ...att, url: newUrl } : att) };
-                    }
-                    return st;
-                })
-            }));
-        } else {
-            setTaskData(prev => ({
-                ...prev,
-                attachments: prev.attachments.map(att => att.id === attachmentId ? { ...att, url: newUrl } : att)
-            }));
-        }
-    };
-
+    
     const handleDeleteAttachment = (attachmentId, subTaskId = null) => {
         if (subTaskId) {
             setTaskData(prev => ({
@@ -487,8 +448,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                                     <div className="pl-6">
                                         <AttachmentSection
                                             attachments={st.attachments}
-                                            onAdd={(url) => handleAddAttachment(url, st.id)}
-                                            onUpdate={(id, url) => handleUpdateAttachment(id, url, st.id)}
+                                            onAdd={(file) => handleAddAttachment(file, st.id)}
                                             onDelete={(id) => handleDeleteAttachment(id, st.id)}
                                             currentTheme={currentTheme}
                                         />
@@ -518,8 +478,7 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
                          <h3 className="font-semibold mb-2">Task Attachments</h3>
                          <AttachmentSection
                             attachments={taskData.attachments}
-                            onAdd={(url) => handleAddAttachment(url)}
-                            onUpdate={(id, url) => handleUpdateAttachment(id, url)}
+                            onAdd={(file) => handleAddAttachment(file)}
                             onDelete={(id) => handleDeleteAttachment(id)}
                             currentTheme={currentTheme}
                          />
@@ -797,6 +756,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                         onSetMessage={(msg) => showToast(msg.text, msg.isError ? 'error' : 'success')}
                         onDelete={() => setTaskToDelete(editingTask)}
                         currentTheme={currentTheme}
+                        appId={appId}
                     />
                 </Modal>
             )}
