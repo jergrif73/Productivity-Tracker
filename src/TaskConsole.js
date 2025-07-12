@@ -161,7 +161,7 @@ const AttachmentSection = ({ attachments, onAdd, onDelete, currentTheme }) => {
 
 const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
 
-const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSetMessage, onDelete, currentTheme, appId }) => {
+const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDelete, currentTheme, appId }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
@@ -267,7 +267,8 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onSet
 
     const handleAddComment = (commentData, subTaskId = null) => {
         if (!commentData.text.trim() || !commentData.author || commentData.author.trim().length !== 3) {
-            onSetMessage({ text: "A comment and 3-letter initials are required.", isError: true });
+            setModalMessage({ text: "A comment and 3-letter initials are required.", type: 'error' });
+            setTimeout(() => setModalMessage(null), 3000);
             return;
         }
 
