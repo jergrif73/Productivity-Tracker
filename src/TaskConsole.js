@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
@@ -131,33 +130,83 @@ const CommentSection = ({ comments, onAddComment, onUpdateComment, onDeleteComme
     );
 };
 
-const AttachmentSection = ({ attachments, onAdd, onDelete, currentTheme }) => {
-    const fileInputRef = React.useRef(null);
+const AttachmentSectionURL = ({ attachments, onAdd, onUpdate, onDelete, currentTheme }) => {
+    const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
+    const [editingAttachment, setEditingAttachment] = useState(null);
 
-    const handleFileChange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            onAdd(file);
+    const handleAdd = () => {
+        if (newAttachment.name && newAttachment.url) {
+            onAdd(newAttachment);
+            setNewAttachment({ name: '', url: '' });
         }
-         // Reset file input to allow uploading the same file again
-        event.target.value = null;
+    };
+
+    const handleUpdate = () => {
+        if (editingAttachment.name && editingAttachment.url) {
+            onUpdate(editingAttachment);
+            setEditingAttachment(null);
+        }
     };
 
     return (
-        <div className="mt-2 space-y-2 text-xs">
+        <div className="mt-2 space-y-3">
             {(attachments || []).map(att => (
-                <div key={att.id} className={`flex items-center justify-between gap-2 p-1 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="flex-grow text-blue-400 hover:underline truncate cursor-pointer">{att.name}</a>
-                    <button onClick={() => onDelete(att.id)} className="text-red-500 hover:text-red-700 font-semibold">&times;</button>
+                <div key={att.id} className={`p-2 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                    {editingAttachment?.id === att.id ? (
+                        <div className="space-y-2">
+                            <input
+                                type="text"
+                                placeholder="Attachment Name"
+                                value={editingAttachment.name}
+                                onChange={e => setEditingAttachment({ ...editingAttachment, name: e.target.value })}
+                                className={`w-full p-1 border rounded text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            />
+                            <input
+                                type="text"
+                                placeholder="https://example.com"
+                                value={editingAttachment.url}
+                                onChange={e => setEditingAttachment({ ...editingAttachment, url: e.target.value })}
+                                className={`w-full p-1 border rounded text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            />
+                            <div className="flex gap-2">
+                                <button onClick={handleUpdate} className="text-xs bg-green-500 text-white px-2 py-1 rounded">Save</button>
+                                <button onClick={() => setEditingAttachment(null)} className="text-xs bg-gray-400 text-white px-2 py-1 rounded">Cancel</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                            <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate">
+                                {att.name}
+                            </a>
+                            <div className="flex gap-2">
+                                <button onClick={() => setEditingAttachment({ ...att })} className="text-xs text-blue-500 hover:underline">Edit</button>
+                                <button onClick={() => onDelete(att.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             ))}
-             <div className="flex items-center gap-2 pt-2 border-t border-dashed mt-2">
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                <button onClick={() => fileInputRef.current.click()} className={`text-sm text-blue-500 hover:underline`}>+ Attach File</button>
+            <div className="flex items-center gap-2 pt-3 border-t border-dashed mt-3">
+                <input
+                    type="text"
+                    placeholder="Attachment Name"
+                    value={newAttachment.name}
+                    onChange={e => setNewAttachment({ ...newAttachment, name: e.target.value })}
+                    className={`flex-grow p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                />
+                <input
+                    type="text"
+                    placeholder="https://example.com"
+                    value={newAttachment.url}
+                    onChange={e => setNewAttachment({ ...newAttachment, url: e.target.value })}
+                    className={`flex-grow p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                />
+                <button onClick={handleAdd} className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600">Add Link</button>
             </div>
         </div>
     );
 };
+
 
 const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
 
@@ -168,7 +217,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
     const [editingSubTaskData, setEditingSubTaskData] = useState(null);
     const [newWatcherId, setNewWatcherId] = useState('');
     const [isNewTask, setIsNewTask] = useState(true);
-    const [isUploading, setIsUploading] = useState(false);
     const [modalMessage, setModalMessage] = useState(null);
     
     useEffect(() => {
@@ -326,98 +374,57 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
         setTaskData(updatedTaskData);
     };
 
-    const handleAddAttachment = async (file, subTaskId = null) => {
-        if (isNewTask) {
-            setModalMessage({ text: "Please save the task before adding attachments.", type: 'error' });
-            setTimeout(() => setModalMessage(null), 3000);
-            return;
-        }
-        setIsUploading(true);
-        const storage = getStorage();
-        const fileId = `file_${Date.now()}`;
-        const filePath = subTaskId 
-            ? `attachments/${taskData.id}/${subTaskId}/${fileId}_${file.name}`
-            : `attachments/${taskData.id}/${fileId}_${file.name}`;
-        
-        const storageRef = ref(storage, filePath);
-
-        try {
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-
-            const newAttachment = {
-                id: fileId,
-                name: file.name,
-                url: downloadURL,
-                fullPath: filePath,
-                createdAt: new Date().toISOString(),
-            };
-
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
-
-            if (subTaskId) {
-                const updatedSubTasks = taskData.subTasks.map(st => 
+    const handleAddAttachmentURL = (newAttachment, subTaskId = null) => {
+        const attachmentWithId = { ...newAttachment, id: `att_${Date.now()}` };
+        if (subTaskId) {
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => 
                     st.id === subTaskId 
-                    ? { ...st, attachments: [...(st.attachments || []), newAttachment] } 
+                    ? { ...st, attachments: [...(st.attachments || []), attachmentWithId] } 
                     : st
-                );
-                await updateDoc(taskRef, { subTasks: updatedSubTasks });
-            } else {
-                const updatedAttachments = [...(taskData.attachments || []), newAttachment];
-                await updateDoc(taskRef, { attachments: updatedAttachments });
-            }
-            setModalMessage({ text: "Attachment added!", type: 'success' });
-            setTimeout(() => setModalMessage(null), 3000);
-        } catch (error) {
-            console.error("Error uploading file:", error);
-            setModalMessage({ text: "File upload failed.", type: 'error' });
-            setTimeout(() => setModalMessage(null), 3000);
-        } finally {
-            setIsUploading(false);
+                )
+            }));
+        } else {
+            setTaskData(prev => ({ ...prev, attachments: [...(prev.attachments || []), attachmentWithId] }));
         }
     };
-    
-    const handleDeleteAttachment = async (attachmentId, subTaskId = null) => {
-        let attachmentToDelete;
+
+    const handleUpdateAttachmentURL = (updatedAttachment, subTaskId = null) => {
         if (subTaskId) {
-            const subTask = taskData.subTasks.find(st => st.id === subTaskId);
-            attachmentToDelete = subTask?.attachments.find(att => att.id === attachmentId);
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => {
+                    if (st.id === subTaskId) {
+                        return { ...st, attachments: st.attachments.map(att => att.id === updatedAttachment.id ? updatedAttachment : att) };
+                    }
+                    return st;
+                })
+            }));
         } else {
-            attachmentToDelete = taskData.attachments.find(att => att.id === attachmentId);
+            setTaskData(prev => ({
+                ...prev,
+                attachments: prev.attachments.map(att => att.id === updatedAttachment.id ? updatedAttachment : att)
+            }));
         }
+    };
 
-        if (!attachmentToDelete || !attachmentToDelete.fullPath) {
-            setModalMessage({ text: "Could not find attachment to delete.", type: 'error' });
-            setTimeout(() => setModalMessage(null), 3000);
-            return;
-        }
-
-        const storage = getStorage();
-        const fileRef = ref(storage, attachmentToDelete.fullPath);
-
-        try {
-            await deleteObject(fileRef);
-
-            const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskData.id);
-
-            if (subTaskId) {
-                const updatedSubTasks = taskData.subTasks.map(st => {
+    const handleDeleteAttachmentURL = (attachmentId, subTaskId = null) => {
+        if (subTaskId) {
+            setTaskData(prev => ({
+                ...prev,
+                subTasks: prev.subTasks.map(st => {
                     if (st.id === subTaskId) {
                         return { ...st, attachments: st.attachments.filter(att => att.id !== attachmentId) };
                     }
                     return st;
-                });
-                await updateDoc(taskRef, { subTasks: updatedSubTasks });
-            } else {
-                const updatedAttachments = taskData.attachments.filter(att => att.id !== attachmentId);
-                await updateDoc(taskRef, { attachments: updatedAttachments });
-            }
-            setModalMessage({ text: "Attachment deleted!", type: 'success' });
-            setTimeout(() => setModalMessage(null), 3000);
-        } catch (error) {
-            console.error("Error deleting file:", error);
-            setModalMessage({ text: "Failed to delete attachment from storage.", type: 'error' });
-            setTimeout(() => setModalMessage(null), 3000);
+                })
+            }));
+        } else {
+            setTaskData(prev => ({
+                ...prev,
+                attachments: prev.attachments.filter(att => att.id !== attachmentId)
+            }));
         }
     };
     
@@ -429,11 +436,6 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
     return (
         <Modal onClose={onClose} currentTheme={currentTheme}>
             <div className="relative">
-                 {isUploading && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 rounded-lg">
-                        <p className="text-white font-bold">Uploading...</p>
-                    </div>
-                )}
                 <div className="space-y-6">
                     <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
                     
@@ -509,10 +511,11 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                                         </div>
                                     )}
                                     <div className="pl-6">
-                                        <AttachmentSection
+                                        <AttachmentSectionURL
                                             attachments={st.attachments}
-                                            onAdd={(file) => handleAddAttachment(file, st.id)}
-                                            onDelete={(id) => handleDeleteAttachment(id, st.id)}
+                                            onAdd={(att) => handleAddAttachmentURL(att, st.id)}
+                                            onUpdate={(att) => handleUpdateAttachmentURL(att, st.id)}
+                                            onDelete={(id) => handleDeleteAttachmentURL(id, st.id)}
                                             currentTheme={currentTheme}
                                         />
                                         <CommentSection 
@@ -539,10 +542,11 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                     
                      <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
                          <h3 className="font-semibold mb-2">Task Attachments</h3>
-                         <AttachmentSection
+                         <AttachmentSectionURL
                             attachments={taskData.attachments}
-                            onAdd={(file) => handleAddAttachment(file)}
-                            onDelete={(id) => handleDeleteAttachment(id)}
+                            onAdd={handleAddAttachmentURL}
+                            onUpdate={handleUpdateAttachmentURL}
+                            onDelete={handleDeleteAttachmentURL}
                             currentTheme={currentTheme}
                          />
                     </div>
