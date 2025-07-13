@@ -607,9 +607,9 @@ const TaskCard = ({ task, detailers, onDragStart, onClick, currentTheme }) => {
             onDragStart={(e) => onDragStart(e, task.id)}
             onClick={onClick}
             className={`${currentTheme.cardBg} p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer mb-3 ${currentTheme.textColor}`}
-            whileDrag={{ scale: 1.1, rotate: 3, zIndex: 50, boxShadow: "0px 15px 25px rgba(0,0,0,0.3)" }}
+            whileDrag={{ scale: 1.05, rotate: 2, zIndex: 50, boxShadow: "0px 15px 25px rgba(0,0,0,0.3)" }}
         >
-            <p className="font-semibold mb-2">{task.taskName}</p>
+            <p className="font-semibold mb-2 break-words">{task.taskName}</p>
             <div className={`flex items-center justify-between text-xs ${currentTheme.subtleText} mt-2`}>
                 <span className={task.dueDate ? '' : 'opacity-50'}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -758,7 +758,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full p-4">
             <ConfirmationModal
                 isOpen={!!confirmAction}
                 onClose={() => setConfirmAction(null)}
@@ -772,14 +772,15 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                 {confirmAction?.message}
             </ConfirmationModal>
 
-             <div className="flex-grow overflow-x-auto p-4">
+             <div className="flex-grow overflow-x-auto">
                  <div className="flex space-x-4 h-full">
                      {taskLanes.map(lane => (
                          <div
                              key={lane.id}
                              onDragOver={handleDragOver}
                              onDrop={(e) => handleDrop(e, lane.id)}
-                             className={`${currentTheme.altRowBg} rounded-lg p-3 w-72 flex-shrink-0 flex flex-col`}
+                             className={`${currentTheme.altRowBg} rounded-lg p-3 flex-shrink-0 flex flex-col`}
+                             style={{width: 'max-content', minWidth: '16rem'}}
                          >
                             <div className={`flex justify-between items-center mb-4 ${currentTheme.textColor}`}>
                                { editingLaneId === lane.id ? (
@@ -817,7 +818,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                          </div>
                      ))}
                       <div className="w-72 flex-shrink-0">
-                         <button onClick={handleAddLane} className={`w-full p-3 ${currentTheme.buttonBg} ${currentTheme.buttonText} rounded-lg hover:bg-opacity-80`}>+ Add Another List</button>
+                         <button onClick={handleAddLane} className={`w-full p-3 h-full ${currentTheme.buttonBg} ${currentTheme.buttonText} rounded-lg hover:bg-opacity-80`}>+ Add Another List</button>
                       </div>
                  </div>
              </div>

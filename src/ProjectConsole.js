@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { doc, onSnapshot, setDoc, collection, getDocs } from 'firebase/firestore';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
 const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
@@ -62,40 +63,42 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
     const variance = currentBudget - projectedFinalCost;
 
     return (
-        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-center`}>
-            <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Current Budget</p>
-                <p className="text-lg font-bold">{formatCurrency(currentBudget)}</p>
+        <TutorialHighlight tutorialKey="financialSummary">
+            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-center`}>
+                <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Current Budget</p>
+                    <p className="text-lg font-bold">{formatCurrency(currentBudget)}</p>
+                </div>
+                 <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Allocated Hrs</p>
+                    <Tooltip text="Sum of all Est. Hrs in Activity Tracker"><p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p></Tooltip>
+                </div>
+                <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p>
+                    <Tooltip text="Sum of (Hrs Used * Rate) for each activity"><p className="text-lg font-bold">{formatCurrency(spentToDate)}</p></Tooltip>
+                </div>
+                <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Earned Value</p>
+                    <Tooltip text="Sum of (Budget * % Comp) for each activity"><p className="text-lg font-bold">{formatCurrency(earnedValue)}</p></Tooltip>
+                </div>
+                 <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p>
+                    <Tooltip text={"Projected Final Cost - Spent to Date"}><p className="text-lg font-bold">{formatCurrency(costToComplete)}</p></Tooltip>
+                </div>
+                 <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p>
+                    <Tooltip text="Sum of (Projected Hrs * Rate)"><p className="text-lg font-bold">{formatCurrency(projectedFinalCost)}</p></Tooltip>
+                </div>
+                <div>
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Variance</p>
+                    <Tooltip text="Current Budget - Est. Final Cost"><p className={`text-lg font-bold ${variance < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(variance)}</p></Tooltip>
+                </div>
+                 <div >
+                    <p className={`text-sm ${currentTheme.subtleText}`}>Productivity</p>
+                    <Tooltip text="Earned Value / Spent to Date"><p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p></Tooltip>
+                </div>
             </div>
-             <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Allocated Hrs</p>
-                <Tooltip text="Sum of all Est. Hrs in Activity Tracker"><p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p></Tooltip>
-            </div>
-            <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p>
-                <Tooltip text="Sum of (Hrs Used * Rate) for each activity"><p className="text-lg font-bold">{formatCurrency(spentToDate)}</p></Tooltip>
-            </div>
-            <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Earned Value</p>
-                <Tooltip text="Sum of (Budget * % Comp) for each activity"><p className="text-lg font-bold">{formatCurrency(earnedValue)}</p></Tooltip>
-            </div>
-             <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p>
-                <Tooltip text={"Projected Final Cost - Spent to Date"}><p className="text-lg font-bold">{formatCurrency(costToComplete)}</p></Tooltip>
-            </div>
-             <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p>
-                <Tooltip text="Sum of (Projected Hrs * Rate)"><p className="text-lg font-bold">{formatCurrency(projectedFinalCost)}</p></Tooltip>
-            </div>
-            <div>
-                <p className={`text-sm ${currentTheme.subtleText}`}>Variance</p>
-                <Tooltip text="Current Budget - Est. Final Cost"><p className={`text-lg font-bold ${variance < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(variance)}</p></Tooltip>
-            </div>
-             <div >
-                <p className={`text-sm ${currentTheme.subtleText}`}>Productivity</p>
-                <Tooltip text="Earned Value / Spent to Date"><p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p></Tooltip>
-            </div>
-        </div>
+        </TutorialHighlight>
     )
 }
 
@@ -1105,6 +1108,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                     )}
                     
                     {projectData?.mainItems && projectData.mainItems.length > 0 && (
+                        <TutorialHighlight tutorialKey="actionTracker">
                          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <div className="w-full flex justify-between items-center mb-2">
                                 <button onClick={() => handleToggleCollapse('actionTracker')} className="flex items-center text-left font-bold">
@@ -1152,11 +1156,13 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                             )}
                             </AnimatePresence>
                         </div>
+                        </TutorialHighlight>
                     )}
                 </div>
 
                 {accessLevel === 'taskmaster' && (
                     <div className="w-full md:w-2/3">
+                        <TutorialHighlight tutorialKey="activityBreakdown">
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <div className="flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
@@ -1209,6 +1215,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                 </div>
                             </div>
                         </div>
+                        </TutorialHighlight>
                     </div>
                 )}
             </div>
@@ -1263,6 +1270,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
     return (
         <div className="h-full flex flex-col p-4 gap-4">
+            <TutorialHighlight tutorialKey="projectFilters">
             <div className={`flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-md`}>
                 <h2 className={`text-xl font-bold mb-4 ${currentTheme.textColor}`}>Project Overview & Filters</h2>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1282,12 +1290,14 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                     <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                 </div>
             </div>
+            </TutorialHighlight>
             <div className="flex-grow overflow-y-auto space-y-4 pr-4">
                 {filteredProjects.map((p, index) => {
                     const isExpanded = expandedProjectId === p.id;
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
 
                     return (
+                        <TutorialHighlight tutorialKey="projectCard">
                         <motion.div 
                             key={p.id} 
                             layout
@@ -1300,7 +1310,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                 </div>
                                 <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
                                     </svg>
                                 </motion.div>
                             </motion.div>
@@ -1321,6 +1331,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                             )}
                             </AnimatePresence>
                         </motion.div>
+                        </TutorialHighlight>
                     );
                 })}
             </div>

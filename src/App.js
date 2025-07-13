@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Import all the console components
 import TeamConsole from './TeamConsole';
@@ -14,6 +14,7 @@ import ForecastConsole from './ForecastConsole';
 import SkillsConsole from './SkillsConsole';
 import ReportingConsole from './ReportingConsole';
 import AdminConsole from './AdminConsole';
+import { tutorialContent } from './tutorial-steps'; 
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
@@ -39,6 +40,132 @@ try {
 // --- Helper Functions & Initial Data ---
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+
+// --- Tutorial System ---
+const TutorialContext = createContext();
+
+export const useTutorial = () => useContext(TutorialContext);
+
+export const TutorialProvider = ({ children }) => {
+    const [isTutorialActive, setIsTutorialActive] = useState(false);
+    const [tutorialStep, setTutorialStep] = useState(null);
+    const [currentTutorial, setCurrentTutorial] = useState(null);
+    const [stepIndex, setStepIndex] = useState(0);
+
+    const startTutorial = (view) => {
+        const tutorial = tutorialContent[view];
+        if (tutorial && tutorial.steps.length > 0) {
+            setCurrentTutorial(tutorial);
+            setStepIndex(0);
+            setTutorialStep(tutorial.steps[0]);
+            setIsTutorialActive(true);
+        } else {
+            console.warn("No tutorial found for view:", view);
+        }
+    };
+
+    const endTutorial = () => {
+        setIsTutorialActive(false);
+        setTutorialStep(null);
+        setCurrentTutorial(null);
+        setStepIndex(0);
+    };
+
+    const nextStep = () => {
+        if (currentTutorial && stepIndex < currentTutorial.steps.length - 1) {
+            const newIndex = stepIndex + 1;
+            setStepIndex(newIndex);
+            setTutorialStep(currentTutorial.steps[newIndex]);
+        }
+    };
+
+    const prevStep = () => {
+        if (currentTutorial && stepIndex > 0) {
+            const newIndex = stepIndex - 1;
+            setStepIndex(newIndex);
+            setTutorialStep(currentTutorial.steps[newIndex]);
+        }
+    };
+    
+    const setStepByKey = (key) => {
+        if (currentTutorial) {
+            const stepIdx = currentTutorial.steps.findIndex(s => s.key === key);
+            if (stepIdx !== -1) {
+                setStepIndex(stepIdx);
+                setTutorialStep(currentTutorial.steps[stepIdx]);
+            }
+        }
+    };
+
+    const value = { 
+        isTutorialActive, 
+        tutorialStep,
+        stepIndex,
+        totalSteps: currentTutorial ? currentTutorial.steps.length : 0,
+        startTutorial, 
+        endTutorial,
+        nextStep,
+        prevStep,
+        setStepByKey
+    };
+
+    return (
+        <TutorialContext.Provider value={value}>
+            {children}
+        </TutorialContext.Provider>
+    );
+};
+
+export const TutorialHighlight = ({ tutorialKey, children, className, style }) => {
+    const { isTutorialActive, setStepByKey, tutorialStep } = useTutorial();
+    const isHighlighted = isTutorialActive && tutorialStep && tutorialStep.key === tutorialKey;
+
+    const handleClick = (e) => {
+        if (isTutorialActive) {
+            e.preventDefault();
+            e.stopPropagation();
+            setStepByKey(tutorialKey);
+        }
+    };
+
+    return (
+        <div 
+            className={`${className} ${isTutorialActive ? 'relative cursor-pointer' : ''}`} 
+            style={style}
+            onClick={handleClick}
+        >
+            {children}
+            {isHighlighted && (
+                <div className="absolute inset-0 bg-blue-500 bg-opacity-40 ring-2 ring-blue-300 ring-offset-2 rounded-lg pointer-events-none animate-pulse-strong"></div>
+            )}
+        </div>
+    );
+};
+
+
+const TutorialWidget = () => {
+    const { isTutorialActive, tutorialStep, stepIndex, totalSteps, endTutorial, nextStep, prevStep } = useTutorial();
+
+    if (!isTutorialActive || !tutorialStep) return null;
+
+    return (
+        <div className="fixed bottom-4 right-4 w-full max-w-sm p-4 bg-gray-800 text-white rounded-lg shadow-2xl z-[100] border border-blue-400">
+            <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-bold">{tutorialStep.title}</h3>
+                <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
+            </div>
+            <p className="text-sm text-gray-300 mb-4 h-24 overflow-y-auto">{tutorialStep.content}</p>
+            <div className="flex justify-between items-center">
+                <p className="text-xs text-gray-500">Step {stepIndex + 1} of {totalSteps}</p>
+                <div className="flex gap-2">
+                    <button onClick={prevStep} disabled={stepIndex === 0} className="px-3 py-1 text-sm bg-gray-600 rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                    <button onClick={nextStep} disabled={stepIndex === totalSteps - 1} className="px-3 py-1 text-sm bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- NEW UX/UI Components ---
 const Toaster = ({ toasts }) => (
@@ -159,7 +286,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
 };
 
 // --- Main Application Component ---
-const App = () => {
+const AppContent = () => {
     const [view, setView] = useState('projects');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
@@ -177,6 +304,7 @@ const App = () => {
     const [loginError, setLoginError] = useState('');
     const [toasts, setToasts] = useState([]);
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
+    const { startTutorial, isTutorialActive } = useTutorial();
 
 
     const showToast = (message, type = 'success') => {
@@ -349,8 +477,9 @@ const App = () => {
     }
 
     return (
-        <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen`}>
+        <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen ${isTutorialActive ? 'tutorial-active' : ''}`}>
             <Toaster toasts={toasts} />
+            <TutorialWidget />
             <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
                  <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
                      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -358,19 +487,26 @@ const App = () => {
                         <nav className={`${currentTheme.navBg} p-1 rounded-lg`}>
                             <div className="flex items-center space-x-1 flex-wrap justify-center">
                                 {visibleNavButtons.map(button => (
-                                    <button
-                                        key={button.id}
-                                        onClick={() => handleNavClick(button.id)}
-                                        className={`flex items-center px-4 py-2 text-sm font-semibold rounded-md transition-colors ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
-                                    >
-                                        {button.icon}
-                                        {button.label}
-                                    </button>
+                                    <TutorialHighlight tutorialKey={button.id} key={button.id}>
+                                        <button
+                                            onClick={() => handleNavClick(button.id)}
+                                            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-md transition-colors ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
+                                        >
+                                            {button.icon}
+                                            {button.label}
+                                        </button>
+                                    </TutorialHighlight>
                                 ))}
                             </div>
                         </nav>
                     </div>
-                    <div className="flex justify-center items-center">
+                    <div className="flex justify-center items-center gap-4">
+                         <button
+                                onClick={() => startTutorial(view)}
+                                className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-purple-700 transition-colors"
+                            >
+                                Tutorial
+                            </button>
                          <button
                                 onClick={handleLogout}
                                 className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-red-600 transition-colors"
@@ -379,11 +515,11 @@ const App = () => {
                             </button>
                     </div>
                 </header>
-                <main className={`flex-grow overflow-y-auto ${currentTheme.consoleBg}`}>
-                   {/* This is where the animation is applied */}
+                <main className={`flex-grow ${currentTheme.consoleBg} overflow-hidden flex flex-col`}>
                    <AnimatePresence mode="wait">
                         <motion.div
-                            key={view} // The key is crucial for AnimatePresence to detect changes
+                            key={view}
+                            className="h-full flex flex-col"
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
@@ -405,5 +541,12 @@ const App = () => {
         </div>
     );
 };
+
+const App = () => (
+    <TutorialProvider>
+        <AppContent />
+    </TutorialProvider>
+);
+
 
 export default App;

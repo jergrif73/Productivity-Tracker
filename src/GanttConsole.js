@@ -6,7 +6,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects');
     const weekCount = 52; 
-    const dimensions = { width: 2200, height: 500, margin: { top: 20, right: 30, bottom: 150, left: 60 } };
+    const dimensions = { width: 2200, height: 500, margin: { top: 20, right: 30, bottom: 40, left: 60 } };
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
     const boundedHeight = height - margin.top - margin.bottom;
@@ -194,8 +194,8 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     };
 
     return (
-        <div className="p-4 space-y-4 w-full">
-            <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
+        <div className="p-4 space-y-4 w-full h-full flex flex-col">
+            <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
                     <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
@@ -206,21 +206,21 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                     <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? `${currentTheme.cardBg} shadow` : ''}`}>Totals</button>
                 </div>
             </div>
-            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm overflow-x-auto`}>
+            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-auto`}>
                 <div className="p-4">
                     <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg>
                 </div>
+                {ganttView === 'projects' && (
+                     <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8 px-4 border-t" style={{minHeight: '6rem', width: `${width}px`}}>
+                        {projectData.map(p => (
+                            <div key={p.projectId} className="flex flex-col items-center">
+                                <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
+                                <span className={`transform -rotate-90 whitespace-nowrap mt-4 ${currentTheme.textColor}`}>{p.projectNumber}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
-            {ganttView === 'projects' && (
-                <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8 px-4" style={{minHeight: '6rem'}}>
-                    {projectData.map(p => (
-                        <div key={p.projectId} className="flex flex-col items-center">
-                            <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
-                            <span className={`transform -rotate-90 whitespace-nowrap mt-4 ${currentTheme.textColor}`}>{p.projectNumber}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 };
