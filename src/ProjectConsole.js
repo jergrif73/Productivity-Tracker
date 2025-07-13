@@ -381,7 +381,7 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdatePerce
                         <h4 className="font-bold text-md">{main.name}</h4>
                         <motion.svg
                             animate={{ rotate: collapsedSections[`main_${main.id}`] ? 0 : 180 }}
-                            xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </motion.svg>
                     </button>
@@ -413,19 +413,17 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdatePerce
                                         <div key={trade}>
                                             <button onClick={() => onToggle(tradeSectionId)} className={`w-full p-2 rounded-t-md ${style.bg} ${style.text} flex justify-between items-center`}>
                                                 <span className="font-bold text-sm">{trade.charAt(0).toUpperCase() + trade.slice(1)}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <span>Percentage of Est. Hrs. ({percentageOfProject.toFixed(2)}%)</span>
-                                                        <input 
-                                                            type="number" 
-                                                            value={tradePercentage}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            onChange={(e) => { e.stopPropagation(); handlePercentageChange(main.id, trade, e.target.value); }}
-                                                            className="w-20 p-1 rounded-md bg-white/30 text-black text-center"
-                                                            placeholder="% of Hrs."
-                                                            disabled={!isTradePercentageEditable}
-                                                        />
-                                                    </div>
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <span>Percentage of Est. Hrs. ({percentageOfProject.toFixed(2)}%)</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={tradePercentage}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onChange={(e) => { e.stopPropagation(); handlePercentageChange(main.id, trade, e.target.value); }}
+                                                        className="w-20 p-1 rounded-md bg-white/30 text-black text-center"
+                                                        placeholder="% of Hrs."
+                                                        disabled={!isTradePercentageEditable}
+                                                    />
                                                     <motion.svg
                                                         animate={{ rotate: collapsedSections[tradeSectionId] ? 0 : 180 }}
                                                         xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -528,7 +526,7 @@ const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete,
             </td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="Hrs Used * Rate"><p>{formatCurrency(actualCost)}</p></Tooltip></td>
-            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Hrs Used / % Comp) * 100"><p>{projected.toFixed(2)}</p></Tooltip></td>
+            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Hrs Used / % Comp) * 100"><p>{formatCurrency(projected)}</p></Tooltip></td>
             <td className="p-1 text-center w-12"><button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button></td>
         </tr>
     );
@@ -552,7 +550,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                     <span className="text-center">{groupTotals.used.toFixed(2)}</span>
                     <span className="text-center">{formatCurrency(groupTotals.earnedValue)}</span>
                     <span className="text-center">{formatCurrency(groupTotals.actualCost)}</span>
-                    <span className="text-center">{groupTotals.projected.toFixed(2)}</span>
+                    <span className="text-center">{formatCurrency(groupTotals.projected)}</span>
                     <span></span>
                 </div>
                 <motion.svg
@@ -903,13 +901,15 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         handleSaveData(dataToSave);
     };
 
-    const calculateGroupTotals = useCallback((activities, project) => {
+    // Modified to accept groupKey as a parameter
+    const calculateGroupTotals = useCallback((activities, project, groupKey) => {
         return activities.reduce((acc, activity) => {
             const estHours = Number(activity?.estimatedHours || 0);
             const usedHours = Number(activity?.hoursUsed || 0);
             const percentComplete = Number(activity?.percentComplete || 0);
 
-            const useBimRate = activity.description.toUpperCase().includes('BIM') || activity.description === "Project Setup";
+            // Use the passed groupKey
+            const useBimRate = groupKey === 'bim' || activity.description === "Project Setup";
             const rateToUse = useBimRate ? (project.bimBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
             
             const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : (estHours > 0 ? estHours : 0);
@@ -929,7 +929,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         if (!projectData?.activities) return { estimated: 0, used: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 };
         const allActivities = Object.values(projectData.activities).flat();
         
-        const totals = calculateGroupTotals(allActivities, project);
+        // Pass a generic groupKey or adjust logic if BIM rate calculation isn't needed here
+        const totals = calculateGroupTotals(allActivities, project, 'overall'); // Pass a placeholder or actual groupKey if needed
 
         return {
             estimated: totals.estimated,
@@ -946,12 +947,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         const allTotals = {};
         for(const group in projectData.activities) {
             const activities = projectData.activities[group];
-            const totals = calculateGroupTotals(activities, project);
+            // Pass the current group as groupKey
+            const totals = calculateGroupTotals(activities, project, group); 
             
             const totalBudget = totals.budget;
             const weightedPercentComplete = activities.reduce((acc, act) => {
                 const estHours = Number(act.estimatedHours) || 0;
                 const percent = Number(act.percentComplete) || 0;
+                // Ensure 'group' is passed as groupKey here too if needed for rate calculation
                 const rate = act.description.toUpperCase().includes('BIM') ? (project.bimBlendedRate || project.blendedRate) : project.blendedRate;
                 const actBudget = estHours * rate;
                 if (totalBudget > 0) {
@@ -991,124 +994,154 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 
     return (
         <div className="space-y-6 mt-4 border-t pt-4">
-            <div className={`p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {tradeButtonLabels.map(trade => (
+            <TutorialHighlight tutorialKey="tradeFiltersProjectConsole">
+                <div className={`p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                        {tradeButtonLabels.map(trade => (
+                            <button 
+                                key={trade}
+                                onClick={() => handleTradeFilterToggle(trade)}
+                                className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                            >
+                                {trade}
+                            </button>
+                        ))}
                         <button 
-                            key={trade}
-                            onClick={() => handleTradeFilterToggle(trade)}
-                            className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                            onClick={handleSelectAllTrades}
+                            className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === tradeButtonLabels.length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                         >
-                            {trade}
+                            {activeTrades.length === tradeButtonLabels.length ? 'Deselect All' : 'Select All'}
                         </button>
-                    ))}
-                    <button 
-                        onClick={handleSelectAllTrades}
-                        className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === tradeButtonLabels.length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                    >
-                        {activeTrades.length === tradeButtonLabels.length ? 'Deselect All' : 'Select All'}
-                    </button>
+                    </div>
                 </div>
-            </div>
+            </TutorialHighlight>
 
             {accessLevel === 'taskmaster' && (
                 <>
                     <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                             <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
-                                <h3 className="text-lg font-semibold">Financial Forecast</h3>
-                                <motion.svg
-                                    animate={{ rotate: collapsedSections.financialForecast ? 0 : 180 }}
-                                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </motion.svg>
-                            </button>
-                            <AnimatePresence>
-                            {!collapsedSections.financialForecast && (
-                                <motion.div
-                                    key="financial-forecast-content"
-                                    variants={animationVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    className="overflow-hidden"
-                                >
-                                    <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                        <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
-                                    </div>
-                                </motion.div>
-                            )}
-                            </AnimatePresence>
-                        </div>
-                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                            <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
-                                <h3 className="text-lg font-semibold">Budget Impact Log</h3>
-                                <motion.svg
-                                    animate={{ rotate: collapsedSections.budgetLog ? 0 : 180 }}
-                                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </motion.svg>
-                            </button>
-                            <AnimatePresence>
-                            {!collapsedSections.budgetLog && (
-                                <motion.div
-                                    key="budget-log-content"
-                                    variants={animationVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    className="overflow-hidden"
-                                >
-                                    <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                        <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} project={project} />
-                                    </div>
-                                </motion.div>
-                            )}
-                            </AnimatePresence>
-                        </div>
+                        {/* Moved TutorialHighlight to wrap the entire financial forecast section */}
+                        <TutorialHighlight tutorialKey="financialForecast">
+                            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                                <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
+                                    <h3 className="text-lg font-semibold">Financial Forecast</h3>
+                                    <motion.svg
+                                        animate={{ rotate: collapsedSections.financialForecast ? 0 : 180 }}
+                                        xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </motion.svg>
+                                </button>
+                                <AnimatePresence>
+                                {!collapsedSections.financialForecast && (
+                                    <motion.div
+                                        key="financial-forecast-content"
+                                        variants={animationVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                            <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
+                                        </div>
+                                    </motion.div>
+                                )}
+                                </AnimatePresence>
+                            </div>
+                        </TutorialHighlight>
+                         {/* Highlight for Budget Impact Log */}
+                        <TutorialHighlight tutorialKey="budgetImpactLog">
+                            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                                <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
+                                    <h3 className="text-lg font-semibold">Budget Impact Log</h3>
+                                    <motion.svg
+                                        animate={{ rotate: collapsedSections.budgetLog ? 0 : 180 }}
+                                        xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </motion.svg>
+                                </button>
+                                <AnimatePresence>
+                                {!collapsedSections.budgetLog && (
+                                    <motion.div
+                                        key="budget-log-content"
+                                        variants={animationVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                            <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} project={project} />
+                                        </div>
+                                    </motion.div>
+                                )}
+                                </AnimatePresence>
+                            </div>
+                        </TutorialHighlight>
                     </div>
                 </>
+            )}
+
+            {/* Project Dashboard Link - now outside Taskmaster-specific block */}
+            {project.dashboardUrl && (
+                <TutorialHighlight tutorialKey="projectDashboardLink">
+                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>
+                        <h3 className="text-lg font-semibold mb-2">Project Dashboard</h3>
+                        <a
+                            href={project.dashboardUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                        >
+                            Go to External Dashboard
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                        </a>
+                    </div>
+                </TutorialHighlight>
             )}
 
             <div className="flex flex-col md:flex-row gap-6">
                 <div className={accessLevel === 'tcl' ? "w-full md:w-1/3" : "w-full md:w-1/3 flex flex-col gap-6"}>
                     {accessLevel === 'taskmaster' && (
-                        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                            <button onClick={() => handleToggleCollapse('mainsManagement')} className="w-full text-left font-bold flex justify-between items-center mb-2">
-                                <h3 className="text-lg font-semibold">Mains Management</h3>
-                                <motion.svg
-                                    animate={{ rotate: collapsedSections['mainsManagement'] ? 0 : 180 }}
-                                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </motion.svg>
-                            </button>
-                            <AnimatePresence>
-                            {!collapsedSections['mainsManagement'] && (
-                                <motion.div
-                                    key="mains-management-content"
-                                    variants={animationVariants}
-                                    initial="hidden"
-                                    animate="visible"
-                                    exit="exit"
-                                    className="overflow-hidden"
-                                >
-                                    <ProjectBreakdown 
-                                        mainItems={sortedMainItems}
-                                        onAdd={handleAddMain}
-                                        onUpdate={handleUpdateMain}
-                                        onDelete={handleDeleteMain}
-                                        onReorder={handleReorderMains}
-                                        currentTheme={currentTheme}
-                                    />
-                                </motion.div>
-                            )}
-                            </AnimatePresence>
-                        </div>
+                        <TutorialHighlight tutorialKey="mainsManagement">
+                            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                                <button onClick={() => handleToggleCollapse('mainsManagement')} className="w-full text-left font-bold flex justify-between items-center mb-2">
+                                    <h3 className="text-lg font-semibold">Mains Management</h3>
+                                    <motion.svg
+                                        animate={{ rotate: collapsedSections['mainsManagement'] ? 0 : 180 }}
+                                        xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </motion.svg>
+                                </button>
+                                <AnimatePresence>
+                                {!collapsedSections['mainsManagement'] && (
+                                    <motion.div
+                                        key="mains-management-content"
+                                        variants={animationVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        exit="exit"
+                                        className="overflow-hidden"
+                                    >
+                                        <ProjectBreakdown 
+                                            mainItems={sortedMainItems}
+                                            onAdd={handleAddMain}
+                                            onUpdate={handleUpdateMain}
+                                            onDelete={handleDeleteMain}
+                                            onReorder={handleReorderMains}
+                                            currentTheme={currentTheme}
+                                        />
+                                    </motion.div>
+                                )}
+                                </AnimatePresence>
+                            </div>
+                        </TutorialHighlight>
                     )}
                     
                     {projectData?.mainItems && projectData.mainItems.length > 0 && (
-                        <TutorialHighlight tutorialKey="actionTracker">
+                        <TutorialHighlight tutorialKey={accessLevel === 'tcl' ? 'actionTracker-tcl' : 'actionTracker-taskmaster'}>
                          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <div className="w-full flex justify-between items-center mb-2">
                                 <button onClick={() => handleToggleCollapse('actionTracker')} className="flex items-center text-left font-bold">
@@ -1199,21 +1232,23 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                     );
                                 })}
                             </div>
-                            <div className={`w-full p-2 text-left font-bold flex justify-between items-center mt-2 ${currentTheme.altRowBg}`}>
-                                <div className="flex-grow grid grid-cols-11 text-xs font-bold">
-                                    <span>Totals</span>
-                                    <span></span>
-                                    <span className="text-center">{grandTotals.estimated.toFixed(2)}</span>
-                                    <span className="text-center">{formatCurrency(grandTotals.budget)}</span>
-                                    <span></span>
-                                    <span></span>
-                                    <span className="text-center">{grandTotals.used.toFixed(2)}</span>
-                                    <span className="text-center">{formatCurrency(grandTotals.earnedValue)}</span>
-                                    <span className="text-center">{formatCurrency(grandTotals.actualCost)}</span>
-                                    <span className="text-center">{grandTotals.projected.toFixed(2)}</span>
-                                    <span></span>
+                            <TutorialHighlight tutorialKey="activityGrandTotals">
+                                <div className={`w-full p-2 text-left font-bold flex justify-between items-center mt-2 ${currentTheme.altRowBg}`}>
+                                    <div className="flex-grow grid grid-cols-11 text-xs font-bold">
+                                        <span>Totals</span>
+                                        <span></span>
+                                        <span className="text-center">{grandTotals.estimated.toFixed(2)}</span>
+                                        <span className="text-center">{formatCurrency(grandTotals.budget)}</span>
+                                        <span></span>
+                                        <span></span>
+                                        <span className="text-center">{grandTotals.used.toFixed(2)}</span>
+                                        <span className="text-center">{formatCurrency(grandTotals.earnedValue)}</span>
+                                        <span className="text-center">{formatCurrency(grandTotals.actualCost)}</span>
+                                        <span className="text-center">{formatCurrency(grandTotals.projected)}</span>
+                                        <span></span>
+                                    </div>
                                 </div>
-                            </div>
+                            </TutorialHighlight>
                         </div>
                         </TutorialHighlight>
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
@@ -21,7 +21,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
   authDomain: "productivity-tracker-3017d.firebaseapp.com",
   projectId: "productivity-tracker-3017d",
-  storageBucket: "productivity-tracker-3017d.appspot.com",
+  storageBucket: "productivity-tracker-3017d.appspot.com", 
   messagingSenderId: "489412895343",
   appId: "1:489412895343:web:780e7717db122a2b99639a",
   measurementId: "G-LGTREWPTGJ"
@@ -41,24 +41,36 @@ try {
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
 
+// --- Auth Context for accessLevel ---
+const AuthContext = createContext({ accessLevel: 'default', setAccessLevel: () => {} });
+
 // --- Tutorial System ---
 const TutorialContext = createContext();
 
 export const useTutorial = () => useContext(TutorialContext);
 
-export const TutorialProvider = ({ children }) => {
+export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel now passed as prop
     const [isTutorialActive, setIsTutorialActive] = useState(false);
     const [tutorialStep, setTutorialStep] = useState(null);
     const [currentTutorial, setCurrentTutorial] = useState(null);
     const [stepIndex, setStepIndex] = useState(0);
 
     const startTutorial = (view) => {
-        const tutorial = tutorialContent[view];
-        if (tutorial && tutorial.steps.length > 0) {
-            setCurrentTutorial(tutorial);
-            setStepIndex(0);
-            setTutorialStep(tutorial.steps[0]);
-            setIsTutorialActive(true);
+        const fullTutorial = tutorialContent[view];
+        if (fullTutorial && fullTutorial.steps.length > 0) {
+            // Filter steps based on the current user's access level
+            const filteredSteps = fullTutorial.steps.filter(step => 
+                !step.roles || step.roles.includes(accessLevel)
+            );
+
+            if (filteredSteps.length > 0) {
+                setCurrentTutorial({ ...fullTutorial, steps: filteredSteps });
+                setStepIndex(0);
+                setTutorialStep(filteredSteps[0]);
+                setIsTutorialActive(true);
+            } else {
+                console.warn("No relevant tutorial steps found for view:", view, "and access level:", accessLevel);
+            }
         } else {
             console.warn("No tutorial found for view:", view);
         }
@@ -154,7 +166,7 @@ const TutorialWidget = () => {
                 <h3 className="text-lg font-bold">{tutorialStep.title}</h3>
                 <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
             </div>
-            <p className="text-sm text-gray-300 mb-4 h-24 overflow-y-auto">{tutorialStep.content}</p>
+            <p className="text-sm text-gray-300 mb-4 h-40 overflow-y-auto">{tutorialStep.content}</p>
             <div className="flex justify-between items-center">
                 <p className="text-xs text-gray-500">Step {stepIndex + 1} of {totalSteps}</p>
                 <div className="flex gap-2">
@@ -203,7 +215,7 @@ const TeamConsoleSkeleton = ({ currentTheme }) => (
     </div>
 );
 
-// --- React Components ---
+
 const LoginInline = ({ onLogin, error }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -286,7 +298,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
 };
 
 // --- Main Application Component ---
-const AppContent = () => {
+const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout }) => { // Receive props
     const [view, setView] = useState('projects');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
@@ -299,12 +311,8 @@ const AppContent = () => {
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
-    const [accessLevel, setAccessLevel] = useState('default');
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [loginError, setLoginError] = useState('');
-    const [toasts, setToasts] = useState([]);
-    const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
-    const { startTutorial, isTutorialActive } = useTutorial();
+    const [viewingSkillsFor, setViewingSkillsFor] = useState(null); // State defined here
+    const { startTutorial, isTutorialActive } = useContext(TutorialContext);
 
 
     const showToast = (message, type = 'success') => {
@@ -314,6 +322,8 @@ const AppContent = () => {
             setToasts(currentToasts => currentToasts.filter(toast => toast.id !== id));
         }, 3000);
     };
+
+    const [toasts, setToasts] = useState([]); // Define toasts state here
 
     const themeClasses = {
         light: { mainBg: 'bg-gray-100', headerBg: 'bg-white', cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600', borderColor: 'border-gray-200', altRowBg: 'bg-blue-50', navBg: 'bg-gray-200', navBtn: 'text-gray-600 hover:bg-gray-300', navBtnActive: 'bg-white text-blue-600 shadow', consoleBg: 'bg-gray-50', inputBg: 'bg-white', inputText: 'text-gray-900', inputBorder: 'border-gray-300', buttonBg: 'bg-gray-200', buttonText: 'text-gray-800' },
@@ -385,32 +395,6 @@ const AppContent = () => {
         };
     }, [isAuthReady]);
 
-    const handleLoginAttempt = (username, password) => {
-        if (username === 'Taskmaster' && password === 'Taskmaster1234') {
-            setAccessLevel('taskmaster');
-            setView('detailers');
-            setIsLoggedIn(true);
-            setLoginError('');
-        } else if (username === 'TCL' && password === 'TCL1234') {
-            setAccessLevel('tcl');
-            setView('projects');
-            setIsLoggedIn(true);
-            setLoginError('');
-        } else if (username === 'Viewer' && password === 'Viewer8765') {
-            setAccessLevel('viewer');
-            setView('workloader');
-            setIsLoggedIn(true);
-            setLoginError('');
-        } else {
-            setLoginError('Invalid username or password.');
-        }
-    };
-
-    const handleLogout = () => {
-        setAccessLevel('default');
-        setIsLoggedIn(false);
-        setView('projects');
-    };
 
     const handleNavClick = (viewId) => {
         setView(viewId);
@@ -481,8 +465,8 @@ const AppContent = () => {
             <Toaster toasts={toasts} />
             <TutorialWidget />
             <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
-                 <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
-                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Workforce Productivity Tracker</h1>
                         <nav className={`${currentTheme.navBg} p-1 rounded-lg`}>
                             <div className="flex items-center space-x-1 flex-wrap justify-center">
@@ -501,13 +485,13 @@ const AppContent = () => {
                         </nav>
                     </div>
                     <div className="flex justify-center items-center gap-4">
-                         <button
+                        <button
                                 onClick={() => startTutorial(view)}
                                 className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-purple-700 transition-colors"
                             >
-                                Tutorial
+                                Guided Tour
                             </button>
-                         <button
+                        <button
                                 onClick={handleLogout}
                                 className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-red-600 transition-colors"
                             >
@@ -516,7 +500,7 @@ const AppContent = () => {
                     </div>
                 </header>
                 <main className={`flex-grow ${currentTheme.consoleBg} overflow-hidden flex flex-col`}>
-                   <AnimatePresence mode="wait">
+                    <AnimatePresence mode="wait">
                         <motion.div
                             key={view}
                             className="h-full flex flex-col"
@@ -528,25 +512,67 @@ const AppContent = () => {
                             {renderView()}
                         </motion.div>
                     </AnimatePresence>
+                    {/* Moved Modal rendering inside AppContent */}
+                    {viewingSkillsFor && (
+                        <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
+                            <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                        </Modal>
+                    )}
                 </main>
-                 <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
+                <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
                 </footer>
             </div>
-            {viewingSkillsFor && (
-                <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
-                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
-                </Modal>
-            )}
         </div>
     );
 };
 
-const App = () => (
-    <TutorialProvider>
-        <AppContent />
-    </TutorialProvider>
-);
+const App = () => {
+    // Moved accessLevel state and login/logout logic here
+    const [accessLevel, setAccessLevel] = useState('default');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [loginError, setLoginError] = useState('');
+
+    const handleLoginAttempt = (username, password) => {
+        if (username === 'Taskmaster' && password === 'Taskmaster1234') {
+            setAccessLevel('taskmaster');
+            setIsLoggedIn(true);
+            setLoginError('');
+        } else if (username === 'TCL' && password === 'TCL1234') {
+            setAccessLevel('tcl');
+            setIsLoggedIn(true);
+            setLoginError('');
+        } else if (username === 'Viewer' && password === 'Viewer8765') {
+            setAccessLevel('viewer');
+            setIsLoggedIn(true);
+            setLoginError('');
+        } else {
+            setLoginError('Invalid username or password.');
+        }
+    };
+
+    const handleLogout = () => {
+        setAccessLevel('default');
+        setIsLoggedIn(false);
+    };
+
+    // Provide accessLevel and setAccessLevel via AuthContext
+    const authContextValue = useMemo(() => ({ accessLevel, setAccessLevel }), [accessLevel]);
+
+    return (
+        <AuthContext.Provider value={authContextValue}>
+            <TutorialProvider accessLevel={accessLevel}> {/* Pass accessLevel directly as prop */}
+                <AppContent 
+                    accessLevel={accessLevel} 
+                    isLoggedIn={isLoggedIn} 
+                    loginError={loginError} 
+                    handleLoginAttempt={handleLoginAttempt} 
+                    handleLogout={handleLogout} 
+                />
+            </TutorialProvider>
+        </AuthContext.Provider>
+    );
+};
 
 
 export default App;

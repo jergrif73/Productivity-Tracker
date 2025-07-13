@@ -6,7 +6,8 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects');
     const weekCount = 52; 
-    const dimensions = { width: 2200, height: 500, margin: { top: 20, right: 30, bottom: 40, left: 60 } };
+    // Reduced height to make the chart more compact and minimize vertical scrolling
+    const dimensions = { width: 2200, height: 450, margin: { top: 20, right: 30, bottom: 40, left: 60 } }; // Reduced height from 600 to 450
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
     const boundedHeight = height - margin.top - margin.bottom;
@@ -66,7 +67,8 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     }, [activeProjects, activeAssignments, weekDates]);
 
     const totalData = useMemo(() => {
-        const totalWeeklyHours = weekDates.map(weekStart => {
+        // Calculate the array of total weekly hours directly
+        const calculatedTotalWeeklyHours = weekDates.map(weekStart => {
             let totalHours = 0;
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekStart.getDate() + 6);
@@ -77,10 +79,12 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                 if (assignStart <= weekEnd && assignEnd >= weekStart) {
                     totalHours += (Number(ass.allocation) / 100) * 40;
                 }
-            });
-            return { date: weekStart, hours: totalHours };
+            }
+            );
+            return { date: weekStart, hours: totalHours }; // Return object with date and hours
         });
-        return [{ projectId: 'total', projectName: 'Total Hours', values: totalWeeklyHours }];
+        // Use the calculated array directly in the return object
+        return [{ projectId: 'total', projectName: 'Total Hours', values: calculatedTotalWeeklyHours }];
     }, [activeAssignments, weekDates]);
 
 
@@ -211,7 +215,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                     <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg>
                 </div>
                 {ganttView === 'projects' && (
-                     <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-8 px-4 border-t" style={{minHeight: '6rem', width: `${width}px`}}>
+                     <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-2 px-4 border-t pb-8" style={{minHeight: '8rem', width: `${width}px`}}>
                         {projectData.map(p => (
                             <div key={p.projectId} className="flex flex-col items-center">
                                 <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
