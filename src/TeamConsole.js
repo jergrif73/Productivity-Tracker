@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 
 // --- Helper Components ---
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
@@ -281,43 +282,53 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                     </svg>
                                 </div>
                             </div>
-                            {isExpanded && (
-                                <div className={`p-4 border-t ${currentTheme.borderColor}`}>
-                                    <div className="grid grid-cols-12 gap-4 items-start">
-                                        <div className="col-span-12 md:col-start-4 md:col-span-9 space-y-2">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <h4 className={`font-semibold ${currentTheme.textColor}`}>All Project Assignments</h4>
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <span className={`${currentTheme.subtleText}`}>Sort by:</span>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectName'); }}
-                                                        className={`px-2 py-1 rounded ${assignmentSortBy === 'projectName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                                                    >
-                                                        Alphabetical
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectId'); }}
-                                                        className={`px-2 py-1 rounded ${assignmentSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                                                    >
-                                                        Project ID
-                                                    </button>
+                            <AnimatePresence>
+                                {isExpanded && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className={`p-4 border-t ${currentTheme.borderColor}`}>
+                                            <div className="grid grid-cols-12 gap-4 items-start">
+                                                <div className="col-span-12 md:col-start-4 md:col-span-9 space-y-2">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <h4 className={`font-semibold ${currentTheme.textColor}`}>All Project Assignments</h4>
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <span className={`${currentTheme.subtleText}`}>Sort by:</span>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectName'); }}
+                                                                className={`px-2 py-1 rounded ${assignmentSortBy === 'projectName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                                            >
+                                                                Alphabetical
+                                                            </button>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectId'); }}
+                                                                className={`px-2 py-1 rounded ${assignmentSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                                            >
+                                                                Project ID
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    {sortedAssignments.length > 0 ? sortedAssignments.map(asn => (
+                                                        <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => confirmDeleteAssignment(asn.id)} currentTheme={currentTheme} />
+                                                    )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
+                                                    
+                                                    {(newAssignments[employee.id] || []).map(asn => (
+                                                        <div key={asn.id} className="relative p-4 border border-dashed border-blue-400 rounded-lg">
+                                                            <InlineAssignmentEditor db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
+                                                            <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="mt-2 bg-green-500 text-white px-3 py-1 text-sm rounded hover:bg-green-600">Save New Assignment</button>
+                                                        </div>
+                                                    ))}
+                                                    <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
                                                 </div>
                                             </div>
-                                            {sortedAssignments.length > 0 ? sortedAssignments.map(asn => (
-                                                <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => confirmDeleteAssignment(asn.id)} currentTheme={currentTheme} />
-                                            )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
-                                             
-                                            {(newAssignments[employee.id] || []).map(asn => (
-                                                <div key={asn.id} className="relative p-4 border border-dashed border-blue-400 rounded-lg">
-                                                    <InlineAssignmentEditor db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
-                                                    <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="mt-2 bg-green-500 text-white px-3 py-1 text-sm rounded hover:bg-green-600">Save New Assignment</button>
-                                                </div>
-                                            ))}
-                                            <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
                                         </div>
-                                    </div>
-                                </div>
-                            )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     )
                 })}

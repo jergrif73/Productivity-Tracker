@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 
 // --- Helper Components ---
 
@@ -666,28 +667,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     };
     
     const isEditing = editingEmployee || editingProjectId;
-    
-    if (expandedProjectId) {
-        const project = projects.find(p => p.id === expandedProjectId);
-        return (
-            <div className={`p-4 ${currentTheme.consoleBg} h-full`}>
-                <div 
-                    className="cursor-pointer mb-4" 
-                    onClick={() => setExpandedProjectId(null)}
-                >
-                    <h2 className="text-2xl font-bold text-blue-500 hover:underline">&larr; Back to All Projects</h2>
-                    <p className="text-lg font-semibold">{project.name} ({project.projectId})</p>
-                </div>
-                <WeeklyTimeline 
-                    project={project}
-                    db={db}
-                    appId={appId}
-                    currentTheme={currentTheme}
-                    showToast={showToast}
-                />
-            </div>
-        )
-    }
 
     return (
         <div className="p-4">
@@ -724,210 +703,245 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 }
             `}</style>
 
-            {/* --- Sticky Header --- */}
-            <div className={`sticky top-0 z-10 ${currentTheme.consoleBg} py-2`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Employee Header */}
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-bold">Manage Employees</h2>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm">Sort by:</span>
-                            <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                            <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                        </div>
-                    </div>
-                    {/* Project Header */}
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-bold">Manage Projects</h2>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm">Sort by:</span>
-                            <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                            <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                        </div>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
-                    <input type="text" placeholder="Search employees..." value={employeeSearchTerm} onChange={(e) => setEmployeeSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                    <div className="flex items-center gap-2">
-                        <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                        {projectStatuses.map(status => (
-                             <Tooltip key={status} text={statusDescriptions[status]}>
-                                <button 
-                                    onClick={() => handleStatusFilterToggle(status)}
-                                    className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                                >
-                                    {status}
-                                </button>
-                            </Tooltip>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* --- Scrollable Content --- */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                {/* Employee Content */}
-                <div>
-                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
-                        <button onClick={() => handleToggleCollapse('addEmployee')} className="w-full flex justify-between items-center font-semibold mb-2">
-                            <h3>Add New Employee</h3>
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addEmployee ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
-                        {!collapsedSections.addEmployee && (
-                            <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
-                                <div className="space-y-2 mb-4">
-                                    <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                        {titleOptions.map(title => (
-                                            <option key={title} value={title}>{title}</option>
-                                        ))}
-                                    </select>
-                                    <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                </div>
-                                <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+            <AnimatePresence mode="wait">
+                {expandedProjectId ? (
+                    <motion.div
+                        key="timeline"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto', transition: { type: "spring", stiffness: 200, damping: 25 } }}
+                        exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
+                        className="overflow-hidden"
+                    >
+                        <div className={`p-4 ${currentTheme.consoleBg} h-full`}>
+                            <div 
+                                className="cursor-pointer mb-4" 
+                                onClick={() => setExpandedProjectId(null)}
+                            >
+                                <h2 className="text-2xl font-bold text-blue-500 hover:underline">&larr; Back to All Projects</h2>
+                                <p className="text-lg font-semibold">{projects.find(p => p.id === expandedProjectId)?.name} ({projects.find(p => p.id === expandedProjectId)?.projectId})</p>
                             </div>
-                        )}
-                    </div>
-                    <div className="space-y-2">
-                        {filteredEmployees.map((e, index) => {
-                            const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                            return (
-                            <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                            <WeeklyTimeline 
+                                project={projects.find(p => p.id === expandedProjectId)}
+                                db={db}
+                                appId={appId}
+                                currentTheme={currentTheme}
+                                showToast={showToast}
+                            />
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="list"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        {/* --- Sticky Header --- */}
+                        <div className={`sticky top-0 z-10 ${currentTheme.consoleBg} py-2`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Employee Header */}
                                 <div className="flex justify-between items-center">
-                                    <div>
-                                        <p>{e.firstName} {e.lastName}</p>
-                                        <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
-                                        <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
+                                    <h2 className="text-xl font-bold">Manage Employees</h2>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm">Sort by:</span>
+                                        <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                                        <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setEditingEmployee(e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
-                                        <button onClick={() => confirmDelete('employee', e)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                </div>
+                                {/* Project Header */}
+                                <div className="flex justify-between items-center">
+                                    <h2 className="text-xl font-bold">Manage Projects</h2>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm">Sort by:</span>
+                                        <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                                        <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
                                     </div>
                                 </div>
                             </div>
-                        )})}
-                    </div>
-                </div>
-
-                {/* Project Content */}
-                <div>
-                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
-                        <button onClick={() => handleToggleCollapse('addProject')} className="w-full flex justify-between items-center font-semibold mb-2">
-                            <h3>Add New Project</h3>
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addProject ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </button>
-                        {!collapsedSections.addProject && (
-                            <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
-                                <div className="space-y-2 mb-4">
-                                    <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                        {projectStatuses.map(status => (
-                                            <option key={status} value={status}>{status}</option>
-                                        ))}
-                                    </select>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Initial Budget ($):</label>
-                                        <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Blended Rate ($/hr):</label>
-                                        <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">BIM Blended Rate ($/hr):</label>
-                                        <input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Contingency ($):</label>
-                                        <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <label className="w-32">Project Dashboard:</label>
-                                        <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                                <input type="text" placeholder="Search employees..." value={employeeSearchTerm} onChange={(e) => setEmployeeSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <div className="flex items-center gap-2">
+                                    <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                    {projectStatuses.map(status => (
+                                        <Tooltip key={status} text={statusDescriptions[status]}>
+                                            <button 
+                                                onClick={() => handleStatusFilterToggle(status)}
+                                                className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                            >
+                                                {status}
+                                            </button>
+                                        </Tooltip>
+                                    ))}
                                 </div>
-                                <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                             </div>
-                        )}
-                    </div>
+                        </div>
 
-                    <div className="space-y-2 mb-8">
-                        {filteredProjects.map((p, index) => {
-                            const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                            const currentStatus = p.status || (p.archived ? "Archive" : "Controlling");
-                            
-                            return (
-                                <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                                {editingProjectId === p.id ? (
-                                    <div className="space-y-2">
-                                        <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                            {projectStatuses.map(status => (
-                                                <option key={status} value={status}>{status}</option>
-                                            ))}
-                                        </select>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Initial Budget ($):</label>
-                                            <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Blended Rate ($/hr):</label>
-                                            <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">BIM Blended Rate ($/hr):</label>
-                                            <input name="bimBlendedRate" value={editingProjectData.bimBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="BIM Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Contingency ($):</label>
-                                            <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <label className="w-32">Project Dashboard:</label>
-                                            <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                        </div>
-                                        <div className="flex gap-2 pt-4">
-                                            <button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                            <button onClick={() => setEditingProjectId(null)} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="cursor-pointer" onClick={() => setExpandedProjectId(p.id)}>
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <p className="font-semibold">{p.name} ({p.projectId})</p>
-                                                <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | BIM Rate: ${p.bimBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                        {/* --- Scrollable Content --- */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            {/* Employee Content */}
+                            <div>
+                                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                                    <button onClick={() => handleToggleCollapse('addEmployee')} className="w-full flex justify-between items-center font-semibold mb-2">
+                                        <h3>Add New Employee</h3>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addEmployee ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {!collapsedSections.addEmployee && (
+                                        <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
+                                            <div className="space-y-2 mb-4">
+                                                <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                    {titleOptions.map(title => (
+                                                        <option key={title} value={title}>{title}</option>
+                                                    ))}
+                                                </select>
+                                                <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                             </div>
-                                            <div className="flex items-center gap-1 flex-shrink-0">
-                                                {projectStatuses.map(status => (
-                                                    <Tooltip key={status} text={statusDescriptions[status]}>
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }}
-                                                            className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}
-                                                        >
-                                                            {status.charAt(0)}
-                                                        </button>
-                                                    </Tooltip>
-                                                ))}
-                                                <button onClick={(e) => { e.stopPropagation(); handleEditProject(p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
-                                                <button onClick={(e) => { e.stopPropagation(); confirmDelete('project', p); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
+                                            <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    {filteredEmployees.map((e, index) => {
+                                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                                        return (
+                                        <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <p>{e.firstName} {e.lastName}</p>
+                                                    <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
+                                                    <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => setEditingEmployee(e)} className="text-blue-500 hover:text-blue-700" disabled={isEditing}>Edit</button>
+                                                    <button onClick={() => confirmDelete('employee', e)} className="text-red-500 hover:text-red-700" disabled={isEditing}>Delete</button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )})}
+                                </div>
                             </div>
-                            )})}
-                    </div>
-                </div>
-            </div>
+
+                            {/* Project Content */}
+                            <div>
+                                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                                    <button onClick={() => handleToggleCollapse('addProject')} className="w-full flex justify-between items-center font-semibold mb-2">
+                                        <h3>Add New Project</h3>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addProject ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {!collapsedSections.addProject && (
+                                        <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
+                                            <div className="space-y-2 mb-4">
+                                                <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                    {projectStatuses.map(status => (
+                                                        <option key={status} value={status}>{status}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="w-32">Initial Budget ($):</label>
+                                                    <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="w-32">Blended Rate ($/hr):</label>
+                                                    <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="w-32">BIM Blended Rate ($/hr):</label>
+                                                    <input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="w-32">Contingency ($):</label>
+                                                    <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="w-32">Project Dashboard:</label>
+                                                    <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                </div>
+                                            </div>
+                                            <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="space-y-2 mb-8">
+                                    {filteredProjects.map((p, index) => {
+                                        const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                                        const currentStatus = p.status || (p.archived ? "Archive" : "Controlling");
+                                        
+                                        return (
+                                            <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
+                                            {editingProjectId === p.id ? (
+                                                <div className="space-y-2">
+                                                    <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                                        {projectStatuses.map(status => (
+                                                            <option key={status} value={status}>{status}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="w-32">Initial Budget ($):</label>
+                                                        <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="w-32">Blended Rate ($/hr):</label>
+                                                        <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="w-32">BIM Blended Rate ($/hr):</label>
+                                                        <input name="bimBlendedRate" value={editingProjectData.bimBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="BIM Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="w-32">Contingency ($):</label>
+                                                        <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="w-32">Project Dashboard:</label>
+                                                        <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                    </div>
+                                                    <div className="flex gap-2 pt-4">
+                                                        <button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
+                                                        <button onClick={() => setEditingProjectId(null)} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="cursor-pointer" onClick={() => setExpandedProjectId(p.id)}>
+                                                    <div className="flex justify-between items-center">
+                                                        <div>
+                                                            <p className="font-semibold">{p.name} ({p.projectId})</p>
+                                                            <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | BIM Rate: ${p.bimBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                                            {projectStatuses.map(status => (
+                                                                <Tooltip key={status} text={statusDescriptions[status]}>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }}
+                                                                        className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}
+                                                                    >
+                                                                        {status.charAt(0)}
+                                                                    </button>
+                                                                </Tooltip>
+                                                            ))}
+                                                            <button onClick={(e) => { e.stopPropagation(); handleEditProject(p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
+                                                            <button onClick={(e) => { e.stopPropagation(); confirmDelete('project', p); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        )})}
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

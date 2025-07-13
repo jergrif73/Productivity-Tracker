@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { doc, onSnapshot, setDoc, collection, getDocs } from 'firebase/firestore';
 import * as d3 from 'd3';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
@@ -40,6 +41,12 @@ const initialActivityData = [
     { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
     { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
 ];
+
+const animationVariants = {
+    hidden: { opacity: 0, height: 0 },
+    visible: { opacity: 1, height: 'auto', transition: { duration: 0.3, ease: "easeInOut" } },
+    exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
+};
 
 const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget }) => {
     if (!project || !activityTotals) return null;
@@ -369,77 +376,103 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdatePerce
                 <div key={main.id} className="p-3 rounded-md bg-black/20">
                     <button onClick={() => onToggle(`main_${main.id}`)} className="w-full flex justify-between items-center text-left mb-2">
                         <h4 className="font-bold text-md">{main.name}</h4>
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections[`main_${main.id}`] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <motion.svg
+                            animate={{ rotate: collapsedSections[`main_${main.id}`] ? 0 : 180 }}
+                            xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                        </motion.svg>
                     </button>
+                    <AnimatePresence>
                     {!collapsedSections[`main_${main.id}`] && (
-                        <div className="space-y-3">
-                            {Object.entries(tradeColorMapping)
-                                .filter(([trade]) => activeTrades.includes(trade))
-                                .map(([trade, style]) => {
-                                const tradeActivities = activities[trade] || [];
-                                if (tradeActivities.length === 0) return null;
+                        <motion.div
+                            key={`main-content-${main.id}`}
+                            variants={animationVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="overflow-hidden"
+                        >
+                            <div className="space-y-3 pt-2">
+                                {Object.entries(tradeColorMapping)
+                                    .filter(([trade]) => activeTrades.includes(trade))
+                                    .map(([trade, style]) => {
+                                    const tradeActivities = activities[trade] || [];
+                                    if (tradeActivities.length === 0) return null;
 
-                                const tradeTotalHours = tradeActivities.reduce((sum, act) => sum + Number(act.estimatedHours || 0), 0);
-                                const percentageOfProject = totalProjectHours > 0 ? (tradeTotalHours / totalProjectHours) * 100 : 0;
-                                
-                                const tradeData = actionTrackerData?.[main.id]?.[trade] || {};
-                                const tradePercentage = tradeData.tradePercentage || '';
-                                const tradeSectionId = `main_${main.id}_trade_${trade}`;
+                                    const tradeTotalHours = tradeActivities.reduce((sum, act) => sum + Number(act.estimatedHours || 0), 0);
+                                    const percentageOfProject = totalProjectHours > 0 ? (tradeTotalHours / totalProjectHours) * 100 : 0;
+                                    
+                                    const tradeData = actionTrackerData?.[main.id]?.[trade] || {};
+                                    const tradePercentage = tradeData.tradePercentage || '';
+                                    const tradeSectionId = `main_${main.id}_trade_${trade}`;
 
-                                return (
-                                    <div key={trade}>
-                                        <button onClick={() => onToggle(tradeSectionId)} className={`w-full p-2 rounded-t-md ${style.bg} ${style.text} flex justify-between items-center`}>
-                                            <span className="font-bold text-sm">{trade.charAt(0).toUpperCase() + trade.slice(1)}</span>
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <span>Percentage of Est. Hrs. ({percentageOfProject.toFixed(2)}%)</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={tradePercentage}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        onChange={(e) => { e.stopPropagation(); handlePercentageChange(main.id, trade, e.target.value); }}
-                                                        className="w-20 p-1 rounded-md bg-white/30 text-black text-center"
-                                                        placeholder="% of Hrs."
-                                                        disabled={!isTradePercentageEditable}
-                                                    />
+                                    return (
+                                        <div key={trade}>
+                                            <button onClick={() => onToggle(tradeSectionId)} className={`w-full p-2 rounded-t-md ${style.bg} ${style.text} flex justify-between items-center`}>
+                                                <span className="font-bold text-sm">{trade.charAt(0).toUpperCase() + trade.slice(1)}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <span>Percentage of Est. Hrs. ({percentageOfProject.toFixed(2)}%)</span>
+                                                        <input 
+                                                            type="number" 
+                                                            value={tradePercentage}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onChange={(e) => { e.stopPropagation(); handlePercentageChange(main.id, trade, e.target.value); }}
+                                                            className="w-20 p-1 rounded-md bg-white/30 text-black text-center"
+                                                            placeholder="% of Hrs."
+                                                            disabled={!isTradePercentageEditable}
+                                                        />
+                                                    </div>
+                                                    <motion.svg
+                                                        animate={{ rotate: collapsedSections[tradeSectionId] ? 0 : 180 }}
+                                                        xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </motion.svg>
                                                 </div>
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${collapsedSections[tradeSectionId] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </div>
-                                        </button>
-                                        {!collapsedSections[tradeSectionId] && (
-                                            <div className="p-2 rounded-b-md bg-gray-500/10">
-                                                <div className="grid grid-cols-2 font-semibold text-xs mb-1">
-                                                    <span>Activity Description</span>
-                                                    <span className="text-right">% Complete</span>
-                                                </div>
-                                                {tradeActivities.map(act => {
-                                                    const activityCompletion = (tradeData.activities || {})[act.id] ?? '';
-                                                    return (
-                                                        <div key={act.id} className="grid grid-cols-2 items-center text-sm py-1">
-                                                            <span>{act.description}</span>
-                                                            <input 
-                                                                type="number"
-                                                                value={activityCompletion}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                onChange={(e) => handleActivityCompleteChange(main.id, trade, act.id, e.target.value)}
-                                                                className={`w-20 p-1 rounded-md text-right ml-auto ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                                                                placeholder="%"
-                                                                disabled={!isActivityCompletionEditable}
-                                                            />
+                                            </button>
+                                            <AnimatePresence>
+                                            {!collapsedSections[tradeSectionId] && (
+                                                <motion.div
+                                                    key={`trade-content-${tradeSectionId}`}
+                                                    variants={animationVariants}
+                                                    initial="hidden"
+                                                    animate="visible"
+                                                    exit="exit"
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="p-2 rounded-b-md bg-gray-500/10">
+                                                        <div className="grid grid-cols-2 font-semibold text-xs mb-1">
+                                                            <span>Activity Description</span>
+                                                            <span className="text-right">% Complete</span>
                                                         </div>
-                                                    )
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            })}
-                        </div>
+                                                        {tradeActivities.map(act => {
+                                                            const activityCompletion = (tradeData.activities || {})[act.id] ?? '';
+                                                            return (
+                                                                <div key={act.id} className="grid grid-cols-2 items-center text-sm py-1">
+                                                                    <span>{act.description}</span>
+                                                                    <input 
+                                                                        type="number"
+                                                                        value={activityCompletion}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        onChange={(e) => handleActivityCompleteChange(main.id, trade, act.id, e.target.value)}
+                                                                        className={`w-20 p-1 rounded-md text-right ml-auto ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                                                        placeholder="%"
+                                                                        disabled={!isActivityCompletionEditable}
+                                                                    />
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                            </AnimatePresence>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </motion.div>
                     )}
+                    </AnimatePresence>
                 </div>
             ))}
         </div>
@@ -519,52 +552,65 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                     <span className="text-center">{groupTotals.projected.toFixed(2)}</span>
                     <span></span>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <motion.svg
+                    animate={{ rotate: isCollapsed ? 0 : 180 }}
+                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                </motion.svg>
             </button>
+            <AnimatePresence>
             {!isCollapsed && (
-                <div className="overflow-x-auto" onClick={e => e.stopPropagation()}>
-                    <table className="min-w-full text-sm">
-                        <thead>
-                            <tr className={currentTheme.altRowBg}>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% of Project</th>
-                                <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>
-                                    <Tooltip text="Calculated automatically from the Action Tracker section.">% Comp</Tooltip>
-                                </th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Hrs Used</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actual ($)</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Proj. Hrs</th>
-                                <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {(data || []).map((activity, index) => (
-                                <ActivityRow
-                                    key={activity.id}
-                                    activity={activity}
-                                    groupKey={groupKey}
-                                    index={index}
-                                    onChange={onChange}
-                                    onDelete={onDelete}
-                                    project={project}
-                                    currentTheme={currentTheme}
-                                    totalProjectHours={totalProjectHours}
-                                    accessLevel={accessLevel}
-                                />
-                            ))}
-                             <tr>
-                                <td colSpan="11" className="p-1"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <motion.div
+                    key={`table-${groupKey}`}
+                    variants={animationVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    className="overflow-hidden"
+                >
+                    <div className="overflow-x-auto" onClick={e => e.stopPropagation()}>
+                        <table className="min-w-full text-sm">
+                            <thead>
+                                <tr className={currentTheme.altRowBg}>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% of Project</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>
+                                        <Tooltip text="Calculated automatically from the Action Tracker section.">% Comp</Tooltip>
+                                    </th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Hrs Used</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actual ($)</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Proj. Hrs</th>
+                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(data || []).map((activity, index) => (
+                                    <ActivityRow
+                                        key={activity.id}
+                                        activity={activity}
+                                        groupKey={groupKey}
+                                        index={index}
+                                        onChange={onChange}
+                                        onDelete={onDelete}
+                                        project={project}
+                                        currentTheme={currentTheme}
+                                        totalProjectHours={totalProjectHours}
+                                        accessLevel={accessLevel}
+                                    />
+                                ))}
+                                 <tr>
+                                    <td colSpan="11" className="p-1"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </motion.div>
             )}
+            </AnimatePresence>
         </div>
     )
 });
@@ -573,7 +619,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
 const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [collapsedSections, setCollapsedSections] = useState({ budgetLog: true, financialForecast: true });
+    const [collapsedSections, setCollapsedSections] = useState({ budgetLog: true, financialForecast: true, mainsManagement: true, actionTracker: true });
     const [weeklyHours, setWeeklyHours] = useState({});
     
     const tradeButtonLabels = useMemo(() => ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"], []);
@@ -969,28 +1015,54 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                              <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Financial Forecast</h3>
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.financialForecast ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <motion.svg
+                                    animate={{ rotate: collapsedSections.financialForecast ? 0 : 180 }}
+                                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                </motion.svg>
                             </button>
+                            <AnimatePresence>
                             {!collapsedSections.financialForecast && (
-                                <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                    <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
-                                </div>
+                                <motion.div
+                                    key="financial-forecast-content"
+                                    variants={animationVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    className="overflow-hidden"
+                                >
+                                    <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                        <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
+                                    </div>
+                                </motion.div>
                             )}
+                            </AnimatePresence>
                         </div>
                          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Budget Impact Log</h3>
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.budgetLog ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <motion.svg
+                                    animate={{ rotate: collapsedSections.budgetLog ? 0 : 180 }}
+                                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                </motion.svg>
                             </button>
+                            <AnimatePresence>
                             {!collapsedSections.budgetLog && (
-                                <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                    <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} project={project} />
-                                </div>
+                                <motion.div
+                                    key="budget-log-content"
+                                    variants={animationVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    className="overflow-hidden"
+                                >
+                                    <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                        <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} project={project} />
+                                    </div>
+                                </motion.div>
                             )}
+                            </AnimatePresence>
                         </div>
                     </div>
                 </>
@@ -1002,20 +1074,33 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <button onClick={() => handleToggleCollapse('mainsManagement')} className="w-full text-left font-bold flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Mains Management</h3>
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections['mainsManagement'] ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <motion.svg
+                                    animate={{ rotate: collapsedSections['mainsManagement'] ? 0 : 180 }}
+                                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                </motion.svg>
                             </button>
+                            <AnimatePresence>
                             {!collapsedSections['mainsManagement'] && (
-                                <ProjectBreakdown 
-                                    mainItems={sortedMainItems}
-                                    onAdd={handleAddMain}
-                                    onUpdate={handleUpdateMain}
-                                    onDelete={handleDeleteMain}
-                                    onReorder={handleReorderMains}
-                                    currentTheme={currentTheme}
-                                />
+                                <motion.div
+                                    key="mains-management-content"
+                                    variants={animationVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    className="overflow-hidden"
+                                >
+                                    <ProjectBreakdown 
+                                        mainItems={sortedMainItems}
+                                        onAdd={handleAddMain}
+                                        onUpdate={handleUpdateMain}
+                                        onDelete={handleDeleteMain}
+                                        onReorder={handleReorderMains}
+                                        currentTheme={currentTheme}
+                                    />
+                                </motion.div>
                             )}
+                            </AnimatePresence>
                         </div>
                     )}
                     
@@ -1024,9 +1109,11 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                             <div className="w-full flex justify-between items-center mb-2">
                                 <button onClick={() => handleToggleCollapse('actionTracker')} className="flex items-center text-left font-bold">
                                     <h3 className="text-lg font-semibold">Action Tracker</h3>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform flex-shrink-0 ${collapsedSections.actionTracker ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <motion.svg
+                                        animate={{ rotate: collapsedSections.actionTracker ? 0 : 180 }}
+                                        xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
+                                    </motion.svg>
                                 </button>
                                 {!collapsedSections.actionTracker && (
                                      <button onClick={handleToggleAllActionTracker} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
@@ -1034,25 +1121,36 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                     </button>
                                 )}
                             </div>
+                            <AnimatePresence>
                             {!collapsedSections.actionTracker && (
-                                <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                    <ActionTracker 
-                                        mainItems={sortedMainItems}
-                                        activities={projectData.activities}
-                                        totalProjectHours={activityTotals.estimated}
-                                        onUpdatePercentage={handleUpdateActionTrackerPercentage}
-                                        onUpdateActivityCompletion={handleUpdateActivityCompletion}
-                                        actionTrackerData={projectData.actionTrackerData || {}}
-                                        currentTheme={currentTheme}
-                                        tradeColorMapping={tradeColorMapping}
-                                        isTradePercentageEditable={accessLevel === 'taskmaster'}
-                                        isActivityCompletionEditable={accessLevel === 'tcl'}
-                                        collapsedSections={collapsedSections}
-                                        onToggle={handleToggleCollapse}
-                                        activeTrades={activeTradeKeys}
-                                    />
-                                </div>
+                                <motion.div
+                                    key="action-tracker-content"
+                                    variants={animationVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    className="overflow-hidden"
+                                >
+                                    <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                        <ActionTracker 
+                                            mainItems={sortedMainItems}
+                                            activities={projectData.activities}
+                                            totalProjectHours={activityTotals.estimated}
+                                            onUpdatePercentage={handleUpdateActionTrackerPercentage}
+                                            onUpdateActivityCompletion={handleUpdateActivityCompletion}
+                                            actionTrackerData={projectData.actionTrackerData || {}}
+                                            currentTheme={currentTheme}
+                                            tradeColorMapping={tradeColorMapping}
+                                            isTradePercentageEditable={accessLevel === 'taskmaster'}
+                                            isActivityCompletionEditable={accessLevel === 'tcl'}
+                                            collapsedSections={collapsedSections}
+                                            onToggle={handleToggleCollapse}
+                                            activeTrades={activeTradeKeys}
+                                        />
+                                    </div>
+                                </motion.div>
                             )}
+                            </AnimatePresence>
                         </div>
                     )}
                 </div>
@@ -1186,71 +1284,43 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             </div>
             <div className="flex-grow overflow-y-auto space-y-4 pr-4">
                 {filteredProjects.map((p, index) => {
-                    const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     const isExpanded = expandedProjectId === p.id;
-                    const project = projects.find(proj => proj.id === p.id);
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
 
                     return (
-                        <div 
+                        <motion.div 
                             key={p.id} 
-                            className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm transition-all duration-300 ease-in-out`}
-                            onClick={() => handleProjectClick(p.id)}
+                            layout
+                            className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}
                         >
-                            <div className="flex justify-between items-start cursor-pointer">
+                            <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleProjectClick(p.id)}>
                                 <div>
                                     <h3 className="text-lg font-semibold">{p.name}</h3>
                                     <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
                                 </div>
-                                {!isExpanded && (
-                                     <span className={`text-xs ${currentTheme.subtleText}`}>Click to expand</span>
-                                )}
-                            </div>
+                                <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </motion.div>
+                            </motion.div>
                            
+                            <AnimatePresence>
                             {isExpanded && (
-                                <div onClick={e => e.stopPropagation()}>
-                                    <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                        <div>
-                                            <h4 className="text-md font-semibold mb-2 border-b pb-1">Assigned Detailers:</h4>
-                                            {projectAssignments.length === 0 ? (
-                                                <p className={`text-sm ${currentTheme.subtleText}`}>None</p>
-                                            ) : (
-                                                <ul className="list-disc list-inside text-sm space-y-1">
-                                                    {projectAssignments.map(a => {
-                                                        const detailer = detailers.find(d => d.id === a.detailerId);
-                                                        return (
-                                                            <li key={a.id}>
-                                                                {detailer ? `${detailer.firstName} ${detailer.lastName}` : 'Unknown Detailer'} - <span className="font-semibold">{a.allocation}%</span> ({a.trade})
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-                                            )}
-                                        </div>
-                                        <div>
-                                            {p.dashboardUrl && (
-                                                <>
-                                                    <h4 className="text-md font-semibold mb-2 border-b pb-1">Dashboard</h4>
-                                                    <a
-                                                        href={p.dashboardUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                                                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                                                        </svg>
-                                                        Project Dashboard
-                                                    </a>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <ProjectDetailView db={db} project={project} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} showToast={showToast} />
-                                </div>
+                                <motion.div
+                                    key={`detail-${p.id}`}
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    className="overflow-hidden"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <ProjectDetailView db={db} project={p} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                                </motion.div>
                             )}
-                        </div>
+                            </AnimatePresence>
+                        </motion.div>
                     );
                 })}
             </div>

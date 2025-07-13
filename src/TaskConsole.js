@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { motion } from 'framer-motion'; // Import Framer Motion
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
@@ -599,11 +600,14 @@ const TaskCard = ({ task, detailers, onDragStart, onClick, currentTheme }) => {
     const assignee = detailers.find(d => d.id === task.detailerId);
 
     return (
-        <div
+        <motion.div
+            layout
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
             draggable
             onDragStart={(e) => onDragStart(e, task.id)}
             onClick={onClick}
             className={`${currentTheme.cardBg} p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer mb-3 ${currentTheme.textColor}`}
+            whileDrag={{ scale: 1.1, rotate: 3, zIndex: 50, boxShadow: "0px 15px 25px rgba(0,0,0,0.3)" }}
         >
             <p className="font-semibold mb-2">{task.taskName}</p>
             <div className={`flex items-center justify-between text-xs ${currentTheme.subtleText} mt-2`}>
@@ -641,7 +645,7 @@ const TaskCard = ({ task, detailers, onDragStart, onClick, currentTheme }) => {
                      </div>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 };
 
@@ -798,7 +802,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                  <button onClick={() => handleOpenModal(null)} className={`w-full text-left p-2 mb-3 ${currentTheme.cardBg} ${currentTheme.textColor} rounded-md shadow-sm hover:bg-opacity-80`}>+ Add Task</button>
                              )}
 
-                             <div className="flex-grow overflow-y-auto pr-2">
+                             <motion.div layout transition={{ type: 'spring', stiffness: 400, damping: 25 }} className="flex-grow overflow-y-auto pr-2">
                                  {tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted').map(task => (
                                      <TaskCard
                                          key={task.id}
@@ -809,7 +813,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                          currentTheme={currentTheme}
                                      />
                                  ))}
-                             </div>
+                             </motion.div>
                          </div>
                      ))}
                       <div className="w-72 flex-shrink-0">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 
 // Import all the console components
 import TeamConsole from './TeamConsole';
@@ -379,7 +380,18 @@ const App = () => {
                     </div>
                 </header>
                 <main className={`flex-grow overflow-y-auto ${currentTheme.consoleBg}`}>
-                   {renderView()}
+                   {/* This is where the animation is applied */}
+                   <AnimatePresence mode="wait">
+                        <motion.div
+                            key={view} // The key is crucial for AnimatePresence to detect changes
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.3 }}
+                        >
+                            {renderView()}
+                        </motion.div>
+                    </AnimatePresence>
                 </main>
                  <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
                     User ID: {userId || 'N/A'} | App ID: {appId}
