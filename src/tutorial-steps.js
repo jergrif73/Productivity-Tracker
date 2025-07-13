@@ -33,15 +33,33 @@ export const tutorialContent = {
           roles: ['taskmaster']
       },
       {
+        key: "toggleFinancialForecast",
+        title: "Expand/Collapse Financial Forecast",
+        content: "Click on the 'Financial Forecast' header to expand or collapse this section. This allows you to hide or show the detailed chart as needed.",
+        roles: ['taskmaster']
+      },
+      {
         key: "budgetImpactLog",
         title: "Budget Impact Log (Taskmaster)",
         content: "Use this section to log any events that impact the project's budget, such as change orders or unforeseen expenses. Each entry will adjust the 'Current Budget' in the Financial Summary, providing a clear audit trail of budget modifications.",
         roles: ['taskmaster']
       },
       {
+        key: "toggleBudgetImpactLog",
+        title: "Expand/Collapse Budget Impact Log",
+        content: "Click on the 'Budget Impact Log' header to expand or collapse this section, controlling the visibility of the budget adjustment table.",
+        roles: ['taskmaster']
+      },
+      {
         key: "mainsManagement",
         title: "Mains Management (Taskmaster)",
         content: "Define the major phases or areas of your project here. These 'Mains' will appear in the Action Tracker, allowing TCLs to report progress against them. Setting up clear 'Mains' is vital for structured progress reporting.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "toggleMainsManagement",
+        title: "Expand/Collapse Mains Management",
+        content: "Click on the 'Mains Management' header to expand or collapse this section, showing or hiding the tools for defining project main items.",
         roles: ['taskmaster']
       },
       {
@@ -57,9 +75,27 @@ export const tutorialContent = {
         roles: ['taskmaster']
       },
       {
+        key: "toggleActionTrackerSection",
+        title: "Expand/Collapse Action Tracker",
+        content: "Click on the 'Action Tracker' header to expand or collapse the entire section, showing or hiding all main items and their associated trade progress.",
+        roles: ['taskmaster', 'tcl']
+      },
+      {
+        key: "toggleActionTrackerTradeSections",
+        title: "Expand/Collapse Trade Sections (Action Tracker)",
+        content: "Within the Action Tracker, click on any trade's header (e.g., 'Piping') to expand or collapse its list of activities and completion percentages. This helps you focus on specific trade progress.",
+        roles: ['taskmaster', 'tcl']
+      },
+      {
         key: "activityBreakdown",
         title: "Activity Values Breakdown (Taskmaster)",
         content: "This is the core of project tracking. Here, you define all billable activities for the project. Input 'Est. Hrs' and 'Hrs Used', and the system calculates the rest. The crucial '% Comp' field is calculated from the progress entered in the 'Action Tracker'. This section feeds directly into the **Reporting Console** for detailed financial analysis.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "toggleActivityBreakdownSection",
+        title: "Expand/Collapse Activity Breakdown",
+        content: "Click on the 'Activity Values Breakdown' header to expand or collapse this section, controlling the visibility of all detailed activity records.",
         roles: ['taskmaster']
       },
       {
@@ -72,7 +108,7 @@ export const tutorialContent = {
         key: "projectDashboardLink",
         title: "Project Dashboard Link",
         content: "If configured, this link provides quick access to an external dashboard or relevant project documentation. This is useful for integrating with other project management tools and centralizing project information.",
-        roles: ['taskmaster', 'tcl', 'viewer'] // Added 'tcl' role here
+        roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
         key: "activityGrandTotals",
@@ -153,7 +189,7 @@ export const tutorialContent = {
       {
         key: "employeeCard",
         title: "Employee Card",
-        content: "Each employee has a card showing their name and current weekly allocation percentage. Click to expand and see their specific project assignments. The weekly allocation percentage helps you quickly see if an employee is over or under-assigned for the current week.",
+        content: "Each employee has a card showing their name and current weekly allocation percentage. Click to expand or collapse the card and see their specific project assignments. The weekly allocation percentage helps you quickly see if an employee is over or under-assigned for the current week.",
         roles: ['taskmaster']
       },
       {
