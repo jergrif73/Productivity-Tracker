@@ -617,7 +617,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
 });
 
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedProjectInWorkloader }) => {
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [collapsedSections, setCollapsedSections] = useState({ budgetLog: true, financialForecast: true, mainsManagement: true, actionTracker: true });
@@ -975,6 +975,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         return [...(projectData?.mainItems || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     }, [projectData?.mainItems]);
 
+    const handleGoToProjectWorkloader = (e) => {
+        e.stopPropagation();
+        if (accessLevel === 'taskmaster') {
+            setInitialSelectedProjectInWorkloader(projectId);
+            setView('workloader');
+        }
+    };
+
     if (loading || !projectData) return <div className="p-4 text-center">Loading Project Details...</div>;
 
     const grandTotals = Object.values(groupTotals).reduce((acc, totals) => {
@@ -1075,21 +1083,36 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 </>
             )}
 
-            {project.dashboardUrl && (
+            {(project.dashboardUrl || accessLevel === 'taskmaster') && (
                 <TutorialHighlight tutorialKey="projectDashboardLink">
                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>
-                        <h3 className="text-lg font-semibold mb-2">Project Dashboard</h3>
-                        <a
-                            href={project.dashboardUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                        >
-                            Go to External Dashboard
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                        </a>
+                        <h3 className="text-lg font-semibold mb-2">Project Links</h3>
+                        <div className="flex justify-center items-center gap-4">
+                            {project.dashboardUrl && (
+                                <a
+                                    href={project.dashboardUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                                >
+                                    Go to External Dashboard
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                </a>
+                            )}
+                            {accessLevel === 'taskmaster' && (
+                                <button
+                                    onClick={handleGoToProjectWorkloader}
+                                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+                                >
+                                    Project Workloader
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </TutorialHighlight>
             )}
@@ -1251,9 +1274,16 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedProjectInWorkloader, initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
+
+    useEffect(() => {
+        if (initialSelectedProjectInProjectConsole) {
+            setExpandedProjectId(initialSelectedProjectInProjectConsole);
+            setInitialSelectedProjectInProjectConsole(null); // Clear after use
+        }
+    }, [initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole]);
 
     const handleProjectClick = (projectId) => {
         setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
@@ -1353,7 +1383,17 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                     className="overflow-hidden"
                                     onClick={e => e.stopPropagation()}
                                 >
-                                    <ProjectDetailView db={db} project={p} projectId={p.id} accessLevel={accessLevel} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                                    <ProjectDetailView 
+                                        db={db} 
+                                        project={p} 
+                                        projectId={p.id} 
+                                        accessLevel={accessLevel} 
+                                        currentTheme={currentTheme} 
+                                        appId={appId} 
+                                        showToast={showToast} 
+                                        setView={setView}
+                                        setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader}
+                                    />
                                 </motion.div>
                             )}
                             </AnimatePresence>

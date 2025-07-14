@@ -69,7 +69,7 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, setInitialSelectedProjectInProjectConsole }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, setInitialSelectedProjectInProjectConsole, initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [groupBy, setGroupBy] = useState('project');
     const [sortBy, setSortBy] = useState('projectId');
@@ -348,6 +348,20 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
     }, [initialSelectedEmployeeInWorkloader, employeeGroupedData, setInitialSelectedEmployeeInWorkloader]);
 
+    // New useEffect to handle initial selection from Project Console
+    useEffect(() => {
+        if (initialSelectedProjectInWorkloader && projectGroupedData.length > 0) {
+            const projectExists = projectGroupedData.some(p => p.id === initialSelectedProjectInWorkloader);
+            if (projectExists) {
+                setGroupBy('project');
+                setExpandedIds(new Set([initialSelectedProjectInWorkloader]));
+                setInitialSelectedProjectInWorkloader(null); // Clear after use
+            } else {
+                setInitialSelectedProjectInWorkloader(null);
+            }
+        }
+    }, [initialSelectedProjectInWorkloader, projectGroupedData, setInitialSelectedProjectInWorkloader]);
+
     // New function to handle navigation to Project Console
     const handleGoToProjectDetails = (e, projectId) => {
         e.stopPropagation(); // Prevent the parent <th>'s onClick from firing
@@ -396,7 +410,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                         )}
                     </div>
                     <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                        {areAllExpanded ? 'Collapse All' : 'Expand All'}
+                        {areAllExpanded ? 'Collapse All' : 'Collapse All'}
                     </button>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
