@@ -326,14 +326,15 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         showToast(`'${tradeToDelete}' removed from project.`);
     };
 
-    const handleMouseDown = (trade, week) => {
-        setDragState({
-            startTrade: trade,
-            startWeek: week,
-            fillValue: weeklyHours[trade]?.[week] || 0,
-            selection: {}
-        });
-    };
+    // Removed unused handleMouseDown function
+    // const handleMouseDown = (trade, week) => {
+    //     setDragState({
+    //         startTrade: trade,
+    //         startWeek: week,
+    //         fillValue: weeklyHours[trade]?.[week] || 0,
+    //         selection: {}
+    //     });
+    // };
 
     const handleMouseEnter = (trade, week) => {
         if (!dragState || dragState.startTrade !== trade) return;
@@ -432,7 +433,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     <button onClick={() => setStartDate(new Date())} className={`p-1 px-2 text-xs border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
                     <button onClick={() => handleDateNav(28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto hide-scrollbar-on-hover"> {/* Added hide-scrollbar-on-hover class */}
                     <table className="min-w-full text-sm text-center border-collapse">
                         <thead className="sticky top-0 z-10">
                             <tr>
@@ -744,7 +745,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             exit={{ opacity: 0 }}
                         >
                             {/* --- Sticky Header --- */}
-                            <div className={`sticky top-0 z-10 ${currentTheme.consoleBg} py-2`}>
+                            <div className={`py-2`}> {/* Removed sticky classes */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Employee Header */}
                                     <TutorialHighlight tutorialKey="manageEmployees">
@@ -788,7 +789,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             </div>
 
                             {/* --- Scrollable Content --- */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            {/* Added hide-scrollbar-on-hover class */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover"> 
                                 {/* Employee Content */}
                                 <div>
                                     <TutorialHighlight tutorialKey="addEmployeeFields">
@@ -917,11 +919,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <label className="w-32">Contingency ($):</label>
-                                                                <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                                <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 <label className="w-32">Project Dashboard:</label>
-                                                                <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                                <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                             </div>
                                                             <div className="flex gap-2 pt-4">
                                                                 <button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>

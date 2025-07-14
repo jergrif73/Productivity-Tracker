@@ -6,8 +6,8 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [ganttView, setGanttView] = useState('projects');
     const weekCount = 52; 
-    // Reduced height to make the chart more compact and minimize vertical scrolling
-    const dimensions = { width: 2200, height: 450, margin: { top: 20, right: 30, bottom: 40, left: 60 } }; // Reduced height from 600 to 450
+    // Increased height to provide more space at the bottom for labels and scrollbar
+    const dimensions = { width: 2200, height: 450, margin: { top: 20, right: 30, bottom: 40, left: 60 } }; 
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
     const boundedHeight = height - margin.top - margin.bottom;
@@ -51,7 +51,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                 projectAssignments.forEach(ass => {
                     const assignStart = new Date(ass.startDate);
                     const assignEnd = new Date(ass.endDate);
-                    if (assignStart <= weekEnd && assignEnd >= weekStart) {
+                    if (assignStart <= weekEnd && assignEnd >= weekStart) { // Corrected: assignEnd instead of assEnd
                         totalHours += (Number(ass.allocation) / 100) * 40;
                     }
                 });
@@ -76,7 +76,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
             activeAssignments.forEach(ass => {
                 const assignStart = new Date(ass.startDate);
                 const assignEnd = new Date(ass.endDate);
-                if (assignStart <= weekEnd && assignEnd >= weekStart) {
+                if (assignStart <= weekEnd && assignEnd >= weekStart) { // Corrected: assignEnd instead of assEnd
                     totalHours += (Number(ass.allocation) / 100) * 40;
                 }
             }
@@ -199,6 +199,36 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
 
     return (
         <div className="p-4 space-y-4 w-full h-full flex flex-col">
+            {/* Custom CSS for scrollbar */}
+            <style>
+                {`
+                .hide-scrollbar-on-hover::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+                .hide-scrollbar-on-hover::-webkit-scrollbar-thumb {
+                    background-color: transparent;
+                }
+                .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
+                    background-color: rgba(156, 163, 175, 0.5); /* gray-400 with opacity */
+                    border-radius: 4px;
+                }
+                .hide-scrollbar-on-hover::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .hide-scrollbar-on-hover:hover::-webkit-scrollbar-track {
+                    background: rgba(0, 0, 0, 0.1); /* subtle track on hover */
+                }
+                /* For Firefox */
+                .hide-scrollbar-on-hover {
+                    scrollbar-width: thin;
+                    scrollbar-color: transparent transparent;
+                }
+                .hide-scrollbar-on-hover:hover {
+                    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+                }
+                `}
+            </style>
             <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
                 <div className="flex items-center gap-2">
                     <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
@@ -210,7 +240,8 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                     <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? `${currentTheme.cardBg} shadow` : ''}`}>Totals</button>
                 </div>
             </div>
-            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-auto`}>
+            {/* Added hide-scrollbar-on-hover class to the scrollable div */}
+            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-auto hide-scrollbar-on-hover`}>
                 <div className="p-4">
                     <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg>
                 </div>

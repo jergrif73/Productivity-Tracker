@@ -1,19 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { motion } from 'framer-motion'; // Import Framer Motion
+import { motion, AnimatePresence } from 'framer-motion'; // MODIFIED: Added AnimatePresence
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
     const theme = currentTheme || { cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600' };
+
+    const backdropVariants = {
+        visible: { opacity: 1, transition: { duration: 0.3 } },
+        hidden: { opacity: 0, transition: { duration: 0.3 } },
+    };
+
+    const modalVariants = {
+        hidden: { opacity: 0, y: "-20px", scale: 0.95 },
+        visible: { 
+            opacity: 1, 
+            y: "0", 
+            scale: 1,
+            transition: { type: "spring", stiffness: 400, damping: 25, mass: 0.5 }
+        },
+        exit: { 
+            opacity: 0, 
+            y: "20px",
+            scale: 0.95,
+            transition: { duration: 0.2 }
+        }
+    };
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
-            <div className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto`}>
+        <motion.div
+            className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center"
+            variants={backdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            onClick={onClose} // Close on backdrop click
+        >
+            <motion.div
+                variants={modalVariants}
+                className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}
+                onClick={e => e.stopPropagation()} // Prevent closing when clicking inside modal
+            >
                 <div className="flex justify-end">
                     <button onClick={onClose} className={`text-2xl font-bold ${theme.subtleText} hover:${theme.textColor}`}>&times;</button>
                 </div>
                 {children}
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 
@@ -435,160 +468,158 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
     const formElementClasses = `w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`;
 
     return (
-        <Modal onClose={onClose} currentTheme={currentTheme}>
-            <div className="relative">
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
-                    
-                    <div className={`p-4 border rounded-lg space-y-3 ${currentTheme.altRowBg}`}>
-                        <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className={`text-lg font-semibold ${formElementClasses}`} />
-                        <div className="grid grid-cols-2 gap-4">
-                            <select name="projectId" value={taskData.projectId} onChange={handleChange} className={formElementClasses}>
-                                <option value="">Select Project...</option>
-                                {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                            <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className={formElementClasses}>
-                                <option value="">Assign To...</option>
-                                {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
-                            </select>
-                            <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className={formElementClasses}/>
-                            <p className={`p-2 text-sm ${currentTheme.subtleText}`}>Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
-                        </div>
-                    </div>
-
-                    <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
-                        <h3 className="font-semibold mb-2">Watchers</h3>
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {(taskData.watchers || []).map(watcherId => {
-                                const watcher = detailers.find(d => d.id === watcherId);
-                                return (
-                                    <span key={watcherId} className="bg-gray-200 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full flex items-center">
-                                        {watcher ? `${watcher.firstName} ${watcher.lastName}` : 'Unknown'}
-                                        <button onClick={() => handleRemoveWatcher(watcherId)} className="ml-2 text-gray-500 hover:text-gray-800 font-bold">&times;</button>
-                                    </span>
-                                );
-                            })}
-                        </div>
-                        <div className="flex gap-2 items-center border-t pt-4">
-                            <select
-                                value={newWatcherId}
-                                onChange={(e) => setNewWatcherId(e.target.value)}
-                                className={`flex-grow ${formElementClasses}`}
-                            >
-                                <option value="">Add a watcher...</option>
-                                {detailers.map(d => (
-                                    <option key={d.id} value={d.id}>
-                                        {d.firstName} {d.lastName}
-                                    </option>
-                                ))}
-                            </select>
-                            <button onClick={handleAddWatcher} className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
-                                Add
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
-                        <h3 className="font-semibold mb-2">Sub-tasks</h3>
-                        <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
-                            {(taskData.subTasks || []).map(st => (
-                                <div key={st.id} className={`p-2 ${currentTheme.cardBg} rounded`}>
-                                    {editingSubTaskId === st.id ? (
-                                        <div className="flex gap-2 items-center">
-                                            <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className={`flex-grow ${formElementClasses}`}/>
-                                            <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
-                                            <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}/>
-                                            <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
-                                            <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
-                                            <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
-                                            <span className={`text-xs ${currentTheme.subtleText}`}>{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
-                                            <span className={`text-xs ${currentTheme.subtleText}`}>{st.dueDate}</span>
-                                            <button onClick={() => handleStartEditSubTask(st)} className="text-xs text-blue-600 hover:underline" disabled={editingSubTaskId}>Edit</button>
-                                            <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
-                                        </div>
-                                    )}
-                                    <div className="pl-6">
-                                        <AttachmentSectionURL
-                                            attachments={st.attachments}
-                                            onAdd={(att) => handleAddAttachmentURL(att, st.id)}
-                                            onUpdate={(att) => handleUpdateAttachmentURL(att, st.id)}
-                                            onDelete={(id) => handleDeleteAttachmentURL(id, st.id)}
-                                            currentTheme={currentTheme}
-                                        />
-                                        <CommentSection 
-                                           comments={st.comments}
-                                           onAddComment={(commentData) => handleAddComment(commentData, st.id)}
-                                           onUpdateComment={(id, text) => handleUpdateComment(id, text, st.id)}
-                                           onDeleteComment={(id) => handleDeleteComment(id, st.id)}
-                                           currentTheme={currentTheme}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex gap-2 items-center p-2 border-t">
-                            <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className={`flex-grow ${formElementClasses}`} />
-                            <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`}>
-                                <option value="">Assignee...</option>
-                                {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
-                            </select>
-                            <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`} />
-                            <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
-                        </div>
-                    </div>
-                    
-                     <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
-                         <h3 className="font-semibold mb-2">Task Attachments</h3>
-                         <AttachmentSectionURL
-                            attachments={taskData.attachments}
-                            onAdd={handleAddAttachmentURL}
-                            onUpdate={handleUpdateAttachmentURL}
-                            onDelete={handleDeleteAttachmentURL}
-                            currentTheme={currentTheme}
-                         />
-                    </div>
-                    
-                     <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
-                         <h3 className="font-semibold mb-2">Task Comments</h3>
-                         <CommentSection 
-                           comments={taskData.comments}
-                           onAddComment={handleAddComment}
-                           onUpdateComment={handleUpdateComment}
-                           onDeleteComment={handleDeleteComment}
-                           currentTheme={currentTheme}
-                         />
-                    </div>
-
-                    {modalMessage && (
-                        <div className={`p-2 text-center text-sm rounded-md ${modalMessage.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
-                            {modalMessage.text}
-                        </div>
-                    )}
-
-                    <div className="flex justify-end gap-4 pt-4">
-                        {!isNewTask && (
-                           <Tooltip text={hasSubtasks ? "Delete all sub-tasks first" : ""}>
-                                <div className="mr-auto">
-                                    <button
-                                        onClick={onDelete}
-                                        disabled={hasSubtasks}
-                                        className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                    >
-                                        Delete Task
-                                    </button>
-                                </div>
-                            </Tooltip>
-                        )}
-                        <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
-                        <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
+        <div className="relative">
+            <div className="space-y-6">
+                <h2 className="text-2xl font-bold">{isNewTask ? 'Add New Task' : 'Edit Task'}</h2>
+                
+                <div className={`p-4 border rounded-lg space-y-3 ${currentTheme.altRowBg}`}>
+                    <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className={`text-lg font-semibold ${formElementClasses}`} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <select name="projectId" value={taskData.projectId} onChange={handleChange} className={formElementClasses}>
+                            <option value="">Select Project...</option>
+                            {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className={formElementClasses}>
+                            <option value="">Assign To...</option>
+                            {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
+                        </select>
+                        <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className={formElementClasses}/>
+                        <p className={`p-2 text-sm ${currentTheme.subtleText}`}>Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
                     </div>
                 </div>
+
+                <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
+                    <h3 className="font-semibold mb-2">Watchers</h3>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {(taskData.watchers || []).map(watcherId => {
+                            const watcher = detailers.find(d => d.id === watcherId);
+                            return (
+                                <span key={watcherId} className="bg-gray-200 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded-full flex items-center">
+                                    {watcher ? `${watcher.firstName} ${watcher.lastName}` : 'Unknown'}
+                                    <button onClick={() => handleRemoveWatcher(watcherId)} className="ml-2 text-gray-500 hover:text-gray-800 font-bold">&times;</button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                    <div className="flex gap-2 items-center border-t pt-4">
+                        <select
+                            value={newWatcherId}
+                            onChange={(e) => setNewWatcherId(e.target.value)}
+                            className={`flex-grow ${formElementClasses}`}
+                        >
+                            <option value="">Add a watcher...</option>
+                            {detailers.map(d => (
+                                <option key={d.id} value={d.id}>
+                                    {d.firstName} {d.lastName}
+                                </option>
+                            ))}
+                        </select>
+                        <button onClick={handleAddWatcher} className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                            Add
+                        </button>
+                    </div>
+                </div>
+
+                <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
+                    <h3 className="font-semibold mb-2">Sub-tasks</h3>
+                    <div className="space-y-4 mb-4 max-h-60 overflow-y-auto hide-scrollbar-on-hover">
+                        {(taskData.subTasks || []).map(st => (
+                            <div key={st.id} className={`p-2 ${currentTheme.cardBg} rounded`}>
+                                {editingSubTaskId === st.id ? (
+                                    <div className="flex gap-2 items-center">
+                                        <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className={`flex-grow ${formElementClasses}`}/>
+                                        <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
+                                        <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}/>
+                                        <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
+                                        <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <input type="checkbox" checked={st.isCompleted} onChange={() => handleToggleSubTask(st.id)} className="h-5 w-5 rounded text-blue-600"/>
+                                        <span className={`flex-grow ${st.isCompleted ? 'line-through text-gray-500' : ''}`}>{st.name}</span>
+                                        <span className={`text-xs ${currentTheme.subtleText}`}>{detailers.find(d => d.id === st.detailerId)?.lastName}</span>
+                                        <span className={`text-xs ${currentTheme.subtleText}`}>{st.dueDate}</span>
+                                        <button onClick={() => handleStartEditSubTask(st)} className="text-xs text-blue-600 hover:underline" disabled={editingSubTaskId}>Edit</button>
+                                        <button onClick={() => handleDeleteSubTask(st.id)} className="text-red-400 hover:text-red-600 text-xl" disabled={editingSubTaskId}>&times;</button>
+                                    </div>
+                                )}
+                                <div className="pl-6">
+                                    <AttachmentSectionURL
+                                        attachments={st.attachments}
+                                        onAdd={(att) => handleAddAttachmentURL(att, st.id)}
+                                        onUpdate={(att) => handleUpdateAttachmentURL(att, st.id)}
+                                        onDelete={(id) => handleDeleteAttachmentURL(id, st.id)}
+                                        currentTheme={currentTheme}
+                                    />
+                                    <CommentSection 
+                                       comments={st.comments}
+                                       onAddComment={(commentData) => handleAddComment(commentData, st.id)}
+                                       onUpdateComment={(id, text) => handleUpdateComment(id, text, st.id)}
+                                       onDeleteComment={(id) => handleDeleteComment(id, st.id)}
+                                       currentTheme={currentTheme}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2 items-center p-2 border-t">
+                        <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className={`flex-grow ${formElementClasses}`} />
+                        <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`}>
+                            <option value="">Assignee...</option>
+                            {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
+                        </select>
+                        <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`} />
+                        <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
+                    </div>
+                </div>
+                
+                 <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
+                     <h3 className="font-semibold mb-2">Task Attachments</h3>
+                     <AttachmentSectionURL
+                        attachments={taskData.attachments}
+                        onAdd={handleAddAttachmentURL}
+                        onUpdate={handleUpdateAttachmentURL}
+                        onDelete={handleDeleteAttachmentURL}
+                        currentTheme={currentTheme}
+                     />
+                </div>
+                
+                 <div className={`p-4 border rounded-lg ${currentTheme.altRowBg}`}>
+                     <h3 className="font-semibold mb-2">Task Comments</h3>
+                     <CommentSection 
+                       comments={taskData.comments}
+                       onAddComment={handleAddComment}
+                       onUpdateComment={handleUpdateComment}
+                       onDeleteComment={handleDeleteComment}
+                       currentTheme={currentTheme}
+                     />
+                </div>
+
+                {modalMessage && (
+                    <div className={`p-2 text-center text-sm rounded-md ${modalMessage.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
+                        {modalMessage.text}
+                    </div>
+                )}
+
+                <div className="flex justify-end gap-4 pt-4">
+                    {!isNewTask && (
+                       <Tooltip text={hasSubtasks ? "Delete all sub-tasks first" : ""}>
+                            <div className="mr-auto">
+                                <button
+                                    onClick={onDelete}
+                                    disabled={hasSubtasks}
+                                    className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    Delete Task
+                                </button>
+                            </div>
+                        </Tooltip>
+                    )}
+                    <button onClick={onClose} className="px-4 py-2 rounded-md bg-gray-200 hover:bg-gray-300">Cancel</button>
+                    <button onClick={() => onSave(taskData)} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Save All Changes</button>
+                </div>
             </div>
-        </Modal>
+        </div>
     );
 };
 
@@ -772,7 +803,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                 {confirmAction?.message}
             </ConfirmationModal>
 
-             <div className="flex-grow overflow-x-auto">
+             <div className="flex-grow overflow-x-auto hide-scrollbar-on-hover">
                  <div className="flex space-x-4 h-full">
                      {taskLanes.map(lane => (
                          <div
@@ -803,7 +834,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                  <button onClick={() => handleOpenModal(null)} className={`w-full text-left p-2 mb-3 ${currentTheme.cardBg} ${currentTheme.textColor} rounded-md shadow-sm hover:bg-opacity-80`}>+ Add Task</button>
                              )}
 
-                             <motion.div layout transition={{ type: 'spring', stiffness: 400, damping: 25 }} className="flex-grow overflow-y-auto pr-2">
+                             <motion.div layout transition={{ type: 'spring', stiffness: 400, damping: 25 }} className="flex-grow overflow-y-auto pr-2 hide-scrollbar-on-hover">
                                  {tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted').map(task => (
                                      <TaskCard
                                          key={task.id}
@@ -822,21 +853,23 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                       </div>
                  </div>
              </div>
-            {isModalOpen && (
-                <Modal onClose={handleCloseModal} currentTheme={currentTheme}>
-                    <TaskDetailModal
-                        db={db}
-                        task={editingTask}
-                        detailers={detailers}
-                        projects={projects}
-                        onClose={handleCloseModal}
-                        onSave={handleSaveTask}
-                        onDelete={() => setTaskToDelete(editingTask)}
-                        currentTheme={currentTheme}
-                        appId={appId}
-                    />
-                </Modal>
-            )}
+            <AnimatePresence>
+                {isModalOpen && (
+                    <Modal onClose={handleCloseModal} currentTheme={currentTheme}>
+                        <TaskDetailModal
+                            db={db}
+                            task={editingTask}
+                            detailers={detailers}
+                            projects={projects}
+                            onClose={handleCloseModal}
+                            onSave={handleSaveTask}
+                            onDelete={() => setTaskToDelete(editingTask)}
+                            currentTheme={currentTheme}
+                            appId={appId}
+                        />
+                    </Modal>
+                )}
+            </AnimatePresence>
              {taskToDelete && (
                 <ConfirmationModal
                     isOpen={!!taskToDelete}

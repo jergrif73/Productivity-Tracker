@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
@@ -54,6 +54,7 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
     const [tutorialStep, setTutorialStep] = useState(null);
     const [currentTutorial, setCurrentTutorial] = useState(null);
     const [stepIndex, setStepIndex] = useState(0);
+    // Removed highlightedElementRect state and related logic
 
     const startTutorial = (view) => {
         const fullTutorial = tutorialContent[view];
@@ -118,7 +119,8 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
         endTutorial,
         nextStep,
         prevStep,
-        setStepByKey
+        setStepByKey,
+        // Removed highlightedElementRect from context value
     };
 
     return (
@@ -129,7 +131,7 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
 };
 
 export const TutorialHighlight = ({ tutorialKey, children, className, style }) => {
-    const { isTutorialActive, setStepByKey, tutorialStep } = useTutorial();
+    const { isTutorialActive, tutorialStep, setStepByKey } = useTutorial();
     const isHighlighted = isTutorialActive && tutorialStep && tutorialStep.key === tutorialKey;
 
     const handleClick = (e) => {
@@ -145,36 +147,90 @@ export const TutorialHighlight = ({ tutorialKey, children, className, style }) =
             className={`${className} ${isTutorialActive ? 'relative cursor-pointer' : ''}`} 
             style={style}
             onClick={handleClick}
+            // Removed data-tutorial-key as it's no longer needed by the pointer
         >
             {children}
             {isHighlighted && (
-                <div className="absolute inset-0 bg-blue-500 bg-opacity-40 ring-2 ring-blue-300 ring-offset-2 rounded-lg pointer-events-none animate-pulse-strong"></div>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute inset-0 bg-blue-500 bg-opacity-40 ring-2 ring-blue-300 ring-offset-2 rounded-lg pointer-events-none animate-pulse-strong"
+                ></motion.div>
             )}
         </div>
     );
 };
 
+// Removed TutorialPointer component entirely
+// const TutorialPointer = ...
+
 
 const TutorialWidget = () => {
-    const { isTutorialActive, tutorialStep, stepIndex, totalSteps, endTutorial, nextStep, prevStep } = useTutorial();
+    const { isTutorialActive, tutorialStep, stepIndex, totalSteps, endTutorial, nextStep, prevStep } = useTutorial(); // Removed highlightedElementRect
+    const widgetRef = useRef(null); // Ref for the tutorial widget itself
 
     if (!isTutorialActive || !tutorialStep) return null;
 
+    // Framer Motion variants for the tutorial box
+    const widgetVariants = {
+        hidden: { opacity: 0, y: 50, scale: 0.8, rotate: -5 }, // Added rotate
+        visible: { 
+            opacity: 1, 
+            y: 0, 
+            scale: 1, 
+            rotate: 0, // Reset rotation
+            transition: { 
+                type: "spring", 
+                stiffness: 200, // Adjusted stiffness for more jiggle
+                damping: 8, // Adjusted damping for more jiggle
+                mass: 1, // Added mass
+                when: "beforeChildren", // Animate widget first
+                ease: "easeOut"
+            } 
+        },
+        exit: { opacity: 0, y: 50, scale: 0.8, rotate: 5, transition: { duration: 0.2 } } // Added rotate for exit
+    };
+
+    // Variants for staggered content
+    const contentVariants = {
+        initial: { opacity: 0, y: 10 }, // Added initial state for content
+        animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }, // Added animate state for content
+        exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } } // Added exit state for content
+    };
+
+
     return (
-        <div className="fixed bottom-4 right-4 w-full max-w-sm p-4 bg-gray-800 text-white rounded-lg shadow-2xl z-[100] border border-blue-400">
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-bold">{tutorialStep.title}</h3>
-                <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
-            </div>
-            <p className="text-sm text-gray-300 mb-4 h-40 overflow-y-auto">{tutorialStep.content}</p>
-            <div className="flex justify-between items-center">
-                <p className="text-xs text-gray-500">Step {stepIndex + 1} of {totalSteps}</p>
-                <div className="flex gap-2">
-                    <button onClick={prevStep} disabled={stepIndex === 0} className="px-3 py-1 text-sm bg-gray-600 rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
-                    <button onClick={nextStep} disabled={stepIndex === totalSteps - 1} className="px-3 py-1 text-sm bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        <>
+            <motion.div
+                ref={widgetRef}
+                className="fixed bottom-4 right-4 w-full max-w-sm p-4 bg-gray-800 text-white rounded-lg shadow-2xl z-[100] border border-blue-400"
+                variants={widgetVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+            >
+                <div className="flex justify-between items-center mb-3">
+                    <AnimatePresence mode="wait"> {/* Use AnimatePresence for content transitions */}
+                        <motion.h3 key={tutorialStep.key + "-title"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-lg font-bold">{tutorialStep.title}</motion.h3>
+                    </AnimatePresence>
+                    <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
                 </div>
-            </div>
-        </div>
+                {/* Removed h-40 and overflow-y-auto to allow content to dictate height */}
+                <AnimatePresence mode="wait"> {/* Use AnimatePresence for content transitions */}
+                    <motion.p key={tutorialStep.key + "-content"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-sm text-gray-300 mb-4">{tutorialStep.content}</motion.p>
+                </AnimatePresence>
+                <div className="flex justify-between items-center">
+                    <motion.p variants={contentVariants} className="text-xs text-gray-500">Step {stepIndex + 1} of {totalSteps}</motion.p>
+                    <div className="flex gap-2">
+                        <button onClick={prevStep} disabled={stepIndex === 0} className="px-3 py-1 text-sm bg-gray-600 rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                        <button onClick={nextStep} disabled={stepIndex === totalSteps - 1} className="px-3 py-1 text-sm bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                    </div>
+                </div>
+            </motion.div>
+            {/* Removed TutorialPointer rendering */}
+        </>
     );
 };
 
@@ -462,6 +518,37 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 
     return (
         <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen ${isTutorialActive ? 'tutorial-active' : ''}`}>
+            {/* Global Scrollbar Styles */}
+            <style>
+                {`
+                /* Hide scrollbar by default */
+                .hide-scrollbar-on-hover::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+                .hide-scrollbar-on-hover::-webkit-scrollbar-thumb {
+                    background-color: transparent;
+                }
+                .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
+                    background-color: rgba(156, 163, 175, 0.5); /* gray-400 with opacity */
+                    border-radius: 4px;
+                }
+                .hide-scrollbar-on-hover::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .hide-scrollbar-on-hover:hover::-webkit-scrollbar-track {
+                    background: rgba(0, 0, 0, 0.1); /* subtle track on hover */
+                }
+                /* For Firefox */
+                .hide-scrollbar-on-hover {
+                    scrollbar-width: thin;
+                    scrollbar-color: transparent transparent;
+                }
+                .hide-scrollbar-on-hover:hover {
+                    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+                }
+                `}
+            </style>
             <Toaster toasts={toasts} />
             <TutorialWidget />
             <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
@@ -474,7 +561,8 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                     <TutorialHighlight tutorialKey={button.id} key={button.id}>
                                         <button
                                             onClick={() => handleNavClick(button.id)}
-                                            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-md transition-colors ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
+                                            // Added w-32 for fixed width
+                                            className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md transition-colors w-32 ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
                                         >
                                             {button.icon}
                                             {button.label}

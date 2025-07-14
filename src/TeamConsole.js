@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, setDoc, deleteDoc } from 'firebase/firestore'; // Added setDoc, removed updateDoc
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 
 // --- Helper Components ---
@@ -20,317 +20,339 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, curren
 };
 
 const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete, currentTheme }) => {
-    const sortedProjects = useMemo(() => {
-        return [...projects].sort((a,b) => a.projectId.localeCompare(b.projectId, undefined, {numeric: true}));
-    }, [projects]);
-    
-    const availableTrades = Object.keys(detailerDisciplines || {});
+    const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
-    const handleChange = (field, value) => {
-        onUpdate({ ...assignment, [field]: value });
+    const sortedProjects = useMemo(() => {
+        return [...projects].sort((a, b) => a.name.localeCompare(b.name));
+    }, [projects]);
+
+    const handleSave = async () => {
+        // Ensure allocation is treated as a number
+        const updatedAssignment = {
+            ...editableAssignment,
+            allocation: Number(editableAssignment.allocation)
+        };
+        onUpdate(updatedAssignment);
+    };
+
+    const handleDateChange = (e) => {
+        const { name, value } = e.target;
+        setEditableAssignment(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const handleProjectChange = (e) => {
+        const projectId = e.target.value;
+        const selectedProject = projects.find(p => p.id === projectId);
+        setEditableAssignment(prev => ({
+            ...prev,
+            projectId: projectId,
+            projectName: selectedProject ? selectedProject.name : '',
+            projectNumber: selectedProject ? selectedProject.projectId : ''
+        }));
+    };
+
+    const handleTradeChange = (e) => {
+        setEditableAssignment(prev => ({
+            ...prev,
+            trade: e.target.value
+        }));
+    };
+
+    const handleAllocationChange = (e) => {
+        setEditableAssignment(prev => ({
+            ...prev,
+            allocation: e.target.value
+        }));
     };
 
     return (
-        <div className={`${currentTheme.altRowBg} p-3 rounded-lg border ${currentTheme.borderColor} space-y-3`}>
-             <div className="flex items-center gap-2">
-                <select 
-                    value={assignment.projectId} 
-                    onChange={e => handleChange('projectId', e.target.value)} 
-                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                >
-                    <option value="">Select a Project...</option>
-                    {sortedProjects.map(p => <option key={p.id} value={p.id}>{p.projectId} - {p.name}</option>)}
-                </select>
-                <button onClick={onDelete} className="text-red-500 hover:text-red-700 p-2">
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
-                </button>
+        <div className={`p-4 rounded-md ${currentTheme.altRowBg} space-y-3`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Project</label>
+                    <select
+                        value={editableAssignment.projectId || ''}
+                        onChange={handleProjectChange}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    >
+                        <option value="">Select Project</option>
+                        {sortedProjects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Trade</label>
+                    <select
+                        value={editableAssignment.trade || ''}
+                        onChange={handleTradeChange}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    >
+                        <option value="">Select Trade</option>
+                        {detailerDisciplines.map(discipline => (
+                            <option key={discipline} value={discipline}>{discipline}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Start Date</label>
+                    <input
+                        type="date"
+                        name="startDate"
+                        value={editableAssignment.startDate || ''}
+                        onChange={handleDateChange}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                </div>
+                <div>
+                    <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>End Date</label>
+                    <input
+                        type="date"
+                        name="endDate"
+                        value={editableAssignment.endDate || ''}
+                        onChange={handleDateChange}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                </div>
+                <div>
+                    <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Allocation (%)</label>
+                    <input
+                        type="number"
+                        name="allocation"
+                        value={editableAssignment.allocation || ''}
+                        onChange={handleAllocationChange}
+                        min="0"
+                        max="100"
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-                 <input type="date" value={assignment.startDate} onChange={e => handleChange('startDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                 <input type="date" value={assignment.endDate} onChange={e => handleChange('endDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-                 <select value={assignment.trade} onChange={e => handleChange('trade', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                    <option value="">Trade...</option>
-                    {availableTrades.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-                <input type="number" placeholder="%" value={assignment.allocation} onChange={e => handleChange('allocation', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+            <div className="flex justify-end gap-2 mt-4">
+                <button onClick={handleSave} className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">Save</button>
+                <button onClick={onDelete} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Delete</button>
             </div>
         </div>
     );
 };
 
-const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor }) => {
-    const [sortBy, setSortBy] = useState('firstName');
-    const [newAssignments, setNewAssignments] = useState({});
-    const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
-    const [confirmAction, setConfirmAction] = useState(null);
-    const [visibleEmployees, setVisibleEmployees] = useState(15);
-    const [assignmentSortBy, setAssignmentSortBy] = useState('projectName');
-    const [isCondensedView, setIsCondensedView] = useState(true);
 
-    const getMostRecentMonday = () => {
-        const today = new Date();
-        const day = today.getDay();
-        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(today.setDate(diff)).toISOString().split('T')[0];
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor }) => {
+    const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
+    const [employeeToDelete, setEmployeeToDelete] = useState(null);
+    const [assignmentToDelete, setAssignmentToDelete] = useState(null);
+    const [visibleEmployees, setVisibleEmployees] = useState(15); // State to manage how many employees are visible
+
+    const handleEmployeeClick = (employeeId) => {
+        setExpandedEmployeeId(prevId => (prevId === employeeId ? null : employeeId));
     };
-    
-    const sortedEmployees = useMemo(() => {
-        return [...detailers].sort((a, b) => {
-            if (sortBy === 'firstName') return a.firstName.localeCompare(b.firstName);
-            return a.lastName.localeCompare(b.lastName);
-        });
-    }, [detailers, sortBy]);
+
+    const handleAddEmployee = async () => {
+        const newEmployee = {
+            firstName: 'New',
+            lastName: 'Employee',
+            employeeId: `EMP-${Date.now().toString().slice(-4)}`,
+            title: 'Detailer I',
+            email: '',
+            skills: {},
+            disciplineSkillsets: {}
+        };
+        try {
+            await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), newEmployee);
+            showToast('New employee added!');
+        } catch (error) {
+            console.error("Error adding employee:", error);
+            showToast('Failed to add employee.', 'error');
+        }
+    };
+
+    const handleDeleteEmployee = async (id) => {
+        try {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/detailers`, id));
+            // Also delete associated assignments
+            const batch = [];
+            assignments.filter(a => a.detailerId === id).forEach(assignment => {
+                batch.push(deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignment.id)));
+            });
+            await Promise.all(batch);
+            showToast('Employee and all assignments deleted.');
+            setEmployeeToDelete(null);
+            setExpandedEmployeeId(null); // Collapse if deleted
+        } catch (error) {
+            console.error("Error deleting employee:", error);
+            showToast('Failed to delete employee.', 'error');
+        }
+    };
+
+    const handleUpdateAssignment = async (updatedAssignment) => {
+        try {
+            await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, updatedAssignment.id), updatedAssignment, { merge: true });
+            showToast('Assignment updated!');
+        } catch (error) {
+            console.error("Error updating assignment:", error);
+            showToast('Failed to update assignment.', 'error');
+        }
+    };
+
+    const handleDeleteAssignment = async (assignmentId) => {
+        try {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId));
+            showToast('Assignment deleted!');
+            setAssignmentToDelete(null);
+        } catch (error) {
+            console.error("Error deleting assignment:", error);
+            showToast('Failed to delete assignment.', 'error');
+        }
+    };
+
+    const handleAddNewAssignment = async (detailerId) => {
+        const newAssignment = {
+            detailerId,
+            projectId: '',
+            projectName: '',
+            projectNumber: '',
+            trade: '',
+            startDate: new Date().toISOString().split('T')[0],
+            endDate: new Date().toISOString().split('T')[0],
+            allocation: 0,
+            status: 'active'
+        };
+        try {
+            await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), newAssignment);
+            showToast('New assignment added! Please edit details.');
+        } catch (error) {
+            console.error("Error adding assignment:", error);
+            showToast('Failed to add assignment.', 'error');
+        }
+    };
 
     const employeesWithSortedAssignments = useMemo(() => {
-        const projectMap = new Map(projects.map(p => [p.id, p]));
-        return sortedEmployees.map(employee => {
-            const empAssignments = assignments
+        return detailers.map(employee => {
+            const employeeAssignments = assignments
                 .filter(a => a.detailerId === employee.id)
-                .map(assignment => {
-                    const project = projectMap.get(assignment.projectId);
-                    return {
-                        ...assignment,
-                        projectName: project ? project.name : 'Unknown Project',
-                        projectIdentifier: project ? project.projectId : '0'
-                    };
-                });
+                .sort((a, b) => new Date(a.startDate) - new Date(b.startDate)); // Sort by start date
+            
+            // Calculate current weekly allocation
+            let currentWeekAllocation = 0;
+            const today = new Date();
+            const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay())); // Sunday
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
 
-            empAssignments.sort((a, b) => {
-                if (assignmentSortBy === 'projectName') {
-                    const nameCompare = a.projectName.localeCompare(b.projectName);
-                    if (nameCompare !== 0) return nameCompare;
-                    return a.projectIdentifier.localeCompare(b.projectIdentifier, undefined, { numeric: true });
+            employeeAssignments.forEach(ass => {
+                const assignStart = new Date(ass.startDate);
+                const assignEnd = new Date(ass.endDate);
+
+                if (assignStart <= endOfWeek && assignEnd >= startOfWeek) {
+                    currentWeekAllocation += Number(ass.allocation);
                 }
-                return a.projectIdentifier.localeCompare(b.projectIdentifier, undefined, { numeric: true });
             });
-            return { ...employee, sortedAssignments: empAssignments };
-        });
-    }, [sortedEmployees, assignments, projects, assignmentSortBy]);
 
-    const handleAddNewAssignment = (employeeId) => {
-        const newAsn = {
-            id: `new_${Date.now()}`,
-            projectId: '',
-            startDate: getMostRecentMonday(),
-            endDate: '',
-            trade: '',
-            allocation: '100',
-        };
-        setNewAssignments(prev => ({
-            ...prev,
-            [employeeId]: [...(prev[employeeId] || []), newAsn],
-        }));
-    };
-    
-    const handleUpdateNewAssignment = (employeeId, updatedAsn) => {
-        setNewAssignments(prev => ({
-            ...prev,
-            [employeeId]: (prev[employeeId] || []).map(asn => asn.id === updatedAsn.id ? updatedAsn : asn)
-        }));
-    };
-    
-    const handleSaveNewAssignment = async (employeeId, assignmentToSave) => {
-        const { projectId, startDate, endDate, trade, allocation } = assignmentToSave;
-        if(!projectId || !startDate || !endDate || !trade || !allocation) {
-            showToast("Please fill all fields before saving.", "error");
-            return;
-        }
-
-        const { id, ...payload } = assignmentToSave;
-        const finalPayload = { ...payload, detailerId: employeeId, allocation: Number(payload.allocation) };
-
-        try {
-            await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), finalPayload);
-            showToast("Assignment saved successfully!");
-            const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== assignmentToSave.id);
-            setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
-        } catch (e) {
-            console.error("Error saving new assignment:", e);
-            showToast("Failed to save assignment.", "error");
-        }
-    };
-
-    const handleDeleteNewAssignment = (employeeId, assignmentId) => {
-        const remaining = (newAssignments[employeeId] || []).filter(a => a.id !== assignmentId);
-        setNewAssignments(prev => ({ ...prev, [employeeId]: remaining }));
-    };
-
-    const handleUpdateExistingAssignment = async (assignment) => {
-        const { id, ...payload } = assignment;
-        const { projectId, trade } = payload;
-    
-        if (!trade || !projectId) {
-            confirmDeleteAssignment(id);
-            return;
-        }
-    
-        const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, id);
-        try {
-            await updateDoc(assignmentRef, {
-                ...payload,
-                allocation: Number(payload.allocation)
-            });
-            showToast("Assignment updated.");
-        } catch(e) {
-            console.error("Error updating assignment", e);
-            showToast("Error updating assignment.", "error");
-        }
-    };
-    
-    const confirmDeleteAssignment = (id) => {
-        const assignmentToDelete = assignments.find(a => a.id === id);
-        if (!assignmentToDelete) return;
-        
-        setConfirmAction({
-            title: "Delete Assignment",
-            message: "Are you sure you want to permanently delete this assignment?",
-            action: async () => {
-                await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, id));
-                showToast("Assignment deleted.");
-            }
-        });
-    };
-    
-    const toggleEmployee = (employeeId) => {
-        setExpandedEmployeeId(prevId => prevId === employeeId ? null : employeeId);
-    };
+            return { ...employee, assignments: employeeAssignments, currentWeekAllocation };
+        }).sort((a, b) => a.lastName.localeCompare(b.lastName)); // Sort employees by last name
+    }, [detailers, assignments]);
 
     return (
-        <div className="h-full flex flex-col p-4 gap-4">
-            <ConfirmationModal
-                isOpen={!!confirmAction}
-                onClose={() => setConfirmAction(null)}
-                onConfirm={() => {
-                    if(confirmAction.action) confirmAction.action();
-                    setConfirmAction(null);
-                }}
-                title={confirmAction?.title}
-                currentTheme={currentTheme}
-            >
-                {confirmAction?.message}
-            </ConfirmationModal>
-
-            <div className="flex-shrink-0 flex justify-end items-center gap-2">
-                <span className={`mr-2 text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
-                <button onClick={() => setSortBy('firstName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                <button onClick={() => setSortBy('lastName')} className={`px-4 py-1.5 rounded-md text-sm ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                <button onClick={() => setIsCondensedView(!isCondensedView)} className={`px-4 py-1.5 rounded-md text-sm ${isCondensedView ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>
-                    {isCondensedView ? 'Detailed View' : 'Condensed View'}
+        <div className="p-4 space-y-4 h-full flex flex-col">
+            <div className="flex justify-end items-center mb-4 gap-2 flex-shrink-0">
+                <button onClick={handleAddEmployee} className={`${currentTheme.buttonBg} ${currentTheme.buttonText} px-4 py-2 rounded-lg hover:bg-opacity-80`}>
+                    + Add New Employee
                 </button>
             </div>
-            
-            <div className={`flex-grow overflow-y-auto pr-2 ${currentTheme.cardBg} rounded-lg p-4 space-y-2`}>
-                <div className={`hidden md:grid grid-cols-12 gap-4 font-bold text-sm ${currentTheme.subtleText} px-4 py-2`}>
-                    <div className="col-span-3">EMPLOYEE</div>
-                    <div className="col-span-7 text-center">PROJECT ASSIGNMENTS</div>
-                    <div className="col-span-2 text-right">CURRENT WEEK %</div>
-                </div>
-                {employeesWithSortedAssignments.slice(0, visibleEmployees).map((employeeData, index) => {
-                    const { sortedAssignments, ...employee } = employeeData;
-                    const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                    
-                    const today = new Date();
-                    const weekStart = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)));
-                    weekStart.setHours(0, 0, 0, 0);
 
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-                    weekEnd.setHours(23, 59, 59, 999);
-                    
-                    const weeklyAllocation = sortedAssignments.reduce((sum, a) => {
-                        if (!a.startDate || !a.endDate) return sum;
-                        const assignStart = new Date(a.startDate + 'T00:00:00');
-                        const assignEnd = new Date(a.endDate + 'T00:00:00');
-                        if (assignStart <= weekEnd && assignEnd >= weekStart) {
-                            return sum + Number(a.allocation || 0);
-                        }
-                        return sum;
-                    }, 0);
+            {employeeToDelete && (
+                <ConfirmationModal
+                    isOpen={!!employeeToDelete}
+                    onClose={() => setEmployeeToDelete(null)}
+                    onConfirm={() => handleDeleteEmployee(employeeToDelete.id)}
+                    title="Confirm Employee Deletion"
+                    currentTheme={currentTheme}
+                >
+                    Are you sure you want to delete {employeeToDelete.firstName} {employeeToDelete.lastName}? This will also delete all their assignments.
+                </ConfirmationModal>
+            )}
 
+            {assignmentToDelete && (
+                <ConfirmationModal
+                    isOpen={!!assignmentToDelete}
+                    onClose={() => setAssignmentToDelete(null)}
+                    onConfirm={() => handleDeleteAssignment(assignmentToDelete.id)}
+                    title="Confirm Assignment Deletion"
+                    currentTheme={currentTheme}
+                >
+                    Are you sure you want to delete the assignment for {assignmentToDelete.projectName} ({assignmentToDelete.trade})?
+                </ConfirmationModal>
+            )}
+
+            {/* Main scrollable area for employee cards */}
+            <div className="flex-grow overflow-y-auto space-y-4 pr-4 hide-scrollbar-on-hover"> {/* Added hide-scrollbar-on-hover */}
+                {employeesWithSortedAssignments.slice(0, visibleEmployees).map((employee, index) => {
                     const isExpanded = expandedEmployeeId === employee.id;
+                    const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
+                    const allocationColor = employee.currentWeekAllocation > 100 ? 'text-red-500' : (employee.currentWeekAllocation < 80 ? 'text-yellow-500' : 'text-green-500');
 
                     return (
-                        <div key={employee.id} className={`${bgColor} rounded-lg shadow-sm`}>
-                            <div 
-                                className="grid grid-cols-12 gap-4 items-center p-4 cursor-pointer"
-                                onClick={() => toggleEmployee(employee.id)}
-                            >
-                                <div className="col-span-3">
-                                    <p className="font-bold">{employee.firstName} {employee.lastName}</p>
-                                    {!isCondensedView && !isExpanded && (
-                                        <>
-                                            <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
-                                            <p className={`text-xs ${currentTheme.subtleText}`}>ID: {employee.employeeId}</p>
-                                            <a href={`mailto:${employee.email}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-500 hover:underline">{employee.email}</a>
-                                            <button onClick={(e) => {e.stopPropagation(); setViewingSkillsFor(employee);}} className="text-sm text-blue-500 hover:underline mt-2 block">View Skills</button>
-                                        </>
-                                    )}
+                        <motion.div
+                            key={employee.id}
+                            layout
+                            className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}
+                        >
+                            <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleEmployeeClick(employee.id)}>
+                                <div>
+                                    <h3 className="text-lg font-semibold">{employee.firstName} {employee.lastName}</h3>
+                                    <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
+                                    <p className={`text-sm ${currentTheme.subtleText}`}>Employee ID: {employee.employeeId}</p>
                                 </div>
-                                <div className="col-span-7 text-center">
-                                    <p className={`text-sm ${currentTheme.subtleText}`}>
-                                        {sortedAssignments.length > 0 ? `${sortedAssignments.length} assignment(s)` : 'No assignments'}
-                                    </p>
+                                <div className="flex items-center gap-4">
+                                    <span className={`text-lg font-bold ${allocationColor}`}>{employee.currentWeekAllocation}%</span>
+                                    <button onClick={(e) => { e.stopPropagation(); setViewingSkillsFor(employee); }} className="text-blue-500 hover:text-blue-700 text-sm">View Skills</button>
+                                    <button onClick={(e) => { e.stopPropagation(); setEmployeeToDelete(employee); }} className="text-red-500 hover:text-red-700 text-sm">Delete</button>
+                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                        </svg>
+                                    </motion.div>
                                 </div>
-                                <div className="col-span-1 text-right">
-                                     <p className={`font-bold text-lg ${weeklyAllocation > 100 ? 'text-red-500' : 'text-green-600'}`}>{weeklyAllocation}%</p>
-                                </div>
-                                <div className="col-span-1 flex justify-end items-center">
-                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </div>
+                            </motion.div>
+                            
                             <AnimatePresence>
                                 {isExpanded && (
                                     <motion.div
+                                        key={`detail-${employee.id}`}
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
                                         exit={{ opacity: 0, height: 0 }}
                                         transition={{ duration: 0.3, ease: "easeInOut" }}
                                         className="overflow-hidden"
+                                        onClick={e => e.stopPropagation()}
                                     >
-                                        <div className={`p-4 border-t ${currentTheme.borderColor}`}>
-                                            <div className="grid grid-cols-12 gap-4 items-start">
-                                                <div className="col-span-12 md:col-start-4 md:col-span-9 space-y-2">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <h4 className={`font-semibold ${currentTheme.textColor}`}>All Project Assignments</h4>
-                                                        <div className="flex items-center gap-2 text-xs">
-                                                            <span className={`${currentTheme.subtleText}`}>Sort by:</span>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectName'); }}
-                                                                className={`px-2 py-1 rounded ${assignmentSortBy === 'projectName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                                                            >
-                                                                Alphabetical
-                                                            </button>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); setAssignmentSortBy('projectId'); }}
-                                                                className={`px-2 py-1 rounded ${assignmentSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                                                            >
-                                                                Project ID
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    {sortedAssignments.length > 0 ? sortedAssignments.map(asn => (
-                                                        <InlineAssignmentEditor key={asn.id} db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={handleUpdateExistingAssignment} onDelete={() => confirmDeleteAssignment(asn.id)} currentTheme={currentTheme} />
-                                                    )) : <p className={`text-sm ${currentTheme.subtleText}`}>No assignments to display.</p>}
-                                                    
-                                                    {(newAssignments[employee.id] || []).map(asn => (
-                                                        <div key={asn.id} className="relative p-4 border border-dashed border-blue-400 rounded-lg">
-                                                            <InlineAssignmentEditor db={db} assignment={asn} projects={projects} detailerDisciplines={employee.disciplineSkillsets} onUpdate={(upd) => handleUpdateNewAssignment(employee.id, upd)} onDelete={() => handleDeleteNewAssignment(employee.id, asn.id)} currentTheme={currentTheme} />
-                                                            <button onClick={() => handleSaveNewAssignment(employee.id, asn)} className="mt-2 bg-green-500 text-white px-3 py-1 text-sm rounded hover:bg-green-600">Save New Assignment</button>
-                                                        </div>
-                                                    ))}
-                                                    <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add Project/Trade</button>
-                                                </div>
-                                            </div>
+                                        <div className="mt-4 pt-4 border-t space-y-3">
+                                            <h4 className="font-semibold mb-2">Assignments:</h4>
+                                            {employee.assignments.length > 0 ? (
+                                                employee.assignments.map(asn => (
+                                                    <InlineAssignmentEditor
+                                                        key={asn.id}
+                                                        db={db}
+                                                        assignment={asn}
+                                                        projects={projects}
+                                                        detailerDisciplines={Object.keys(employee.disciplineSkillsets || {})}
+                                                        onUpdate={handleUpdateAssignment}
+                                                        onDelete={() => setAssignmentToDelete(asn)}
+                                                        currentTheme={currentTheme}
+                                                    />
+                                                ))
+                                            ) : (
+                                                <p className={currentTheme.subtleText}>No assignments for this employee.</p>
+                                            )}
+                                            <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add New Assignment</button>
                                         </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                        </div>
-                    )
+                        </motion.div>
+                    );
                 })}
                 {visibleEmployees < employeesWithSortedAssignments.length && (
                     <div className="text-center mt-4">

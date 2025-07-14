@@ -1326,7 +1326,8 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 </div>
             </div>
             </TutorialHighlight>
-            <div className="flex-grow overflow-y-auto space-y-4 pr-4">
+            {/* Added hide-scrollbar-on-hover to the main scrollable div */}
+            <div className="flex-grow overflow-y-auto space-y-4 pr-4 hide-scrollbar-on-hover">
                 {filteredProjects.map((p, index) => {
                     const isExpanded = expandedProjectId === p.id;
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
