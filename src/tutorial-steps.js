@@ -111,9 +111,27 @@ export const tutorialContent = {
         roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
+        key: "projectWorkloaderButton",
+        title: "Navigate to Project Workloader",
+        content: "When viewing project details, Taskmasters will see a 'Project Workloader' button. Clicking this button will take you directly to the Workloader Console, automatically filtered and expanded to show only this project's assignments.",
+        roles: ['taskmaster']
+      },
+      {
         key: "activityGrandTotals",
         title: "Activity Grand Totals",
         content: "At the bottom of the Activity Values Breakdown, the 'Totals' row summarizes all estimated hours, used hours, and financial metrics across all trades for the entire project. This provides an overall financial snapshot and helps in high-level budget reviews.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "activityRowEditing",
+        title: "Editing Activity Values",
+        content: "To update activity details, simply click into the 'Est. Hrs', 'Hrs Used', or 'Charge Code' fields within the Activity Values Breakdown table. Changes are saved automatically.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "financialMetricFormulas",
+        title: "Understanding Financial Metric Formulas",
+        content: "Dive deeper into the financial calculations: Earned Value = (Budget * % Complete), Productivity = (Earned Value / Spent to Date), and Variance = (Current Budget - Estimated Final Cost).",
         roles: ['taskmaster']
       }
     ],
@@ -199,6 +217,12 @@ export const tutorialContent = {
         roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
+        key: "currentWeekAllocation",
+        title: "Current Week Allocation",
+        content: "The percentage on each employee card represents their total allocated hours for the current week, based on their active assignments. This helps you quickly gauge their current workload and availability.",
+        roles: ['taskmaster', 'tcl', 'viewer']
+      },
+      {
         key: "viewToggle",
         title: "Condensed vs. Detailed View",
         content: "Switch between 'Condensed' and 'Detailed' views to change the amount of information shown in the employee list. Detailed view provides more info at a glance, including title and email.",
@@ -241,7 +265,6 @@ export const tutorialContent = {
         },
         {
             key: "searchTimeline",
-            title: "Searching the Timeline",
             content: "Use the search bar to filter the timeline. It will search by project name/ID when grouped by project, or by employee name when grouped by employee.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
@@ -258,9 +281,21 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+          key: "dragFillAssignment",
+          title: "Drag-Fill Assignments",
+          content: "To quickly extend an assignment's duration, click and drag the small handle on the right edge of an assignment bar. This will automatically update the 'End Date' of the assignment.",
+          roles: ['taskmaster']
+        },
+        {
           key: "goToEmployeeAssignments",
           title: "Go to Employee Assignments (Taskmaster)",
           content: "When viewing the Workloader grouped by 'Employee', Taskmasters will see a 'Projects Assignment' button next to each employee's name. Clicking this button will take you directly to the Team Console, with that employee's assignments automatically opened for editing.",
+          roles: ['taskmaster']
+        },
+        {
+          key: "goToProjectDetails",
+          title: "Go to Project Details (Taskmaster)",
+          content: "When viewing the Workloader grouped by 'Project', Taskmasters will see a 'Project Details' button next to each project's name. Clicking this button will take you directly to the Project Console, automatically filtered and expanded to show only this project's detailed information.",
           roles: ['taskmaster']
         }
     ]
@@ -293,6 +328,12 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
+            key: "taskCardIndicators",
+            title: "Task Card Indicators",
+            content: "Task cards provide quick insights: the checklist icon shows completed/total sub-tasks, and the initials represent the assignee and watchers. Due dates are also prominently displayed.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
             key: "subTasks",
             title: "Sub-tasks",
             content: "Break down a large task into smaller, manageable steps. Each sub-task can be assigned to a specific person and given its own due date. Checking off all sub-tasks will automatically mark the main task as 'Completed'. This promotes granular progress tracking.",
@@ -321,6 +362,12 @@ export const tutorialContent = {
           title: "Creating a New Task",
           content: "Located in the 'New Requests' lane, the '+ Add Task' button opens a modal to create a new task. It's important to assign a project, a detailer, and a due date for effective management and visibility across the system.",
           roles: ['taskmaster', 'tcl']
+        },
+        {
+          key: "softDeleteTask",
+          title: "Soft Deleting Tasks",
+          content: "When you 'Delete Task' from the detail modal, the task's status changes to 'Deleted'. This hides it from all active views, but its data is retained in the system for historical records and reporting.",
+          roles: ['taskmaster']
         }
     ]
   },
@@ -461,7 +508,20 @@ export const tutorialContent = {
             title: "Weekly Hour Forecast",
             content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you input the *demand*—the number of hours you *forecast* each trade will need for this project each week. This data powers the **Gantt Console** and the **Forecast Console**, providing crucial insights into future workload.",
             roles: ['taskmaster']
+        },
+        {
+          key: "weeklyForecastTips",
+          title: "Weekly Hour Forecast Tips",
+          content: "When entering weekly hour forecasts, you can quickly fill multiple cells by typing a value and then using the small blue square handle at the bottom-right of the cell to drag and fill across weeks. You can also paste copied data from spreadsheets.",
+          roles: ['taskmaster']
+        },
+        {
+          key: "projectStatusImpact",
+          title: "Project Status Impact",
+          content: "Project statuses (Planning, Conducting, Controlling, Archive) determine visibility across the app. 'Archive' projects are hidden from most active views but remain available for reporting.",
+          roles: ['taskmaster']
         }
     ]
   },
 };
+

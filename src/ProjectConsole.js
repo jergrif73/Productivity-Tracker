@@ -228,10 +228,16 @@ const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentB
 
         const x = d3.scaleTime().domain([startDate, endDate]).range([0, width]);
         const yMax = d3.max([currentBudget, totalProjectedCost, d3.max(plannedSpend, d => d.value)]);
-        const y = d3.scaleLinear().domain([0, yMax * 1.1]).range([height, 0]);
+        const y = d3.scaleLinear().domain([0, yMax > 0 ? yMax : 100]).range([height, 0]);
 
-        g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(5));
-        g.append('g').call(d3.axisLeft(y).tickFormat(d3.format("$,.0f")));
+        // Fix: Assign the result of g.append('g') to xAxis and yAxis
+        const xAxis = g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(5));
+        xAxis.selectAll("text").style("fill", currentTheme.textColor);
+        xAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
+
+        const yAxis = g.append('g').call(d3.axisLeft(y).tickFormat(d3.format("$,.0f")));
+        yAxis.selectAll("text").style("fill", currentTheme.textColor);
+        yAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
 
         g.append('path')
             .datum(plannedSpend)
@@ -1274,16 +1280,38 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedProjectInWorkloader, initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedProjectInWorkloader, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
 
+    // Effect to handle initial filter and expansion from WorkloaderConsole
     useEffect(() => {
-        if (initialSelectedProjectInProjectConsole) {
-            setExpandedProjectId(initialSelectedProjectInProjectConsole);
-            setInitialSelectedProjectInProjectConsole(null); // Clear after use
+        if (initialProjectConsoleFilter) {
+            setFilters(prev => ({ ...prev, query: initialProjectConsoleFilter }));
+            
+            // Find the project that matches the initial filter query
+            const projectToExpand = projects.find(p => 
+                p.name.toLowerCase() === initialProjectConsoleFilter.toLowerCase() || 
+                p.projectId.toLowerCase() === initialProjectConsoleFilter.toLowerCase()
+            );
+
+            if (projectToExpand) {
+                setExpandedProjectId(projectToExpand.id);
+            }
+            setInitialProjectConsoleFilter(''); // Clear the initial filter after use
         }
-    }, [initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole]);
+    }, [initialProjectConsoleFilter, setInitialProjectConsoleFilter, projects]); // Added projects to dependency array
+
+    useEffect(() => {
+        if (expandedProjectId) {
+            // If a project is expanded, ensure its ID is in the query filter
+            const currentProject = projects.find(p => p.id === expandedProjectId);
+            if (currentProject && filters.query !== currentProject.name && filters.query !== currentProject.projectId) {
+                setFilters(prev => ({ ...prev, query: currentProject.name }));
+            }
+        }
+    }, [expandedProjectId, projects, filters.query]);
+
 
     const handleProjectClick = (projectId) => {
         setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
@@ -1297,7 +1325,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 const searchLower = query.toLowerCase();
                 
                 const nameMatch = p.name.toLowerCase().includes(searchLower);
-                const idMatch = p.projectId.includes(searchLower);
+                const idMatch = p.projectId.toLowerCase().includes(searchLower); // Changed to toLowerCase()
                 
                 const projectAssignments = assignments.filter(a => a.projectId === p.id);
                 

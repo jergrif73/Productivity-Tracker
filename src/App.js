@@ -359,6 +359,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
     const [initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole] = useState(null);
+    const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState('');
     const [initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader] = useState(null);
     const { startTutorial, isTutorialActive } = useContext(TutorialContext);
 
@@ -485,8 +486,8 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 
         switch (currentView) {
             case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} initialSelectedEmployeeInTeamConsole={initialSelectedEmployeeInTeamConsole} setInitialSelectedEmployeeInTeamConsole={setInitialSelectedEmployeeInTeamConsole} setView={setView} setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader} />;
-            case 'projects': return <ProjectConsole {...consoleProps} initialSelectedProjectInProjectConsole={initialSelectedProjectInProjectConsole} setInitialSelectedProjectInProjectConsole={setInitialSelectedProjectInProjectConsole} setView={setView} setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader} />;
-            case 'workloader': return <WorkloaderConsole {...consoleProps} setView={setView} setInitialSelectedEmployeeInTeamConsole={setInitialSelectedEmployeeInTeamConsole} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader} setInitialSelectedProjectInProjectConsole={setInitialSelectedProjectInProjectConsole} initialSelectedProjectInWorkloader={initialSelectedProjectInWorkloader} setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader} />;
+            case 'projects': return <ProjectConsole {...consoleProps} initialSelectedProjectInProjectConsole={initialSelectedProjectInProjectConsole} setInitialSelectedProjectInProjectConsole={setInitialSelectedProjectInProjectConsole} setView={setView} setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader} initialProjectConsoleFilter={initialProjectConsoleFilter} setInitialProjectConsoleFilter={setInitialProjectConsoleFilter} />;
+            case 'workloader': return <WorkloaderConsole {...consoleProps} setView={setView} setInitialSelectedEmployeeInTeamConsole={setInitialSelectedEmployeeInTeamConsole} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader} setInitialSelectedProjectInProjectConsole={setInitialSelectedProjectInProjectConsole} initialSelectedProjectInWorkloader={initialSelectedProjectInWorkloader} setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader} setInitialProjectConsoleFilter={setInitialProjectConsoleFilter} />;
             case 'tasks': return <TaskConsole {...consoleProps} />;
             case 'gantt': return <GanttConsole {...consoleProps} />;
             case 'forecast': return <ForecastConsole {...consoleProps} />;

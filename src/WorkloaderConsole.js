@@ -69,7 +69,7 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, setInitialSelectedProjectInProjectConsole, initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, setInitialProjectConsoleFilter, initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [groupBy, setGroupBy] = useState('project');
     const [sortBy, setSortBy] = useState('projectId');
@@ -362,10 +362,10 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     }, [initialSelectedProjectInWorkloader, projectGroupedData, setInitialSelectedProjectInWorkloader]);
 
     // Function to handle navigation to Project Console
-    const handleGoToProjectDetails = (e, projectId) => {
+    const handleGoToProjectDetails = (e, projectId, projectName) => { // Added projectName
         e.stopPropagation();
         if (isTaskmaster) {
-            setInitialSelectedProjectInProjectConsole(projectId);
+            setInitialProjectConsoleFilter(projectName); // Set the project name for filtering
             setView('projects');
         }
     };
@@ -457,7 +457,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                 </div>
                                                 {isTaskmaster && (
                                                     <button
-                                                        onClick={(e) => handleGoToProjectDetails(e, project.id)}
+                                                        onClick={(e) => handleGoToProjectDetails(e, project.id, project.name)} // Pass project.name
                                                         className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
                                                     >
                                                         Project Details
