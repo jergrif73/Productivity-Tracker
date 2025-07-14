@@ -69,7 +69,7 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, setInitialSelectedProjectInProjectConsole }) => {
     const [startDate, setStartDate] = useState(new Date());
     const [groupBy, setGroupBy] = useState('project');
     const [sortBy, setSortBy] = useState('projectId');
@@ -348,6 +348,16 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
     }, [initialSelectedEmployeeInWorkloader, employeeGroupedData, setInitialSelectedEmployeeInWorkloader]);
 
+    // New function to handle navigation to Project Console
+    const handleGoToProjectDetails = (e, projectId) => {
+        e.stopPropagation(); // Prevent the parent <th>'s onClick from firing
+        console.log('handleGoToProjectDetails called with projectId:', projectId); // Debug log
+        if (isTaskmaster) {
+            setInitialSelectedProjectInProjectConsole(projectId);
+            setView('projects'); // Navigate to Project Console
+            console.log('Navigating to projects view with initial project:', projectId); // Debug log
+        }
+    };
 
     return (
         <div className="space-y-4 h-full flex flex-col">
@@ -426,13 +436,22 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             return (
                                 <tbody key={project.id}>
                                     <tr>
-                                        {/* Restored toggleExpansion for project group headers */}
                                         <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
-                                            <div className="flex items-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                                </svg>
-                                                {project.name} ({project.projectId})
+                                            <div className="flex items-center justify-between"> {/* Added justify-between */}
+                                                <div className="flex items-center">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                                    </svg>
+                                                    {project.name} ({project.projectId})
+                                                </div>
+                                                {isTaskmaster && (
+                                                    <button
+                                                        onClick={(e) => handleGoToProjectDetails(e, project.id)}
+                                                        className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
+                                                    >
+                                                        Project Details
+                                                    </button>
+                                                )}
                                             </div>
                                         </th>
                                     </tr>
@@ -467,15 +486,15 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                 <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
                                                                     <span>{assignment.allocation}%</span>
                                                                     {isTaskmaster && isAssigned && (
-                                                                    <div 
-                                                                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                                                                        onMouseDown={(e) => {
-                                                                            e.preventDefault(); e.stopPropagation();
-                                                                            setDragFillStart({ assignment, weekIndex });
-                                                                        }}
-                                                                    >
-                                                                        <div className="h-full w-1 bg-white/50 rounded"></div>
-                                                                    </div>
+                                                                        <div 
+                                                                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                            onMouseDown={(e) => {
+                                                                                e.preventDefault(); e.stopPropagation();
+                                                                                setDragFillStart({ assignment, weekIndex });
+                                                                            }}
+                                                                        >
+                                                                            <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                             </Tooltip>
@@ -532,7 +551,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                 let isFillHighlighted = false;
                                                 if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
                                                     const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillStart.weekIndex); // This line had a bug, should be dragFillEnd.weekIndex
+                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex); 
                                                     if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
                                                 }
 
