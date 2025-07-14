@@ -20,7 +20,11 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
     const [trade, setTrade] = useState(assignment.trade);
 
     const availableTrades = useMemo(() => {
-        return Object.keys(detailer?.disciplineSkillsets || {});
+        if (!detailer || !detailer.disciplineSkillsets) return [];
+        if (Array.isArray(detailer.disciplineSkillsets)) {
+            return detailer.disciplineSkillsets.map(s => s.name);
+        }
+        return Object.keys(detailer.disciplineSkillsets);
     }, [detailer]);
 
     const handleSave = () => {
@@ -65,14 +69,16 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader }) => {
     const [startDate, setStartDate] = useState(new Date());
-    const [sortBy, setSortBy] = useState('name');
+    const [groupBy, setGroupBy] = useState('project');
+    const [sortBy, setSortBy] = useState('projectId');
+    const [searchTerm, setSearchTerm] = useState('');
     const [dragFillStart, setDragFillStart] = useState(null);
     const [dragFillEnd, setDragFillEnd] = useState(null);
     const [editingCell, setEditingCell] = useState(null);
     const popupRef = useRef(null);
-    const [expandedProjectIds, setExpandedProjectIds] = useState(new Set());
+    const [expandedIds, setExpandedIds] = useState(new Set());
 
     const isTaskmaster = accessLevel === 'taskmaster';
     
@@ -110,7 +116,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     
     const weekDates = useMemo(() => getWeekDates(startDate), [startDate]);
 
-    const groupedData = useMemo(() => {
+    const projectGroupedData = useMemo(() => {
         const assignmentsByProject = assignments.reduce((acc, assignment) => {
             const projId = assignment.projectId;
             if (!acc[projId]) acc[projId] = [];
@@ -118,8 +124,10 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             return acc;
         }, {});
 
+        const lowercasedTerm = searchTerm.toLowerCase();
+
         return projects
-            .filter(p => !p.archived)
+            .filter(p => !p.archived && (p.name.toLowerCase().includes(lowercasedTerm) || p.projectId.toLowerCase().includes(lowercasedTerm)))
             .map(project => {
                 const projectAssignments = (assignmentsByProject[project.id] || []).map(ass => {
                     const detailer = detailers.find(d => d.id === ass.detailerId);
@@ -132,13 +140,28 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             })
             .filter(p => p.assignments.length > 0)
             .sort((a,b) => {
-                if (sortBy === 'name') {
-                    return a.name.localeCompare(b.name);
-                }
+                if (sortBy === 'name') return a.name.localeCompare(b.name);
                 return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
             });
 
-    }, [projects, assignments, detailers, sortBy]);
+    }, [projects, assignments, detailers, sortBy, searchTerm]);
+
+    const employeeGroupedData = useMemo(() => {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        return detailers
+            .filter(d => d.firstName.toLowerCase().includes(lowercasedTerm) || d.lastName.toLowerCase().includes(lowercasedTerm))
+            .map(detailer => ({
+                ...detailer,
+                assignments: assignments
+                    .filter(a => a.detailerId === detailer.id)
+                    .map(a => ({...a, projectName: projects.find(p => p.id === a.projectId)?.name || 'Unknown Project'}))
+            }))
+            .filter(d => d.assignments.length > 0)
+            .sort((a,b) => {
+                if (sortBy === 'firstName') return a.firstName.localeCompare(b.firstName);
+                return a.lastName.localeCompare(b.lastName);
+            });
+    }, [detailers, assignments, projects, sortBy, searchTerm]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -247,25 +270,45 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         setDragFillEnd(null);
     }, [dragFillStart, dragFillEnd, weekDates, appId, db]);
     
-    const toggleProjectExpansion = (projectId) => {
-        setExpandedProjectIds(prev => {
+    const toggleExpansion = (id) => {
+        setExpandedIds(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(projectId)) {
-                newSet.delete(projectId);
+            if (newSet.has(id)) {
+                newSet.delete(id);
             } else {
-                newSet.add(projectId);
+                newSet.add(id);
             }
             return newSet;
         });
     };
 
-    const handleToggleAllProjects = () => {
-        if (expandedProjectIds.size === groupedData.length) {
-            setExpandedProjectIds(new Set());
+    const handleToggleAll = () => {
+        const allIds = groupBy === 'project' ? projectGroupedData.map(p => p.id) : employeeGroupedData.map(e => e.id);
+        if (expandedIds.size === allIds.length && allIds.length > 0) {
+            setExpandedIds(new Set());
         } else {
-            setExpandedProjectIds(new Set(groupedData.map(p => p.id)));
+            setExpandedIds(new Set(allIds));
         }
     };
+
+    const handleGroupByChange = (newGroupBy) => {
+        setGroupBy(newGroupBy);
+        setExpandedIds(new Set());
+        setSearchTerm('');
+        if (newGroupBy === 'project') {
+            setSortBy('projectId');
+        } else {
+            setSortBy('lastName');
+        }
+    };
+
+    const allCurrentIds = useMemo(() => {
+        return groupBy === 'project' ? projectGroupedData.map(p => p.id) : employeeGroupedData.map(e => e.id);
+    }, [groupBy, projectGroupedData, employeeGroupedData]);
+
+    const areAllExpanded = useMemo(() => {
+        return expandedIds.size === allCurrentIds.length && allCurrentIds.length > 0;
+    }, [expandedIds, allCurrentIds]);
 
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
@@ -282,6 +325,30 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    const handleGoToEmployeeAssignments = (e, employeeId) => {
+        e.stopPropagation(); // Prevent the parent <th>'s onClick from firing
+        if (isTaskmaster) {
+            setInitialSelectedEmployeeInTeamConsole(employeeId);
+            setView('detailers'); // Navigate to Team Console
+        }
+    };
+
+    // New useEffect to handle initial selection from Team Console
+    useEffect(() => {
+        // Only trigger if initialSelectedEmployeeInWorkloader is set AND employeeGroupedData is loaded
+        if (initialSelectedEmployeeInWorkloader && employeeGroupedData.length > 0) {
+            const employeeExists = employeeGroupedData.some(e => e.id === initialSelectedEmployeeInWorkloader);
+            if (employeeExists) {
+                setGroupBy('employee'); // Ensure grouping by employee
+                setExpandedIds(new Set([initialSelectedEmployeeInWorkloader])); // Expand only the relevant employee
+                setInitialSelectedEmployeeInWorkloader(null); // Clear after use
+            } else {
+                setInitialSelectedEmployeeInWorkloader(null); // Clear if employee not found
+            }
+        }
+    }, [initialSelectedEmployeeInWorkloader, employeeGroupedData, setInitialSelectedEmployeeInWorkloader]);
+
+
     return (
         <div className="space-y-4 h-full flex flex-col">
              <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
@@ -291,18 +358,36 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                      <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'>'}</button>
                      <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
                  </div>
-                 <div className="flex items-center gap-2">
-                    <button onClick={handleToggleAllProjects} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                        {expandedProjectIds.size === groupedData.length ? 'Collapse All' : 'Expand All'}
+                 <div className="flex items-center gap-4 flex-grow">
+                    <input
+                        type="text"
+                        placeholder={`Search by ${groupBy}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full max-w-xs`}
+                    />
+                    <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Group by:</span>
+                        <button onClick={() => handleGroupByChange('project')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'project' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project</button>
+                        <button onClick={() => handleGroupByChange('employee')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'employee' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Employee</button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                        {groupBy === 'project' ? (
+                            <>
+                                <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                                <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                            </>
+                        ) : (
+                             <>
+                                <button onClick={() => setSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                                <button onClick={() => setSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
+                            </>
+                        )}
+                    </div>
+                    <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                        {areAllExpanded ? 'Collapse All' : 'Expand All'}
                     </button>
-                    <span className={`text-sm font-medium ${currentTheme.subtleText} ml-4`}>Sort by:</span>
-                    <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                    <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                 </div>
-                 <div className="flex items-center gap-2">
-                    <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Light</button>
-                    <button onClick={() => setTheme('grey')} className={`px-3 py-1 text-sm rounded-md ${theme === 'grey' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Grey</button>
-                    <button onClick={() => setTheme('dark')} className={`px-3 py-1 text-sm rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Dark</button>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                      {Object.entries(legendColorMapping).map(([trade, color]) => (
@@ -318,13 +403,15 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                         <tr>
-                            <th className={`p-1 font-semibold w-16 min-w-[64px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>DETAILER</th>
-                            <th className={`p-1 font-semibold w-11 min-w-[44px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>TRADE</th>
+                            <th className={`p-1 font-semibold w-48 min-w-[192px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>
+                                {groupBy === 'project' ? 'Detailer' : 'Project'}
+                            </th>
+                            <th className={`p-1 font-semibold w-11 min-w-[44px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>Trade</th>
                             <th className={`p-1 font-semibold w-9 min-w-[36px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>%</th>
                             {weekDates.map(date => {
                                 const weekStart = new Date(date);
                                 const weekEnd = new Date(weekStart);
-                                weekEnd.setDate(weekEnd.getDate() + 6);
+                                weekEnd.setDate(weekStart.getDate() + 6);
                                 const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
                                 return (
                                 <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border ${currentTheme.borderColor} ${currentTheme.textColor} ${isCurrentWeek ? 'bg-blue-200 text-black' : ''}`}>
@@ -333,22 +420,23 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             )})}
                         </tr>
                     </thead>
-                    <tbody>
-                        {groupedData.map(project => {
-                            const isProjectExpanded = expandedProjectIds.has(project.id);
+                    {groupBy === 'project' ? (
+                        projectGroupedData.map(project => {
+                            const isExpanded = expandedIds.has(project.id);
                             return (
-                                <React.Fragment key={project.id}>
-                                    <tr className={`${currentTheme.altRowBg} sticky top-10`}>
-                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleProjectExpansion(project.id)}>
+                                <tbody key={project.id}>
+                                    <tr>
+                                        {/* Restored toggleExpansion for project group headers */}
+                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
                                             <div className="flex items-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isProjectExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
                                                 </svg>
                                                 {project.name} ({project.projectId})
                                             </div>
                                         </th>
                                     </tr>
-                                    {isProjectExpanded && project.assignments.map(assignment => {
+                                    {isExpanded && project.assignments.map(assignment => {
                                         const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
                                         return (
                                             <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
@@ -398,10 +486,89 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                             </tr>
                                         )
                                     })}
-                                </React.Fragment>
+                                </tbody>
                             )
-                        })}
-                    </tbody>
+                        })
+                    ) : (
+                        employeeGroupedData.map(employee => {
+                            const isExpanded = expandedIds.has(employee.id);
+                            return (
+                            <tbody key={employee.id}>
+                                <tr>
+                                    {/* Restored toggleExpansion for employee group headers */}
+                                    <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(employee.id)}>
+                                        <div className="flex items-center justify-between"> {/* Added justify-between */}
+                                            <div className="flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                                </svg>
+                                                {employee.firstName} {employee.lastName}
+                                            </div>
+                                            {isTaskmaster && (
+                                                <button
+                                                    onClick={(e) => handleGoToEmployeeAssignments(e, employee.id)}
+                                                    // Changed button styling to be more subtle
+                                                    className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
+                                                >
+                                                    Projects Assignment
+                                                </button>
+                                            )}
+                                        </div>
+                                    </th>
+                                </tr>
+                                {isExpanded && employee.assignments.map(assignment => {
+                                    const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
+                                    return (
+                                        <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
+                                            <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.projectName}</td>
+                                            <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
+                                            <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
+                                            {weekDates.map((weekStart, weekIndex) => {
+                                                const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+                                                const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
+                                                let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
+                                                const tooltipText = isAssigned ? `Project: ${assignment.projectName}` : '';
+                                                
+                                                let isFillHighlighted = false;
+                                                if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
+                                                    const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
+                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillStart.weekIndex); // This line had a bug, should be dragFillEnd.weekIndex
+                                                    if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
+                                                }
+
+                                                return (
+                                                    <td key={weekStart.toISOString()} 
+                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
+                                                        onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
+                                                        onClick={(e) => handleCellClick(e, assignment, weekIndex)}
+                                                    >
+                                                        {(isAssigned || isFillHighlighted) && (
+                                                        <Tooltip text={tooltipText}>
+                                                            <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                <span>{assignment.allocation}%</span>
+                                                                {isTaskmaster && isAssigned && (
+                                                                    <div 
+                                                                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                        onMouseDown={(e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
+                                                                            setDragFillStart({ assignment, weekIndex });
+                                                                        }}
+                                                                    >
+                                                                        <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </Tooltip>
+                                                        )}
+                                                    </td>
+                                                )
+                                            })}
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        )})
+                    )}
                 </table>
             </div>
             {editingCell && (

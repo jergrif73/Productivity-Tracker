@@ -137,10 +137,28 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db }) => {
+const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel, setView, setInitialSelectedEmployeeInWorkloader }) => {
+    const handleGoToEmployeeWorkloader = (e, employeeId) => {
+        e.stopPropagation(); // Prevent any parent clicks
+        if (accessLevel === 'taskmaster') {
+            setInitialSelectedEmployeeInWorkloader(employeeId);
+            setView('workloader'); // Navigate to Workloader Console
+        }
+    };
+
     return (
         <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
-            <h3 className="text-xl font-bold mb-4 flex-shrink-0">{employee.firstName} {employee.lastName}'s Assignments</h3>
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                <h3 className="text-xl font-bold">{employee.firstName} {employee.lastName}'s Assignments</h3>
+                {accessLevel === 'taskmaster' && (
+                    <button
+                        onClick={(e) => handleGoToEmployeeWorkloader(e, employee.id)}
+                        className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors`}
+                    >
+                        Employee Workloader
+                    </button>
+                )}
+            </div>
             <div className="space-y-3 overflow-y-auto flex-grow hide-scrollbar-on-hover pr-2">
                 {assignments.length > 0 ? (
                     assignments.map(asn => (
@@ -167,7 +185,7 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
 };
 
 
-const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor }) => {
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, setView, setInitialSelectedEmployeeInWorkloader, accessLevel }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     const [viewMode, setViewMode] = useState('condensed');
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
@@ -175,6 +193,25 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [searchTerm, setSearchTerm] = useState('');
     const [allTrades, setAllTrades] = useState([]);
     const [activeTrades, setActiveTrades] = useState([]);
+
+    // Effect to handle initial selection from WorkloaderConsole
+    useEffect(() => {
+        // Only attempt to set if initialSelectedEmployeeInTeamConsole is present
+        // AND detailers/assignments data are loaded.
+        if (initialSelectedEmployeeInTeamConsole && detailers.length > 0 && assignments.length > 0) {
+            // Verify the employee exists in the loaded detailers list
+            const employeeExists = detailers.some(d => d.id === initialSelectedEmployeeInTeamConsole);
+            if (employeeExists) {
+                setSelectedEmployeeId(initialSelectedEmployeeInTeamConsole);
+                // Clear the initial selection after successful use to prevent re-triggering
+                setInitialSelectedEmployeeInTeamConsole(null); 
+            } else {
+                // If employee ID from initial selection doesn't exist in loaded data,
+                // clear the initial selection to avoid infinite loops or stale state.
+                setInitialSelectedEmployeeInTeamConsole(null);
+            }
+        }
+    }, [initialSelectedEmployeeInTeamConsole, detailers, assignments, setInitialSelectedEmployeeInTeamConsole]); // Depend on detailers and assignments
 
     useEffect(() => {
         const trades = new Set();
@@ -360,7 +397,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     isOpen={!!employeeToDelete}
                     onClose={() => setEmployeeToDelete(null)}
                     onConfirm={() => handleDeleteEmployee(employeeToDelete.id)}
-                    title="Confirm Employee Deletion"
+                    title="Confirm Employee D
+                    eletion"
                     currentTheme={currentTheme}
                 >
                     Are you sure you want to delete {employeeToDelete.firstName} {employeeToDelete.lastName}? This will also delete all their assignments.
@@ -452,6 +490,9 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                     handleUpdateAssignment={handleUpdateAssignment}
                                     currentTheme={currentTheme}
                                     db={db}
+                                    accessLevel={accessLevel}
+                                    setView={setView}
+                                    setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader}
                                 />
                             </motion.div>
                         ) : (

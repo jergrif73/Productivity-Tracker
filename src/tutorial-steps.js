@@ -215,6 +215,12 @@ export const tutorialContent = {
         title: "Setting Skills and Primary Trade",
         content: "Click 'View Skills' to open the skills editor. Here you can rate an employee's abilities and set their primary trade by reordering the discipline skillsets. The first discipline in the list determines their group in this console.",
         roles: ['taskmaster', 'tcl']
+      },
+      {
+        key: "employeeWorkloaderButton",
+        title: "Navigate to Employee Workloader",
+        content: "When an employee's assignments are expanded, Taskmasters will see an 'Employee Workloader' button. Clicking this button will take you directly to the Workloader Console, automatically filtered and expanded to show only this employee's assignments.",
+        roles: ['taskmaster']
       }
     ]
   },
@@ -223,45 +229,39 @@ export const tutorialContent = {
     steps: [
         {
             key: "workloader",
-            title: "Workloader Console",
-            content: "The Workloader provides a timeline view of all project assignments across all employees. It's the best way to visualize your team's workload over time. This console is directly populated by **assignments created in the Team Console**.",
+            title: "Welcome to the Workloader",
+            content: "The Workloader provides a timeline view of all project assignments. It's the best way to visualize your team's workload over time. This console is directly populated by assignments created in the Team Console.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-            key: "workloaderGrid",
-            title: "Assignment Grid",
-            content: "Each colored bar represents a single assignment. The color corresponds to the trade. You can see who is assigned, to what project, and for how long. Use this grid to quickly spot gaps or overlaps in assignments.",
+            key: "groupAndSort",
+            title: "Grouping & Sorting Your View",
+            content: "Use the 'Group by' toggle to switch between a project-centric and an employee-centric view. The 'Sort by' options will change based on your selection, allowing you to organize the list alphabetically, by ID, or by name.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-            key: "extendAssignment",
-            title: "Extend an Assignment",
-            content: "As a Taskmaster, you can hover over the end of an assignment bar, click the handle, and drag to extend its duration. This provides a quick way to adjust project timelines directly from the visual schedule.",
+            key: "searchTimeline",
+            title: "Searching the Timeline",
+            content: "Use the search bar to filter the timeline. It will search by project name/ID when grouped by project, or by employee name when grouped by employee.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "expandAndCollapse",
+            title: "Expanding & Collapsing Groups",
+            content: "Click the 'Expand/Collapse All' button to show or hide all assignments at once. You can also click on individual project or employee headers to toggle their specific assignments.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "editAssignments",
+            title: "Editing Assignments (Taskmaster)",
+            content: "As a Taskmaster, you can click on any assignment cell to edit its trade. You can also click and drag the handle on the right edge of an assignment to extend its duration.",
             roles: ['taskmaster']
         },
         {
-            key: "editAssignment",
-            title: "Edit an Assignment",
-            content: "Click on any cell within an assignment to open an editor. This allows you to change the trade for a specific week, which will automatically split the assignment into multiple segments. This is useful for reallocating specific portions of an assignment without creating a new one.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "colorScheme",
-            title: "Controlling the Color Scheme",
-            content: "You can change the overall color scheme of the application (Light, Grey, Dark) using the buttons in the top right of the application header. This adjusts the visual theme of the Workloader and all other consoles to your preference.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
-            key: "projectExpansion",
-            title: "Project Expansion/Collapse",
-            content: "Click on any project row (e.g., 'Project Name (Project ID)') to expand or collapse it, revealing or hiding the individual assignments for that project. This helps you focus on specific projects or get a broader overview of all assignments.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
-            key: "tradeColorLegend",
-            title: "Trade Color Legend",
-            content: "The legend at the top of the Workloader explains what each color in the assignment bars represents, corresponding to different trades (e.g., Piping, Duct, BIM). This visual cue helps in quickly identifying trade allocations at a glance.",
-            roles: ['taskmaster', 'tcl', 'viewer']
+          key: "goToEmployeeAssignments",
+          title: "Go to Employee Assignments (Taskmaster)",
+          content: "When viewing the Workloader grouped by 'Employee', Taskmasters will see a 'Projects Assignment' button next to each employee's name. Clicking this button will take you directly to the Team Console, with that employee's assignments automatically opened for editing.",
+          roles: ['taskmaster']
         }
     ]
   },

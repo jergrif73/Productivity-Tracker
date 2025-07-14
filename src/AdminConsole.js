@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
@@ -76,9 +76,16 @@ const BubbleRating = ({ score, onScoreChange, currentTheme }) => {
 const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast }) => {
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
+    const [draggedDiscipline, setDraggedDiscipline] = useState(null); // New state for drag and drop
+    const [dragOverDiscipline, setDragOverDiscipline] = useState(null); // New state for drag over
 
     const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
     const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
+    const titleOptions = [
+        "Detailer I", "Detailer II", "Detailer III", "BIM Specialist", "Programmatic Detailer",
+        "Project Constructability Lead", "Project Constructability Lead, Sr.",
+        "Trade Constructability Lead", "Constructability Manager"
+    ];
     
     useEffect(() => {
         if (employee) {
@@ -128,6 +135,54 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
             )
         }));
     };
+
+    // Drag and Drop Handlers
+    const handleDragStart = (e, disciplineName) => {
+        setDraggedDiscipline(disciplineName);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e, disciplineName) => {
+        e.preventDefault();
+        if (disciplineName !== draggedDiscipline && disciplineName !== dragOverDiscipline) {
+            setDragOverDiscipline(disciplineName);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverDiscipline(null);
+    };
+
+    const handleDrop = (e, dropTargetName) => {
+        e.preventDefault();
+        if (!draggedDiscipline || draggedDiscipline === dropTargetName) {
+            setDraggedDiscipline(null);
+            setDragOverDiscipline(null);
+            return;
+        }
+
+        const skillsetsArray = [...(editableEmployee.disciplineSkillsets || [])];
+        const draggedIndex = skillsetsArray.findIndex(d => d.name === draggedDiscipline);
+        const targetIndex = skillsetsArray.findIndex(d => d.name === dropTargetName);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+            setDraggedDiscipline(null);
+            setDragOverDiscipline(null);
+            return;
+        }
+        
+        const [removed] = skillsetsArray.splice(draggedIndex, 1);
+        skillsetsArray.splice(targetIndex, 0, removed);
+        
+        setEditableEmployee(prev => ({
+            ...prev,
+            disciplineSkillsets: skillsetsArray
+        }));
+
+        setDraggedDiscipline(null);
+        setDragOverDiscipline(null);
+    };
+
 
     const handleSaveChanges = () => {
         onSave(editableEmployee);
@@ -189,10 +244,26 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
                             </div>
                             <div className="space-y-4">
                                 {(editableEmployee.disciplineSkillsets || []).map(discipline => (
-                                    <div key={discipline.name} className={`p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor}`}>
+                                    <div 
+                                        key={discipline.name} 
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, discipline.name)}
+                                        onDragOver={(e) => handleDragOver(e, discipline.name)}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, discipline.name)}
+                                        className={`relative p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor} cursor-move ${draggedDiscipline === discipline.name ? 'opacity-50' : ''}`}
+                                    >
+                                        {dragOverDiscipline === discipline.name && (
+                                            <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500 rounded-full" />
+                                        )}
                                         <div className="flex justify-between items-start">
-                                        <span className="font-medium">{discipline.name}</span>
-                                        <button onClick={() => handleRemoveDiscipline(discipline.name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                           <div className="flex items-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                                </svg>
+                                                <span className="font-medium">{discipline.name}</span>
+                                           </div>
+                                           <button onClick={() => handleRemoveDiscipline(discipline.name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                                         </div>
                                         <BubbleRating score={discipline.score} onScoreChange={(newScore) => handleDisciplineRatingChange(discipline.name, newScore)} currentTheme={currentTheme} />
                                     </div>
@@ -766,7 +837,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                     onClick={() => handleStatusFilterToggle(status)}
                                                     className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                                 >
-                                                    {status}
+                                                    {status.charAt(0)}
                                                 </button>
                                             </Tooltip>
                                         ))}
