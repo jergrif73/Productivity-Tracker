@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { collection, doc, addDoc, setDoc, deleteDoc } from 'firebase/firestore'; // Added setDoc, removed updateDoc
-import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
+import React, { useState, useMemo, useEffect } from 'react';
+import { collection, doc, addDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Helper Components ---
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
@@ -27,7 +27,6 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     }, [projects]);
 
     const handleSave = async () => {
-        // Ensure allocation is treated as a number
         const updatedAssignment = {
             ...editableAssignment,
             allocation: Number(editableAssignment.allocation)
@@ -138,72 +137,120 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
+const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db }) => {
+    return (
+        <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
+            <h3 className="text-xl font-bold mb-4 flex-shrink-0">{employee.firstName} {employee.lastName}'s Assignments</h3>
+            <div className="space-y-3 overflow-y-auto flex-grow hide-scrollbar-on-hover pr-2">
+                {assignments.length > 0 ? (
+                    assignments.map(asn => (
+                        <InlineAssignmentEditor
+                            key={asn.id}
+                            db={db}
+                            assignment={asn}
+                            projects={projects}
+                            detailerDisciplines={Array.isArray(employee.disciplineSkillsets) ? employee.disciplineSkillsets.map(s => s.name) : Object.keys(employee.disciplineSkillsets || {})}
+                            onUpdate={handleUpdateAssignment}
+                            onDelete={() => setAssignmentToDelete(asn)}
+                            currentTheme={currentTheme}
+                        />
+                    ))
+                ) : (
+                    <p className={currentTheme.subtleText}>No assignments for this employee.</p>
+                )}
+            </div>
+            <div className="mt-4 pt-4 border-t flex-shrink-0">
+                <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add New Assignment</button>
+            </div>
+        </div>
+    );
+};
+
 
 const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor }) => {
-    const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+    const [viewMode, setViewMode] = useState('condensed');
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
     const [assignmentToDelete, setAssignmentToDelete] = useState(null);
-    const [visibleEmployees, setVisibleEmployees] = useState(15); // State to manage how many employees are visible
+    const [searchTerm, setSearchTerm] = useState('');
+    const [allTrades, setAllTrades] = useState([]);
+    const [activeTrades, setActiveTrades] = useState([]);
 
-    const handleEmployeeClick = (employeeId) => {
-        setExpandedEmployeeId(prevId => (prevId === employeeId ? null : employeeId));
+    useEffect(() => {
+        const trades = new Set();
+        detailers.forEach(d => {
+            const skills = d.disciplineSkillsets;
+            let mainTrade;
+            if (Array.isArray(skills) && skills.length > 0) {
+                mainTrade = skills[0].name;
+            } else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
+                mainTrade = Object.keys(skills)[0];
+            }
+
+            if (mainTrade) {
+                trades.add(mainTrade);
+            }
+        });
+        const tradeArray = Array.from(trades).sort();
+        setAllTrades(tradeArray);
+        setActiveTrades(tradeArray);
+    }, [detailers]);
+
+    const handleTradeFilterToggle = (tradeToToggle) => {
+        setActiveTrades(prev => {
+            const newTrades = new Set(prev);
+            if (newTrades.has(tradeToToggle)) {
+                newTrades.delete(tradeToToggle);
+            } else {
+                newTrades.add(tradeToToggle);
+            }
+            return Array.from(newTrades);
+        });
     };
 
-    const handleAddEmployee = async () => {
-        const newEmployee = {
-            firstName: 'New',
-            lastName: 'Employee',
-            employeeId: `EMP-${Date.now().toString().slice(-4)}`,
-            title: 'Detailer I',
-            email: '',
-            skills: {},
-            disciplineSkillsets: {}
-        };
-        try {
-            await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), newEmployee);
-            showToast('New employee added!');
-        } catch (error) {
-            console.error("Error adding employee:", error);
-            showToast('Failed to add employee.', 'error');
+    const handleSelectAllTrades = () => {
+        if (activeTrades.length === allTrades.length) {
+            setActiveTrades([]);
+        } else {
+            setActiveTrades(allTrades);
         }
+    };
+
+    const handleSelectEmployee = (employeeId) => {
+        setSelectedEmployeeId(prevId => (prevId === employeeId ? null : employeeId));
     };
 
     const handleDeleteEmployee = async (id) => {
         try {
             await deleteDoc(doc(db, `artifacts/${appId}/public/data/detailers`, id));
-            // Also delete associated assignments
             const batch = [];
             assignments.filter(a => a.detailerId === id).forEach(assignment => {
                 batch.push(deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignment.id)));
             });
             await Promise.all(batch);
-            showToast('Employee and all assignments deleted.');
             setEmployeeToDelete(null);
-            setExpandedEmployeeId(null); // Collapse if deleted
+            if (selectedEmployeeId === id) {
+                setSelectedEmployeeId(null);
+            }
         } catch (error) {
             console.error("Error deleting employee:", error);
-            showToast('Failed to delete employee.', 'error');
         }
     };
 
     const handleUpdateAssignment = async (updatedAssignment) => {
         try {
             await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, updatedAssignment.id), updatedAssignment, { merge: true });
-            showToast('Assignment updated!');
         } catch (error) {
             console.error("Error updating assignment:", error);
-            showToast('Failed to update assignment.', 'error');
         }
     };
 
     const handleDeleteAssignment = async (assignmentId) => {
         try {
             await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId));
-            showToast('Assignment deleted!');
             setAssignmentToDelete(null);
         } catch (error) {
             console.error("Error deleting assignment:", error);
-            showToast('Failed to delete assignment.', 'error');
         }
     };
 
@@ -221,45 +268,91 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         };
         try {
             await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), newAssignment);
-            showToast('New assignment added! Please edit details.');
         } catch (error) {
             console.error("Error adding assignment:", error);
-            showToast('Failed to add assignment.', 'error');
         }
     };
 
-    const employeesWithSortedAssignments = useMemo(() => {
-        return detailers.map(employee => {
-            const employeeAssignments = assignments
-                .filter(a => a.detailerId === employee.id)
-                .sort((a, b) => new Date(a.startDate) - new Date(b.startDate)); // Sort by start date
-            
-            // Calculate current weekly allocation
-            let currentWeekAllocation = 0;
-            const today = new Date();
-            const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay())); // Sunday
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
+    const groupedEmployees = useMemo(() => {
+        const processed = detailers
+            .map(employee => {
+                const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
+                let currentWeekAllocation = 0;
+                const today = new Date();
+                const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-            employeeAssignments.forEach(ass => {
-                const assignStart = new Date(ass.startDate);
-                const assignEnd = new Date(ass.endDate);
-
-                if (assignStart <= endOfWeek && assignEnd >= startOfWeek) {
-                    currentWeekAllocation += Number(ass.allocation);
+                employeeAssignments.forEach(ass => {
+                    const assignStart = new Date(ass.startDate);
+                    const assignEnd = new Date(ass.endDate);
+                    if (assignStart <= endOfWeek && assignEnd >= startOfWeek) {
+                        currentWeekAllocation += Number(ass.allocation);
+                    }
+                });
+                
+                const skills = employee.disciplineSkillsets;
+                let mainTrade = 'Uncategorized';
+                if (Array.isArray(skills) && skills.length > 0) {
+                    mainTrade = skills[0].name;
+                } else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
+                    mainTrade = Object.keys(skills)[0];
                 }
-            });
 
-            return { ...employee, assignments: employeeAssignments, currentWeekAllocation };
-        }).sort((a, b) => a.lastName.localeCompare(b.lastName)); // Sort employees by last name
-    }, [detailers, assignments]);
+                return { ...employee, assignments: employeeAssignments, currentWeekAllocation, mainTrade };
+            })
+            .filter(employee => {
+                const lowercasedTerm = searchTerm.toLowerCase();
+                return (employee.firstName.toLowerCase().includes(lowercasedTerm) ||
+                        employee.lastName.toLowerCase().includes(lowercasedTerm)) &&
+                       activeTrades.includes(employee.mainTrade);
+            })
+            .sort((a, b) => a.lastName.localeCompare(b.lastName));
+
+        return processed.reduce((acc, employee) => {
+            const { mainTrade } = employee;
+            if (!acc[mainTrade]) {
+                acc[mainTrade] = [];
+            }
+            acc[mainTrade].push(employee);
+            return acc;
+        }, {});
+    }, [detailers, assignments, searchTerm, activeTrades]);
+
+    const selectedEmployee = useMemo(() => {
+        if (!selectedEmployeeId) return null;
+        const employeeData = detailers.find(e => e.id === selectedEmployeeId);
+        if (!employeeData) return null;
+        
+        const employeeAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
+        return {...employeeData, assignments: employeeAssignments};
+
+    }, [selectedEmployeeId, detailers, assignments]);
 
     return (
-        <div className="p-4 space-y-4 h-full flex flex-col">
-            <div className="flex justify-end items-center mb-4 gap-2 flex-shrink-0">
-                <button onClick={handleAddEmployee} className={`${currentTheme.buttonBg} ${currentTheme.buttonText} px-4 py-2 rounded-lg hover:bg-opacity-80`}>
-                    + Add New Employee
-                </button>
+        <div className="p-4 h-full flex flex-col">
+            <div className="flex justify-between items-center mb-4 gap-4 flex-shrink-0 flex-wrap">
+                <div className={`flex items-center gap-1 p-1 rounded-lg ${currentTheme.altRowBg}`}>
+                    <button onClick={() => setViewMode('condensed')} className={`px-3 py-1 text-sm rounded-md ${viewMode === 'condensed' ? `${currentTheme.cardBg} shadow` : ''}`}>Condensed</button>
+                    <button onClick={() => setViewMode('detailed')} className={`px-3 py-1 text-sm rounded-md ${viewMode === 'detailed' ? `${currentTheme.cardBg} shadow` : ''}`}>Detailed</button>
+                </div>
+                 <div className="flex items-center gap-2 flex-wrap">
+                    {allTrades.map(trade => (
+                        <button 
+                            key={trade}
+                            onClick={() => handleTradeFilterToggle(trade)}
+                            className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                        >
+                            {trade}
+                        </button>
+                    ))}
+                    <button 
+                        onClick={handleSelectAllTrades}
+                        className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === allTrades.length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                    >
+                        {activeTrades.length === allTrades.length ? 'None' : 'All'}
+                    </button>
+                </div>
             </div>
 
             {employeeToDelete && (
@@ -286,81 +379,98 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 </ConfirmationModal>
             )}
 
-            {/* Main scrollable area for employee cards */}
-            <div className="flex-grow overflow-y-auto space-y-4 pr-4 hide-scrollbar-on-hover"> {/* Added hide-scrollbar-on-hover */}
-                {employeesWithSortedAssignments.slice(0, visibleEmployees).map((employee, index) => {
-                    const isExpanded = expandedEmployeeId === employee.id;
-                    const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                    const allocationColor = employee.currentWeekAllocation > 100 ? 'text-red-500' : (employee.currentWeekAllocation < 80 ? 'text-yellow-500' : 'text-green-500');
-
-                    return (
-                        <motion.div
-                            key={employee.id}
-                            layout
-                            className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}
-                        >
-                            <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleEmployeeClick(employee.id)}>
-                                <div>
-                                    <h3 className="text-lg font-semibold">{employee.firstName} {employee.lastName}</h3>
-                                    <p className={`text-sm ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
-                                    <p className={`text-sm ${currentTheme.subtleText}`}>Employee ID: {employee.employeeId}</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <span className={`text-lg font-bold ${allocationColor}`}>{employee.currentWeekAllocation}%</span>
-                                    <button onClick={(e) => { e.stopPropagation(); setViewingSkillsFor(employee); }} className="text-blue-500 hover:text-blue-700 text-sm">View Skills</button>
-                                    <button onClick={(e) => { e.stopPropagation(); setEmployeeToDelete(employee); }} className="text-red-500 hover:text-red-700 text-sm">Delete</button>
-                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                        </svg>
-                                    </motion.div>
-                                </div>
-                            </motion.div>
-                            
-                            <AnimatePresence>
-                                {isExpanded && (
-                                    <motion.div
-                                        key={`detail-${employee.id}`}
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                                        className="overflow-hidden"
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <div className="mt-4 pt-4 border-t space-y-3">
-                                            <h4 className="font-semibold mb-2">Assignments:</h4>
-                                            {employee.assignments.length > 0 ? (
-                                                employee.assignments.map(asn => (
-                                                    <InlineAssignmentEditor
-                                                        key={asn.id}
-                                                        db={db}
-                                                        assignment={asn}
-                                                        projects={projects}
-                                                        detailerDisciplines={Object.keys(employee.disciplineSkillsets || {})}
-                                                        onUpdate={handleUpdateAssignment}
-                                                        onDelete={() => setAssignmentToDelete(asn)}
-                                                        currentTheme={currentTheme}
-                                                    />
-                                                ))
-                                            ) : (
-                                                <p className={currentTheme.subtleText}>No assignments for this employee.</p>
-                                            )}
-                                            <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add New Assignment</button>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </motion.div>
-                    );
-                })}
-                {visibleEmployees < employeesWithSortedAssignments.length && (
-                    <div className="text-center mt-4">
-                        <button onClick={() => setVisibleEmployees(prev => prev + 15)} className={`${currentTheme.buttonBg} ${currentTheme.buttonText} px-4 py-2 rounded-lg`}>
-                            Load More
-                        </button>
+            <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 overflow-hidden">
+                <div className="md:col-span-1 flex flex-col overflow-hidden">
+                     <div className="mb-4 flex-shrink-0">
+                        <input
+                            type="text"
+                            placeholder="Search employees..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        />
                     </div>
-                )}
+                    <div className="flex-grow overflow-y-auto space-y-4 pr-2 hide-scrollbar-on-hover">
+                       {Object.keys(groupedEmployees).sort().map(trade => (
+                           <div key={trade}>
+                               <h3 className={`text-sm font-bold uppercase ${currentTheme.subtleText} mb-2 pl-1`}>{trade}</h3>
+                               <div className="space-y-2">
+                                {groupedEmployees[trade].map((employee) => {
+                                    const isSelected = selectedEmployeeId === employee.id;
+                                    const allocationColor = employee.currentWeekAllocation > 100 ? 'text-red-500' : (employee.currentWeekAllocation < 80 ? 'text-yellow-500' : 'text-green-500');
+
+                                    return (
+                                        <div
+                                            key={employee.id}
+                                            onClick={() => handleSelectEmployee(employee.id)}
+                                            className={`p-3 rounded-lg border ${isSelected ? 'border-blue-500 ring-2 ring-blue-500' : currentTheme.borderColor} ${currentTheme.cardBg} shadow-sm cursor-pointer transition-all duration-200`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-semibold">{employee.firstName} {employee.lastName}</h3>
+                                                    {viewMode === 'detailed' && (
+                                                        <>
+                                                            <p className={`text-xs ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
+                                                            <p className={`text-xs ${currentTheme.subtleText}`}>{employee.email || 'No email'}</p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <span className={`text-lg font-bold ${allocationColor}`}>{employee.currentWeekAllocation}%</span>
+                                            </div>
+                                            {viewMode === 'detailed' && (
+                                                <div className="flex justify-end gap-2 mt-2 text-xs">
+                                                    <button onClick={(e) => { e.stopPropagation(); setViewingSkillsFor(employee); }} className="text-blue-500 hover:underline">View Skills</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); setEmployeeToDelete(employee); }} className="text-red-500 hover:underline">Delete</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                               </div>
+                           </div>
+                       ))}
+                    </div>
+                </div>
+
+                <div className="md:col-span-2 overflow-hidden h-full">
+                    <AnimatePresence mode="wait">
+                        {selectedEmployee ? (
+                            <motion.div
+                                key={selectedEmployee.id}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.3 }}
+                                className="h-full"
+                            >
+                                <EmployeeDetailPanel
+                                    employee={selectedEmployee}
+                                    assignments={selectedEmployee.assignments}
+                                    projects={projects}
+                                    handleAddNewAssignment={handleAddNewAssignment}
+                                    setAssignmentToDelete={setAssignmentToDelete}
+                                    handleUpdateAssignment={handleUpdateAssignment}
+                                    currentTheme={currentTheme}
+                                    db={db}
+                                />
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="callout"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className={`w-full h-full flex flex-col justify-center items-center p-4 rounded-lg ${currentTheme.altRowBg} border-2 border-dashed ${currentTheme.borderColor}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-12 w-12 mb-4 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <h3 className="text-lg font-semibold">Project Assignments</h3>
+                                <p className={currentTheme.subtleText}>Select an employee from the list to view and manage their project assignments.</p>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );

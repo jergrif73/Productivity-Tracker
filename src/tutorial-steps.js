@@ -182,39 +182,39 @@ export const tutorialContent = {
     steps: [
       {
         key: "detailers",
-        title: "Team Console Navigation",
-        content: "Welcome to the Team Console. This is where you manage your workforce and their assignments to various projects. Employee data is created and edited in the **Admin Console**.",
-        roles: ['taskmaster']
+        title: "Welcome to the Team Console!",
+        content: "This is where you manage your workforce. The new two-column layout allows you to view your employee list on the left and see detailed assignments for a selected employee on the right.",
+        roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
-        key: "employeeCard",
-        title: "Employee Card",
-        content: "Each employee has a card showing their name and current weekly allocation percentage. Click to expand or collapse the card and see their specific project assignments. The weekly allocation percentage helps you quickly see if an employee is over or under-assigned for the current week.",
-        roles: ['taskmaster']
+        key: "searchAndFilter",
+        title: "Searching and Filtering Your Team",
+        content: "Use the search bar to quickly find an employee by name. You can also use the trade filter buttons to show or hide employee groups based on their primary trade.",
+        roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
-        key: "addAssignment",
-        title: "Adding an Assignment",
-        content: "Inside an expanded employee card, you can add a new project assignment. Specify the project, date range, trade, and what percentage of their time they should dedicate to it. These assignments directly populate the **Workloader Console** and contribute to the **Forecast Console's** supply data.",
-        roles: ['taskmaster']
+        key: "selectEmployee",
+        title: "Selecting an Employee",
+        content: "Click on any employee card in the list. Their project assignments will appear in the panel on the right. The percentage on the card shows their current weekly workload.",
+        roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
-        key: "viewSkills",
-        title: "Viewing Skills",
-        content: "Click here to open a modal where you can view and rate an employee's skills and their proficiency in different disciplines. This information is also editable in the **Admin Console** and is useful for resource planning.",
-        roles: ['taskmaster']
-      },
-      {
-        key: "loadMoreEmployees",
-        title: "Load More Employees",
-        content: "If you have a large team, click 'Load More' at the bottom of the list to display additional employee records. This helps manage performance and loading times, ensuring a smooth user experience.",
-        roles: ['taskmaster']
-      },
-      {
-        key: "viewToggleTeam",
+        key: "viewToggle",
         title: "Condensed vs. Detailed View",
-        content: "Toggle between a condensed view, showing only essential employee info and weekly allocation, and a detailed view that reveals more employee data and a direct link to their skills. Choose the view that best suits your immediate needs for team overview.",
+        content: "Switch between 'Condensed' and 'Detailed' views to change the amount of information shown in the employee list. Detailed view provides more info at a glance, including title and email.",
+        roles: ['taskmaster', 'tcl', 'viewer']
+      },
+      {
+        key: "manageAssignments",
+        title: "Managing Assignments",
+        content: "In the right-hand panel, you can add new project assignments or edit existing ones for the selected employee. This is where you allocate your team's time to specific projects.",
         roles: ['taskmaster']
+      },
+      {
+        key: "setSkills",
+        title: "Setting Skills and Primary Trade",
+        content: "Click 'View Skills' to open the skills editor. Here you can rate an employee's abilities and set their primary trade by reordering the discipline skillsets. The first discipline in the list determines their group in this console.",
+        roles: ['taskmaster', 'tcl']
       }
     ]
   },
@@ -389,7 +389,7 @@ export const tutorialContent = {
         {
             key: "statusFilter",
             title: "Filter by Project Status",
-            content: "Use the status filter buttons to include or exclude projects based on their current status (e.g., Planning, Conducting, Controlling, Archive). This allows you to focus on relevant project stages, such as only viewing 'Conducting' projects to see current operational workload.",
+            content: "Use the status filter buttons to include or exclude projects based on their current status (e.g., Planning, Conducting, Controlling, Archive). This allows you to focus on relevant project stages.",
             roles: ['taskmaster']
         },
         {

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { motion, AnimatePresence } from 'framer-motion'; // MODIFIED: Added AnimatePresence
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
@@ -244,6 +244,67 @@ const AttachmentSectionURL = ({ attachments, onAdd, onUpdate, onDelete, currentT
 
 const taskStatusOptions = ["Not Started", "In Progress", "Completed", "Deleted"];
 
+const CustomSelect = ({ options, value, onChange, placeholder, currentTheme, className = '' }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectRef = useRef(null);
+
+    const selectedOption = options.find(opt => opt.value === value);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (selectRef.current && !selectRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    const handleSelect = (selectedValue) => {
+        onChange(selectedValue);
+        setIsOpen(false);
+    };
+
+    return (
+        <div className={`relative ${className}`} ref={selectRef}>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full p-2 border rounded-md flex justify-between items-center text-left ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+            >
+                <span className={selectedOption ? '' : currentTheme.subtleText}>{selectedOption ? selectedOption.label : placeholder}</span>
+                <svg className={`h-5 w-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className={`absolute z-10 w-full mt-1 ${currentTheme.cardBg} border ${currentTheme.borderColor} rounded-md shadow-lg max-h-60 overflow-y-auto hide-scrollbar-on-hover`}
+                    >
+                        <ul>
+                            {options.map(option => (
+                                <li
+                                    key={option.value}
+                                    onClick={() => handleSelect(option.value)}
+                                    className={`p-2 cursor-pointer hover:${currentTheme.altRowBg} ${value === option.value ? currentTheme.altRowBg : ''}`}
+                                >
+                                    {option.label}
+                                </li>
+                            ))}
+                        </ul>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
 const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDelete, currentTheme, appId }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
@@ -467,6 +528,14 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
     const hasSubtasks = taskData.subTasks && taskData.subTasks.length > 0;
     const formElementClasses = `w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`;
 
+    const projectOptions = projects
+        .filter(p => !p.archived)
+        .map(p => ({ value: p.id, label: p.name }));
+
+    const detailerOptions = detailers.map(d => ({ value: d.id, label: `${d.firstName} ${d.lastName}` }));
+    
+    const subTaskDetailerOptions = detailers.map(d => ({ value: d.id, label: d.lastName }));
+
     return (
         <div className="relative">
             <div className="space-y-6">
@@ -475,14 +544,20 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                 <div className={`p-4 border rounded-lg space-y-3 ${currentTheme.altRowBg}`}>
                     <input type="text" name="taskName" value={taskData.taskName} onChange={handleChange} placeholder="Task Name" className={`text-lg font-semibold ${formElementClasses}`} />
                     <div className="grid grid-cols-2 gap-4">
-                        <select name="projectId" value={taskData.projectId} onChange={handleChange} className={formElementClasses}>
-                            <option value="">Select Project...</option>
-                            {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        <select name="detailerId" value={taskData.detailerId} onChange={handleChange} className={formElementClasses}>
-                            <option value="">Assign To...</option>
-                            {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
-                        </select>
+                        <CustomSelect
+                            placeholder="Select Project..."
+                            options={projectOptions}
+                            value={taskData.projectId}
+                            onChange={(selectedValue) => handleChange({ target: { name: 'projectId', value: selectedValue } })}
+                            currentTheme={currentTheme}
+                        />
+                        <CustomSelect
+                            placeholder="Assign To..."
+                            options={detailerOptions}
+                            value={taskData.detailerId}
+                            onChange={(selectedValue) => handleChange({ target: { name: 'detailerId', value: selectedValue } })}
+                            currentTheme={currentTheme}
+                        />
                         <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className={formElementClasses}/>
                         <p className={`p-2 text-sm ${currentTheme.subtleText}`}>Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
                     </div>
@@ -502,18 +577,14 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                         })}
                     </div>
                     <div className="flex gap-2 items-center border-t pt-4">
-                        <select
+                        <CustomSelect
+                            placeholder="Add a watcher..."
+                            options={detailerOptions}
                             value={newWatcherId}
-                            onChange={(e) => setNewWatcherId(e.target.value)}
-                            className={`flex-grow ${formElementClasses}`}
-                        >
-                            <option value="">Add a watcher...</option>
-                            {detailers.map(d => (
-                                <option key={d.id} value={d.id}>
-                                    {d.firstName} {d.lastName}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(selectedValue) => setNewWatcherId(selectedValue)}
+                            currentTheme={currentTheme}
+                            className="flex-grow"
+                        />
                         <button onClick={handleAddWatcher} className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
                             Add
                         </button>
@@ -528,7 +599,14 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                                 {editingSubTaskId === st.id ? (
                                     <div className="flex gap-2 items-center">
                                         <input type="text" name="name" value={editingSubTaskData.name} onChange={handleEditingSubTaskDataChange} className={`flex-grow ${formElementClasses}`}/>
-                                        <select name="detailerId" value={editingSubTaskData.detailerId} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}><option value="">Assignee...</option>{detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}</select>
+                                        <CustomSelect 
+                                            placeholder="Assignee..."
+                                            options={subTaskDetailerOptions}
+                                            value={editingSubTaskData.detailerId} 
+                                            onChange={(selectedValue) => handleEditingSubTaskDataChange({ target: { name: 'detailerId', value: selectedValue } })} 
+                                            className="text-sm w-32"
+                                            currentTheme={currentTheme}
+                                        />
                                         <input type="date" name="dueDate" value={editingSubTaskData.dueDate} onChange={handleEditingSubTaskDataChange} className={`text-sm ${formElementClasses}`}/>
                                         <button onClick={handleUpdateSubTask} className="px-3 py-1 bg-green-500 text-white rounded-md text-sm hover:bg-green-600">Save</button>
                                         <button onClick={handleCancelEditSubTask} className="px-3 py-1 bg-gray-400 text-white rounded-md text-sm hover:bg-gray-500">X</button>
@@ -564,10 +642,14 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                     </div>
                     <div className="flex gap-2 items-center p-2 border-t">
                         <input type="text" placeholder="New sub-task..." name="name" value={newSubTask.name} onChange={handleSubTaskChange} className={`flex-grow ${formElementClasses}`} />
-                        <select name="detailerId" value={newSubTask.detailerId} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`}>
-                            <option value="">Assignee...</option>
-                            {detailers.map(d => <option key={d.id} value={d.id}>{d.lastName}</option>)}
-                        </select>
+                        <CustomSelect 
+                            placeholder="Assignee..."
+                            options={subTaskDetailerOptions}
+                            value={newSubTask.detailerId} 
+                            onChange={(selectedValue) => handleSubTaskChange({ target: { name: 'detailerId', value: selectedValue } })} 
+                            className="text-sm w-32"
+                            currentTheme={currentTheme}
+                        />
                         <input type="date" name="dueDate" value={newSubTask.dueDate} onChange={handleSubTaskChange} className={`text-sm ${formElementClasses}`} />
                         <button onClick={handleAddSubTask} className="px-3 py-1 bg-gray-200 rounded-md text-sm hover:bg-gray-300">Add</button>
                     </div>
@@ -813,7 +895,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                              className={`${currentTheme.altRowBg} rounded-lg p-3 flex-shrink-0 flex flex-col`}
                              style={{width: 'max-content', minWidth: '16rem'}}
                          >
-                            <div className={`flex justify-between items-center mb-4 ${currentTheme.textColor}`}>
+                            <div className={`flex justify-center items-center mb-4 relative ${currentTheme.textColor}`}>
                                { editingLaneId === lane.id ? (
                                    <input
                                       type="text"
@@ -821,13 +903,13 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                       onChange={(e) => setEditingLaneName(e.target.value)}
                                       onBlur={() => handleRenameLane(lane.id)}
                                       onKeyPress={(e) => e.key === 'Enter' && handleRenameLane(lane.id)}
-                                      className={`font-semibold p-1 rounded-md border ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full`}
+                                      className={`font-semibold p-1 rounded-md border text-center ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full`}
                                       autoFocus
                                    />
                                ) : (
                                    <h2 className="font-semibold cursor-pointer" onClick={() => { setEditingLaneId(lane.id); setEditingLaneName(lane.name); }}>{lane.name}</h2>
                                )}
-                                <button onClick={() => confirmDeleteLane(lane)} className={`${currentTheme.subtleText} hover:text-red-500 disabled:opacity-20`} disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
+                                <button onClick={() => confirmDeleteLane(lane)} className={`absolute right-0 ${currentTheme.subtleText} hover:text-red-500 disabled:opacity-20`} disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
                             </div>
 
                              {lane.name === "New Requests" && (

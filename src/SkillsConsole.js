@@ -25,6 +25,8 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
+    const [draggedDiscipline, setDraggedDiscipline] = useState(null);
+    const [dragOverDiscipline, setDragOverDiscipline] = useState(null);
 
     const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
     const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
@@ -37,7 +39,12 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
     useEffect(() => {
         const employee = detailers.find(d => d.id === selectedEmployeeId);
         if (employee) {
-            setEditableEmployee({ ...employee });
+            let skills = employee.disciplineSkillsets;
+            // Backward compatibility: Convert old object format to new array format
+            if (skills && !Array.isArray(skills)) {
+                skills = Object.entries(skills).map(([name, score]) => ({ name, score }));
+            }
+            setEditableEmployee({ ...employee, disciplineSkillsets: skills || [] });
         } else {
             setEditableEmployee(null);
         }
@@ -52,11 +59,11 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
     
     const handleAddDiscipline = () => {
         if (newDiscipline && editableEmployee) {
-            const currentDisciplines = editableEmployee.disciplineSkillsets || {};
-            if (!currentDisciplines.hasOwnProperty(newDiscipline)) {
+            const currentDisciplines = editableEmployee.disciplineSkillsets || [];
+            if (!currentDisciplines.some(d => d.name === newDiscipline)) {
                 setEditableEmployee(prev => ({
                     ...prev,
-                    disciplineSkillsets: { ...(prev.disciplineSkillsets || {}), [newDiscipline]: 0 }
+                    disciplineSkillsets: [...(prev.disciplineSkillsets || []), { name: newDiscipline, score: 0 }]
                 }));
                 setNewDiscipline('');
             }
@@ -64,32 +71,85 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
     };
     
     const handleRemoveDiscipline = (disciplineToRemove) => {
-        setEditableEmployee(prev => {
-            const { [disciplineToRemove]: _, ...remaining } = prev.disciplineSkillsets;
-            return { ...prev, disciplineSkillsets: remaining };
-        });
+        setEditableEmployee(prev => ({
+            ...prev,
+            disciplineSkillsets: (prev.disciplineSkillsets || []).filter(d => d.name !== disciplineToRemove)
+        }));
     };
     
     const handleDisciplineRatingChange = (name, score) => {
         setEditableEmployee(prev => ({
             ...prev,
-            disciplineSkillsets: {
-                ...prev.disciplineSkillsets,
-                [name]: score,
-            },
+            disciplineSkillsets: (prev.disciplineSkillsets || []).map(d => 
+                d.name === name ? { ...d, score } : d
+            )
         }));
     };
 
-    const handleSaveChanges = async () => {
-        if (!db || !editableEmployee) return;
-        const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, editableEmployee.id);
-        const { id, ...dataToSave } = editableEmployee;
-        await setDoc(employeeRef, dataToSave, { merge: true });
-        showToast("Changes saved successfully!");
+    const handleDragStart = (e, disciplineName) => {
+        setDraggedDiscipline(disciplineName);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e, disciplineName) => {
+        e.preventDefault();
+        if (disciplineName !== dragOverDiscipline) {
+            setDragOverDiscipline(disciplineName);
+        }
+    };
+
+    const handleDragLeave = () => {
+        setDragOverDiscipline(null);
+    };
+
+    const handleDrop = (e, dropTargetName) => {
+        e.preventDefault();
+        if (!draggedDiscipline || draggedDiscipline === dropTargetName) {
+            setDraggedDiscipline(null);
+            setDragOverDiscipline(null);
+            return;
+        }
+
+        const skillsetsArray = [...(editableEmployee.disciplineSkillsets || [])];
+        const draggedIndex = skillsetsArray.findIndex(d => d.name === draggedDiscipline);
+        const targetIndex = skillsetsArray.findIndex(d => d.name === dropTargetName);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+            setDraggedDiscipline(null);
+            setDragOverDiscipline(null);
+            return;
+        }
+        
+        const [removed] = skillsetsArray.splice(draggedIndex, 1);
+        skillsetsArray.splice(targetIndex, 0, removed);
+        
+        const updatedEmployee = {
+            ...editableEmployee,
+            disciplineSkillsets: skillsetsArray
+        };
+
+        setEditableEmployee(updatedEmployee);
+        handleSaveChanges(updatedEmployee, false); // Autosave on reorder
+
+        setDraggedDiscipline(null);
+        setDragOverDiscipline(null);
+    };
+
+    const handleSaveChanges = async (employeeData = editableEmployee, showSuccessToast = true) => {
+        if (!db || !employeeData) return;
+        const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, employeeData.id);
+        const { id, ...dataToSave } = employeeData;
+        try {
+            await setDoc(employeeRef, dataToSave, { merge: true });
+            // Notification removed as per request
+        } catch (error) {
+             console.error("Error saving employee data:", error);
+             if (showToast) showToast("Failed to save changes.", "error");
+        }
     };
     
     return (
-        <div className={currentTheme.textColor}>
+        <div className={`${currentTheme.textColor} max-h-[75vh] overflow-y-auto hide-scrollbar-on-hover pr-4`}>
             <h2 className="text-xl font-bold mb-4">Modify Employee Skills & Info</h2>
             {!singleDetailerMode && (
                 <div className="mb-4">
@@ -146,19 +206,35 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
                             <button onClick={handleAddDiscipline} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Add Discipline</button>
                         </div>
                         <div className="space-y-4">
-                            {Object.entries(editableEmployee.disciplineSkillsets || {}).map(([name, score]) => (
-                                <div key={name} className={`p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor}`}>
+                            {(editableEmployee.disciplineSkillsets || []).map(discipline => (
+                                <div 
+                                    key={discipline.name} 
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, discipline.name)}
+                                    onDragOver={(e) => handleDragOver(e, discipline.name)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={(e) => handleDrop(e, discipline.name)}
+                                    className={`relative p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor} cursor-move ${draggedDiscipline === discipline.name ? 'opacity-50' : ''}`}
+                                >
+                                    {dragOverDiscipline === discipline.name && (
+                                        <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500 rounded-full" />
+                                    )}
                                     <div className="flex justify-between items-start">
-                                       <span className="font-medium">{name}</span>
-                                       <button onClick={() => handleRemoveDiscipline(name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                       <div className="flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                            </svg>
+                                            <span className="font-medium">{discipline.name}</span>
+                                       </div>
+                                       <button onClick={() => handleRemoveDiscipline(discipline.name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                                     </div>
-                                    <BubbleRating score={score} onScoreChange={(newScore) => handleDisciplineRatingChange(name, newScore)} currentTheme={currentTheme} />
+                                    <BubbleRating score={discipline.score} onScoreChange={(newScore) => handleDisciplineRatingChange(discipline.name, newScore)} currentTheme={currentTheme} />
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <button onClick={handleSaveChanges} className="w-full bg-green-500 text-white p-2 rounded-md hover:bg-green-600 mt-4">Save All Changes</button>
+                    <button onClick={() => handleSaveChanges()} className="w-full bg-green-500 text-white p-2 rounded-md hover:bg-green-600 mt-4">Save All Changes</button>
                 </div>
             )}
         </div>

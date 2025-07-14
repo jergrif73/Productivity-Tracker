@@ -314,7 +314,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                  </div>
              </div>
 
-            <div className={`overflow-auto border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow`}>
+            <div className={`overflow-auto border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow hide-scrollbar-on-hover`}>
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                         <tr>
@@ -342,7 +342,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                         <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleProjectExpansion(project.id)}>
                                             <div className="flex items-center">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isProjectExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
                                                 </svg>
                                                 {project.name} ({project.projectId})
                                             </div>

@@ -82,7 +82,12 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
     
     useEffect(() => {
         if (employee) {
-            setEditableEmployee({ ...employee });
+            let skills = employee.disciplineSkillsets;
+            // Backward compatibility: Convert old object format to new array format
+            if (skills && !Array.isArray(skills)) {
+                skills = Object.entries(skills).map(([name, score]) => ({ name, score }));
+            }
+            setEditableEmployee({ ...employee, disciplineSkillsets: skills || [] });
         }
     }, [employee]);
 
@@ -97,11 +102,11 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
     
     const handleAddDiscipline = () => {
         if (newDiscipline && editableEmployee) {
-            const currentDisciplines = editableEmployee.disciplineSkillsets || {};
-            if (!currentDisciplines.hasOwnProperty(newDiscipline)) {
+            const currentDisciplines = editableEmployee.disciplineSkillsets || [];
+            if (!currentDisciplines.some(d => d.name === newDiscipline)) {
                 setEditableEmployee(prev => ({
                     ...prev,
-                    disciplineSkillsets: { ...(prev.disciplineSkillsets || {}), [newDiscipline]: 0 }
+                    disciplineSkillsets: [...(prev.disciplineSkillsets || []), { name: newDiscipline, score: 0 }]
                 }));
                 setNewDiscipline('');
             }
@@ -109,25 +114,23 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
     };
     
     const handleRemoveDiscipline = (disciplineToRemove) => {
-        setEditableEmployee(prev => {
-            const { [disciplineToRemove]: _, ...remaining } = prev.disciplineSkillsets;
-            return { ...prev, disciplineSkillsets: remaining };
-        });
+        setEditableEmployee(prev => ({
+            ...prev,
+            disciplineSkillsets: (prev.disciplineSkillsets || []).filter(d => d.name !== disciplineToRemove)
+        }));
     };
     
     const handleDisciplineRatingChange = (name, score) => {
         setEditableEmployee(prev => ({
             ...prev,
-            disciplineSkillsets: {
-                ...prev.disciplineSkillsets,
-                [name]: score,
-            },
+            disciplineSkillsets: (prev.disciplineSkillsets || []).map(d => 
+                d.name === name ? { ...d, score } : d
+            )
         }));
     };
 
     const handleSaveChanges = () => {
         onSave(editableEmployee);
-        showToast("Changes saved successfully!");
         onClose();
     };
 
@@ -138,7 +141,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
 
     return (
          <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
-            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto`}>
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}>
                 <div className="flex justify-between items-center mb-4">
                      <h2 className="text-2xl font-bold">Edit Employee: {employee.firstName} {employee.lastName}</h2>
                     <button onClick={onClose} className={`text-2xl font-bold ${currentTheme.subtleText} hover:${currentTheme.textColor}`}>&times;</button>
@@ -185,13 +188,13 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
                                 <button onClick={handleAddDiscipline} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Add Discipline</button>
                             </div>
                             <div className="space-y-4">
-                                {Object.entries(editableEmployee.disciplineSkillsets || {}).map(([name, score]) => (
-                                    <div key={name} className={`p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor}`}>
+                                {(editableEmployee.disciplineSkillsets || []).map(discipline => (
+                                    <div key={discipline.name} className={`p-3 ${currentTheme.altRowBg} rounded-md border ${currentTheme.borderColor}`}>
                                         <div className="flex justify-between items-start">
-                                        <span className="font-medium">{name}</span>
-                                        <button onClick={() => handleRemoveDiscipline(name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                        <span className="font-medium">{discipline.name}</span>
+                                        <button onClick={() => handleRemoveDiscipline(discipline.name)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                                         </div>
-                                        <BubbleRating score={score} onScoreChange={(newScore) => handleDisciplineRatingChange(name, newScore)} currentTheme={currentTheme} />
+                                        <BubbleRating score={discipline.score} onScoreChange={(newScore) => handleDisciplineRatingChange(discipline.name, newScore)} currentTheme={currentTheme} />
                                     </div>
                                 ))}
                             </div>
@@ -323,18 +326,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
         const tradeHoursRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, tradeToDelete);
         await deleteDoc(tradeHoursRef);
-        showToast(`'${tradeToDelete}' removed from project.`);
     };
-
-    // Removed unused handleMouseDown function
-    // const handleMouseDown = (trade, week) => {
-    //     setDragState({
-    //         startTrade: trade,
-    //         startWeek: week,
-    //         fillValue: weeklyHours[trade]?.[week] || 0,
-    //         selection: {}
-    //     });
-    // };
 
     const handleMouseEnter = (trade, week) => {
         if (!dragState || dragState.startTrade !== trade) return;
@@ -433,7 +425,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     <button onClick={() => setStartDate(new Date())} className={`p-1 px-2 text-xs border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
                     <button onClick={() => handleDateNav(28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
                 </div>
-                <div className="overflow-x-auto hide-scrollbar-on-hover"> {/* Added hide-scrollbar-on-hover class */}
+                <div className="overflow-x-auto hide-scrollbar-on-hover">
                     <table className="min-w-full text-sm text-center border-collapse">
                         <thead className="sticky top-0 z-10">
                             <tr>
@@ -544,10 +536,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 status: newStatus,
                 archived: newStatus === "Archive"
             });
-            showToast(`Project status updated to ${newStatus}.`);
         } catch (error) {
             console.error("Error updating project status:", error);
-            showToast("Failed to update status.", "error");
         }
     };
 
@@ -597,15 +587,14 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         if (!db) return;
         if (type === 'employee') {
             if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.employeeId) {
-                showToast('Please fill all employee fields.', 'error');
+                console.error('Please fill all employee fields.');
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, skills: {}, disciplineSkillsets: {} });
             setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
-            showToast('Employee added.');
         } else if (type === 'project') {
             if (!newProject.name || !newProject.projectId) {
-                showToast('Please fill all project fields.', 'error');
+                console.error('Please fill all project fields.');
                 return;
             }
             const payload = {
@@ -618,14 +607,12 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             };
             await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), payload);
             setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
-            showToast('Project added.');
         }
     };
 
     const handleDelete = async (type, id) => {
         const collectionName = type === 'employee' ? 'detailers' : 'projects';
         await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
-        showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
         setConfirmAction(null);
     };
     
@@ -657,7 +644,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         });
         setEditingProjectId(null);
         setEditingProjectData(null);
-        showToast('Project updated successfully.');
     };
 
     const handleUpdateEmployee = async (employeeData) => {
@@ -745,7 +731,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             exit={{ opacity: 0 }}
                         >
                             {/* --- Sticky Header --- */}
-                            <div className={`py-2`}> {/* Removed sticky classes */}
+                            <div className={`py-2`}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Employee Header */}
                                     <TutorialHighlight tutorialKey="manageEmployees">
@@ -789,7 +775,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             </div>
 
                             {/* --- Scrollable Content --- */}
-                            {/* Added hide-scrollbar-on-hover class */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover"> 
                                 {/* Employee Content */}
                                 <div>

@@ -317,7 +317,7 @@ const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReorder, cur
 
     return (
         <>
-            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
+            <div className="space-y-2 max-h-96 overflow-y-auto mb-4 hide-scrollbar-on-hover">
                 {(mainItems || []).map((item, index) => (
                     <div 
                         key={item.id} 
@@ -569,7 +569,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                     exit="exit"
                     className="overflow-hidden"
                 >
-                    <div className="overflow-x-auto" onClick={e => e.stopPropagation()}>
+                    <div className="overflow-x-auto hide-scrollbar-on-hover" onClick={e => e.stopPropagation()}>
                         <table className="min-w-full text-sm">
                             <thead>
                                 <tr className={currentTheme.altRowBg}>
@@ -901,14 +901,12 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         handleSaveData(dataToSave);
     };
 
-    // Modified to accept groupKey as a parameter
     const calculateGroupTotals = useCallback((activities, project, groupKey) => {
         return activities.reduce((acc, activity) => {
             const estHours = Number(activity?.estimatedHours || 0);
             const usedHours = Number(activity?.hoursUsed || 0);
             const percentComplete = Number(activity?.percentComplete || 0);
 
-            // Use the passed groupKey
             const useBimRate = groupKey === 'bim' || activity.description === "Project Setup";
             const rateToUse = useBimRate ? (project.bimBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
             
@@ -929,8 +927,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         if (!projectData?.activities) return { estimated: 0, used: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 };
         const allActivities = Object.values(projectData.activities).flat();
         
-        // Pass a generic groupKey or adjust logic if BIM rate calculation isn't needed here
-        const totals = calculateGroupTotals(allActivities, project, 'overall'); // Pass a placeholder or actual groupKey if needed
+        const totals = calculateGroupTotals(allActivities, project, 'overall');
 
         return {
             estimated: totals.estimated,
@@ -947,14 +944,12 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         const allTotals = {};
         for(const group in projectData.activities) {
             const activities = projectData.activities[group];
-            // Pass the current group as groupKey
             const totals = calculateGroupTotals(activities, project, group); 
             
             const totalBudget = totals.budget;
             const weightedPercentComplete = activities.reduce((acc, act) => {
                 const estHours = Number(act.estimatedHours) || 0;
                 const percent = Number(act.percentComplete) || 0;
-                // Ensure 'group' is passed as groupKey here too if needed for rate calculation
                 const rate = act.description.toUpperCase().includes('BIM') ? (project.bimBlendedRate || project.blendedRate) : project.blendedRate;
                 const actBudget = estHours * rate;
                 if (totalBudget > 0) {
@@ -1020,7 +1015,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 <>
                     <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Moved TutorialHighlight to wrap the entire financial forecast section */}
                         <TutorialHighlight tutorialKey="financialForecast">
                             <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                                 <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
@@ -1049,7 +1043,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                 </AnimatePresence>
                             </div>
                         </TutorialHighlight>
-                         {/* Highlight for Budget Impact Log */}
                         <TutorialHighlight tutorialKey="budgetImpactLog">
                             <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                                 <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
@@ -1082,7 +1075,6 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 </>
             )}
 
-            {/* Project Dashboard Link - now outside Taskmaster-specific block */}
             {project.dashboardUrl && (
                 <TutorialHighlight tutorialKey="projectDashboardLink">
                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>
@@ -1326,7 +1318,6 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 </div>
             </div>
             </TutorialHighlight>
-            {/* Added hide-scrollbar-on-hover to the main scrollable div */}
             <div className="flex-grow overflow-y-auto space-y-4 pr-4 hide-scrollbar-on-hover">
                 {filteredProjects.map((p, index) => {
                     const isExpanded = expandedProjectId === p.id;
