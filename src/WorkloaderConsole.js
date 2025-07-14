@@ -333,43 +333,40 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
     };
 
-    // New useEffect to handle initial selection from Team Console
+    // useEffect to handle initial selection from Team Console
     useEffect(() => {
-        // Only trigger if initialSelectedEmployeeInWorkloader is set AND employeeGroupedData is loaded
         if (initialSelectedEmployeeInWorkloader && employeeGroupedData.length > 0) {
             const employeeExists = employeeGroupedData.some(e => e.id === initialSelectedEmployeeInWorkloader);
             if (employeeExists) {
-                setGroupBy('employee'); // Ensure grouping by employee
-                setExpandedIds(new Set([initialSelectedEmployeeInWorkloader])); // Expand only the relevant employee
-                setInitialSelectedEmployeeInWorkloader(null); // Clear after use
+                setGroupBy('employee'); 
+                setExpandedIds(new Set([initialSelectedEmployeeInWorkloader])); 
+                setInitialSelectedEmployeeInWorkloader(null); 
             } else {
-                setInitialSelectedEmployeeInWorkloader(null); // Clear if employee not found
+                setInitialSelectedEmployeeInWorkloader(null);
             }
         }
     }, [initialSelectedEmployeeInWorkloader, employeeGroupedData, setInitialSelectedEmployeeInWorkloader]);
 
-    // New useEffect to handle initial selection from Project Console
+    // useEffect to handle initial selection from Project Console
     useEffect(() => {
         if (initialSelectedProjectInWorkloader && projectGroupedData.length > 0) {
             const projectExists = projectGroupedData.some(p => p.id === initialSelectedProjectInWorkloader);
             if (projectExists) {
                 setGroupBy('project');
                 setExpandedIds(new Set([initialSelectedProjectInWorkloader]));
-                setInitialSelectedProjectInWorkloader(null); // Clear after use
+                setInitialSelectedProjectInWorkloader(null); 
             } else {
                 setInitialSelectedProjectInWorkloader(null);
             }
         }
     }, [initialSelectedProjectInWorkloader, projectGroupedData, setInitialSelectedProjectInWorkloader]);
 
-    // New function to handle navigation to Project Console
+    // Function to handle navigation to Project Console
     const handleGoToProjectDetails = (e, projectId) => {
-        e.stopPropagation(); // Prevent the parent <th>'s onClick from firing
-        console.log('handleGoToProjectDetails called with projectId:', projectId); // Debug log
+        e.stopPropagation();
         if (isTaskmaster) {
             setInitialSelectedProjectInProjectConsole(projectId);
-            setView('projects'); // Navigate to Project Console
-            console.log('Navigating to projects view with initial project:', projectId); // Debug log
+            setView('projects');
         }
     };
 
@@ -410,7 +407,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                         )}
                     </div>
                     <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                        {areAllExpanded ? 'Collapse All' : 'Collapse All'}
+                        {areAllExpanded ? 'Collapse All' : 'Expand All'}
                     </button>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
@@ -451,7 +448,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                 <tbody key={project.id}>
                                     <tr>
                                         <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
-                                            <div className="flex items-center justify-between"> {/* Added justify-between */}
+                                            <div className="flex items-center justify-between">
                                                 <div className="flex items-center">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
@@ -528,9 +525,8 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             return (
                             <tbody key={employee.id}>
                                 <tr>
-                                    {/* Restored toggleExpansion for employee group headers */}
                                     <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(employee.id)}>
-                                        <div className="flex items-center justify-between"> {/* Added justify-between */}
+                                        <div className="flex items-center justify-between">
                                             <div className="flex items-center">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
@@ -540,7 +536,6 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                             {isTaskmaster && (
                                                 <button
                                                     onClick={(e) => handleGoToEmployeeAssignments(e, employee.id)}
-                                                    // Changed button styling to be more subtle
                                                     className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
                                                 >
                                                     Projects Assignment

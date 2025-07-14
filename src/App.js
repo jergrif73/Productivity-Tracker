@@ -54,12 +54,10 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
     const [tutorialStep, setTutorialStep] = useState(null);
     const [currentTutorial, setCurrentTutorial] = useState(null);
     const [stepIndex, setStepIndex] = useState(0);
-    // Removed highlightedElementRect state and related logic
 
     const startTutorial = (view) => {
         const fullTutorial = tutorialContent[view];
         if (fullTutorial && fullTutorial.steps.length > 0) {
-            // Filter steps based on the current user's access level
             const filteredSteps = fullTutorial.steps.filter(step => 
                 !step.roles || step.roles.includes(accessLevel)
             );
@@ -120,7 +118,6 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
         nextStep,
         prevStep,
         setStepByKey,
-        // Removed highlightedElementRect from context value
     };
 
     return (
@@ -147,7 +144,6 @@ export const TutorialHighlight = ({ tutorialKey, children, className, style }) =
             className={`${className} ${isTutorialActive ? 'relative cursor-pointer' : ''}`} 
             style={style}
             onClick={handleClick}
-            // Removed data-tutorial-key as it's no longer needed by the pointer
         >
             {children}
             {isHighlighted && (
@@ -163,41 +159,35 @@ export const TutorialHighlight = ({ tutorialKey, children, className, style }) =
     );
 };
 
-// Removed TutorialPointer component entirely
-// const TutorialPointer = ...
-
-
 const TutorialWidget = () => {
-    const { isTutorialActive, tutorialStep, stepIndex, totalSteps, endTutorial, nextStep, prevStep } = useTutorial(); // Removed highlightedElementRect
-    const widgetRef = useRef(null); // Ref for the tutorial widget itself
+    const { isTutorialActive, tutorialStep, stepIndex, totalSteps, endTutorial, nextStep, prevStep } = useTutorial();
+    const widgetRef = useRef(null);
 
     if (!isTutorialActive || !tutorialStep) return null;
 
-    // Framer Motion variants for the tutorial box
     const widgetVariants = {
-        hidden: { opacity: 0, y: 50, scale: 0.8, rotate: -5 }, // Added rotate
+        hidden: { opacity: 0, y: 50, scale: 0.8, rotate: -5 },
         visible: { 
             opacity: 1, 
             y: 0, 
             scale: 1, 
-            rotate: 0, // Reset rotation
+            rotate: 0,
             transition: { 
                 type: "spring", 
-                stiffness: 200, // Adjusted stiffness for more jiggle
-                damping: 8, // Adjusted damping for more jiggle
-                mass: 1, // Added mass
-                when: "beforeChildren", // Animate widget first
+                stiffness: 200,
+                damping: 8,
+                mass: 1,
+                when: "beforeChildren",
                 ease: "easeOut"
             } 
         },
-        exit: { opacity: 0, y: 50, scale: 0.8, rotate: 5, transition: { duration: 0.2 } } // Added rotate for exit
+        exit: { opacity: 0, y: 50, scale: 0.8, rotate: 5, transition: { duration: 0.2 } }
     };
 
-    // Variants for staggered content
     const contentVariants = {
-        initial: { opacity: 0, y: 10 }, // Added initial state for content
-        animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }, // Added animate state for content
-        exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } } // Added exit state for content
+        initial: { opacity: 0, y: 10 },
+        animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+        exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } }
     };
 
 
@@ -212,13 +202,12 @@ const TutorialWidget = () => {
                 exit="exit"
             >
                 <div className="flex justify-between items-center mb-3">
-                    <AnimatePresence mode="wait"> {/* Use AnimatePresence for content transitions */}
+                    <AnimatePresence mode="wait">
                         <motion.h3 key={tutorialStep.key + "-title"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-lg font-bold">{tutorialStep.title}</motion.h3>
                     </AnimatePresence>
                     <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
                 </div>
-                {/* Removed h-40 and overflow-y-auto to allow content to dictate height */}
-                <AnimatePresence mode="wait"> {/* Use AnimatePresence for content transitions */}
+                <AnimatePresence mode="wait">
                     <motion.p key={tutorialStep.key + "-content"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-sm text-gray-300 mb-4">{tutorialStep.content}</motion.p>
                 </AnimatePresence>
                 <div className="flex justify-between items-center">
@@ -229,7 +218,6 @@ const TutorialWidget = () => {
                     </div>
                 </div>
             </motion.div>
-            {/* Removed TutorialPointer rendering */}
         </>
     );
 };
@@ -354,7 +342,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
 };
 
 // --- Main Application Component ---
-const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout }) => { // Receive props
+const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout }) => {
     const [view, setView] = useState('projects');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
@@ -367,11 +355,11 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
-    const [viewingSkillsFor, setViewingSkillsFor] = useState(null); // State defined here
-    const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null); // New state for navigation
-    const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null); // New state for Workloader navigation
-    const [initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole] = useState(null); // New state for Project Console navigation
-    const [initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader] = useState(null); // New state for Project -> Workloader navigation
+    const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
+    const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
+    const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
+    const [initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole] = useState(null);
+    const [initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader] = useState(null);
     const { startTutorial, isTutorialActive } = useContext(TutorialContext);
 
 
@@ -383,7 +371,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         }, 3000);
     };
 
-    const [toasts, setToasts] = useState([]); // Define toasts state here
+    const [toasts, setToasts] = useState([]);
 
     const themeClasses = {
         light: { mainBg: 'bg-gray-100', headerBg: 'bg-white', cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600', borderColor: 'border-gray-200', altRowBg: 'bg-blue-50', navBg: 'bg-gray-200', navBtn: 'text-gray-600 hover:bg-gray-300', navBtnActive: 'bg-white text-blue-600 shadow', consoleBg: 'bg-gray-50', inputBg: 'bg-white', inputText: 'text-gray-900', inputBorder: 'border-gray-300', buttonBg: 'bg-gray-200', buttonText: 'text-gray-800' },
@@ -448,7 +436,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             }, err => console.error(`Error fetching ${name}:`, err));
         });
 
-        setTimeout(() => setLoading(false), 1000); // Simulate loading for skeleton visibility
+        setTimeout(() => setLoading(false), 1000);
 
         return () => {
             unsubscribers.forEach(unsub => unsub());
@@ -522,10 +510,8 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 
     return (
         <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen ${isTutorialActive ? 'tutorial-active' : ''}`}>
-            {/* Global Scrollbar Styles */}
             <style>
                 {`
-                /* Hide scrollbar by default */
                 .hide-scrollbar-on-hover::-webkit-scrollbar {
                     width: 8px;
                     height: 8px;
@@ -534,16 +520,15 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                     background-color: transparent;
                 }
                 .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
-                    background-color: rgba(156, 163, 175, 0.5); /* gray-400 with opacity */
+                    background-color: rgba(156, 163, 175, 0.5);
                     border-radius: 4px;
                 }
                 .hide-scrollbar-on-hover::-webkit-scrollbar-track {
                     background: transparent;
                 }
                 .hide-scrollbar-on-hover:hover::-webkit-scrollbar-track {
-                    background: rgba(0, 0, 0, 0.1); /* subtle track on hover */
+                    background: rgba(0, 0, 0, 0.1);
                 }
-                /* For Firefox */
                 .hide-scrollbar-on-hover {
                     scrollbar-width: thin;
                     scrollbar-color: transparent transparent;
@@ -565,7 +550,6 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                     <TutorialHighlight tutorialKey={button.id} key={button.id}>
                                         <button
                                             onClick={() => handleNavClick(button.id)}
-                                            // Added w-32 for fixed width
                                             className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md transition-colors w-32 ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
                                         >
                                             {button.icon}
@@ -604,7 +588,6 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                             {renderView()}
                         </motion.div>
                     </AnimatePresence>
-                    {/* Moved Modal rendering inside AppContent */}
                     {viewingSkillsFor && (
                         <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
                             <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
@@ -620,7 +603,6 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 };
 
 const App = () => {
-    // Moved accessLevel state and login/logout logic here
     const [accessLevel, setAccessLevel] = useState('default');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
@@ -648,12 +630,11 @@ const App = () => {
         setIsLoggedIn(false);
     };
 
-    // Provide accessLevel and setAccessLevel via AuthContext
     const authContextValue = useMemo(() => ({ accessLevel, setAccessLevel }), [accessLevel]);
 
     return (
         <AuthContext.Provider value={authContextValue}>
-            <TutorialProvider accessLevel={accessLevel}> {/* Pass accessLevel directly as prop */}
+            <TutorialProvider accessLevel={accessLevel}>
                 <AppContent 
                     accessLevel={accessLevel} 
                     isLoggedIn={isLoggedIn} 
