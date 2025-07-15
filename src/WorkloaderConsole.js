@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef, useContext } from 'react';
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { NavigationContext } from './App'; // Import the NavigationContext
 
 // Note: The Tooltip component would also be moved to its own file in a full refactor.
 const Tooltip = ({ text, children }) => {
@@ -69,7 +70,9 @@ const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, 
 };
 
 
-const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedEmployeeInTeamConsole, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, setInitialProjectConsoleFilter, initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader }) => {
+const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setTheme, accessLevel, currentTheme, appId, showToast, initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader, initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader }) => {
+    const { navigateToTeamConsoleForEmployee, navigateToProjectConsoleForProject } = useContext(NavigationContext);
+
     const [startDate, setStartDate] = useState(new Date());
     const [groupBy, setGroupBy] = useState('project');
     const [sortBy, setSortBy] = useState('projectId');
@@ -81,7 +84,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const [expandedIds, setExpandedIds] = useState(new Set());
 
     const isTaskmaster = accessLevel === 'taskmaster';
-    
+
     const tradeColorMapping = {
         Piping: { bg: 'bg-green-500', text: 'text-white' },
         Duct: { bg: 'bg-yellow-400', text: 'text-black' },
@@ -91,7 +94,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         Structural: { bg: 'bg-amber-700', text: 'text-white' },
         "GIS/GPS": { bg: 'bg-teal-500', text: 'text-white' },
     };
-    
+
     const legendColorMapping = {
         Piping: 'bg-green-500',
         Duct: 'bg-yellow-400',
@@ -113,7 +116,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
         return weeks;
     };
-    
+
     const weekDates = useMemo(() => getWeekDates(startDate), [startDate]);
 
     const projectGroupedData = useMemo(() => {
@@ -163,6 +166,31 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             });
     }, [detailers, assignments, projects, sortBy, searchTerm]);
 
+    const displayableWeekDates = useMemo(() => {
+        const allAssignments = groupBy === 'project' 
+            ? projectGroupedData.flatMap(p => p.assignments)
+            : employeeGroupedData.flatMap(e => e.assignments);
+        
+        const activeWeekStrings = new Set();
+        
+        allAssignments.forEach(ass => {
+            const assignStart = new Date(ass.startDate);
+            const assignEnd = new Date(ass.endDate);
+
+            for (const weekStart of weekDates) {
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                if (assignStart <= weekEnd && assignEnd >= weekStart) {
+                    activeWeekStrings.add(weekStart.toISOString().split('T')[0]);
+                }
+            }
+        });
+
+        return weekDates.filter(week => activeWeekStrings.has(week.toISOString().split('T')[0]));
+
+    }, [weekDates, groupBy, projectGroupedData, employeeGroupedData]);
+
+
     const handleDateNav = (offset) => {
         setStartDate(prev => {
             const newDate = new Date(prev);
@@ -170,7 +198,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             return newDate;
         });
     };
-    
+
     const getWeekDisplay = (start) => {
         const end = new Date(start);
         end.setDate(start.getDate() + 6);
@@ -193,11 +221,11 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             setEditingCell(null);
             return;
         }
-    
+
         const batch = writeBatch(db);
         const assignmentsRef = collection(db, `artifacts/${appId}/public/data/assignments`);
-    
-        const changeDate = new Date(weekDates[editWeekIndex]);
+
+        const changeDate = new Date(displayableWeekDates[editWeekIndex]);
         changeDate.setUTCHours(0,0,0,0);
 
         const originalStartDate = new Date(originalAssignment.startDate);
@@ -205,9 +233,9 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
         const originalEndDate = new Date(originalAssignment.endDate);
         originalEndDate.setUTCHours(0,0,0,0);
-    
+
         batch.delete(doc(assignmentsRef, originalAssignment.id));
-    
+
         const dayBeforeChange = new Date(changeDate);
         dayBeforeChange.setUTCDate(dayBeforeChange.getUTCDate() - 1);
         if (originalStartDate < changeDate) {
@@ -215,11 +243,11 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             delete beforeSegment.id;
             batch.set(doc(assignmentsRef), beforeSegment);
         }
-    
+
         const changeWeekEndDate = new Date(changeDate);
         changeWeekEndDate.setUTCDate(changeWeekEndDate.getUTCDate() + 6);
         const finalEndDateForChangedSegment = changeWeekEndDate < originalEndDate ? changeWeekEndDate : originalEndDate;
-        
+
         const changedSegment = {
             ...originalAssignment,
             ...updates,
@@ -228,7 +256,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         };
         delete changedSegment.id;
         batch.set(doc(assignmentsRef), changedSegment);
-    
+
         const dayAfterChangeWeek = new Date(changeWeekEndDate);
         dayAfterChangeWeek.setUTCDate(dayAfterChangeWeek.getUTCDate() + 1);
         if (originalEndDate > changeWeekEndDate) {
@@ -236,7 +264,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             delete afterSegment.id;
             batch.set(doc(assignmentsRef), afterSegment);
         }
-    
+
         try {
             await batch.commit();
             showToast("Assignment updated and split.", "success");
@@ -254,9 +282,9 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         const { assignment } = dragFillStart;
         const { weekIndex: endIndex } = dragFillEnd;
 
-        const newEndDate = new Date(weekDates[endIndex]);
+        const newEndDate = new Date(displayableWeekDates[endIndex]);
         newEndDate.setDate(newEndDate.getDate() + 6);
-        
+
         const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignment.id);
         try {
             await updateDoc(assignmentRef, {
@@ -268,8 +296,8 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
         setDragFillStart(null);
         setDragFillEnd(null);
-    }, [dragFillStart, dragFillEnd, weekDates, appId, db]);
-    
+    }, [dragFillStart, dragFillEnd, displayableWeekDates, appId, db]);
+
     const toggleExpansion = (id) => {
         setExpandedIds(prev => {
             const newSet = new Set(prev);
@@ -326,47 +354,42 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     }, []);
 
     const handleGoToEmployeeAssignments = (e, employeeId) => {
-        e.stopPropagation(); // Prevent the parent <th>'s onClick from firing
+        e.stopPropagation();
         if (isTaskmaster) {
-            setInitialSelectedEmployeeInTeamConsole(employeeId);
-            setView('detailers'); // Navigate to Team Console
+            navigateToTeamConsoleForEmployee(employeeId);
         }
     };
 
-    // useEffect to handle initial selection from Team Console
     useEffect(() => {
         if (initialSelectedEmployeeInWorkloader && employeeGroupedData.length > 0) {
             const employeeExists = employeeGroupedData.some(e => e.id === initialSelectedEmployeeInWorkloader);
             if (employeeExists) {
-                setGroupBy('employee'); 
-                setExpandedIds(new Set([initialSelectedEmployeeInWorkloader])); 
-                setInitialSelectedEmployeeInWorkloader(null); 
+                setGroupBy('employee');
+                setExpandedIds(new Set([initialSelectedEmployeeInWorkloader]));
+                setInitialSelectedEmployeeInWorkloader(null);
             } else {
                 setInitialSelectedEmployeeInWorkloader(null);
             }
         }
     }, [initialSelectedEmployeeInWorkloader, employeeGroupedData, setInitialSelectedEmployeeInWorkloader]);
 
-    // useEffect to handle initial selection from Project Console
     useEffect(() => {
         if (initialSelectedProjectInWorkloader && projectGroupedData.length > 0) {
             const projectExists = projectGroupedData.some(p => p.id === initialSelectedProjectInWorkloader);
             if (projectExists) {
                 setGroupBy('project');
                 setExpandedIds(new Set([initialSelectedProjectInWorkloader]));
-                setInitialSelectedProjectInWorkloader(null); 
+                setInitialSelectedProjectInWorkloader(null);
             } else {
                 setInitialSelectedProjectInWorkloader(null);
             }
         }
     }, [initialSelectedProjectInWorkloader, projectGroupedData, setInitialSelectedProjectInWorkloader]);
 
-    // Function to handle navigation to Project Console
-    const handleGoToProjectDetails = (e, projectId, projectName) => { // Added projectName
+    const handleGoToProjectDetails = (e, projectId, projectName) => {
         e.stopPropagation();
         if (isTaskmaster) {
-            setInitialProjectConsoleFilter(projectName); // Set the project name for filtering
-            setView('projects');
+            navigateToProjectConsoleForProject(projectName);
         }
     };
 
@@ -429,7 +452,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             </th>
                             <th className={`p-1 font-semibold w-11 min-w-[44px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>Trade</th>
                             <th className={`p-1 font-semibold w-9 min-w-[36px] border ${currentTheme.borderColor} ${currentTheme.textColor}`}>%</th>
-                            {weekDates.map(date => {
+                            {displayableWeekDates.map(date => {
                                 const weekStart = new Date(date);
                                 const weekEnd = new Date(weekStart);
                                 weekEnd.setDate(weekStart.getDate() + 6);
@@ -447,7 +470,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             return (
                                 <tbody key={project.id}>
                                     <tr>
-                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
+                                        <th colSpan={3 + displayableWeekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -457,7 +480,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                 </div>
                                                 {isTaskmaster && (
                                                     <button
-                                                        onClick={(e) => handleGoToProjectDetails(e, project.id, project.name)} // Pass project.name
+                                                        onClick={(e) => handleGoToProjectDetails(e, project.id, project.name)}
                                                         className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
                                                     >
                                                         Project Details
@@ -468,12 +491,23 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                     </tr>
                                     {isExpanded && project.assignments.map(assignment => {
                                         const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
+                                        const isRowVisibleInCurrentView = displayableWeekDates.some(weekStart => {
+                                            const weekEnd = new Date(weekStart);
+                                            weekEnd.setDate(weekStart.getDate() + 6);
+                                            const assignStart = new Date(assignment.startDate);
+                                            const assignEnd = new Date(assignment.endDate);
+                                            return assignStart <= weekEnd && assignEnd >= weekStart;
+                                        });
+
+                                        if (!isRowVisibleInCurrentView) {
+                                            return null;
+                                        }
                                         return (
                                             <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
                                                 <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
                                                 <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
                                                 <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
-                                                {weekDates.map((weekStart, weekIndex) => {
+                                                {displayableWeekDates.map((weekStart, weekIndex) => {
                                                     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
                                                     const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
                                                     let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
@@ -487,7 +521,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                     }
 
                                                     return (
-                                                        <td key={weekStart.toISOString()} 
+                                                        <td key={weekStart.toISOString()}
                                                             className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
                                                             onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
                                                             onClick={(e) => handleCellClick(e, assignment, weekIndex)}
@@ -497,7 +531,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                 <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
                                                                     <span>{assignment.allocation}%</span>
                                                                     {isTaskmaster && isAssigned && (
-                                                                        <div 
+                                                                        <div
                                                                             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                             onMouseDown={(e) => {
                                                                                 e.preventDefault(); e.stopPropagation();
@@ -525,7 +559,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             return (
                             <tbody key={employee.id}>
                                 <tr>
-                                    <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(employee.id)}>
+                                    <th colSpan={3 + displayableWeekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(employee.id)}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -546,26 +580,37 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                 </tr>
                                 {isExpanded && employee.assignments.map(assignment => {
                                     const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
+                                    const isRowVisibleInCurrentView = displayableWeekDates.some(weekStart => {
+                                        const weekEnd = new Date(weekStart);
+                                        weekEnd.setDate(weekStart.getDate() + 6);
+                                        const assignStart = new Date(assignment.startDate);
+                                        const assignEnd = new Date(assignment.endDate);
+                                        return assignStart <= weekEnd && assignEnd >= weekStart;
+                                    });
+
+                                    if (!isRowVisibleInCurrentView) {
+                                        return null;
+                                    }
                                     return (
                                         <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
                                             <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.projectName}</td>
                                             <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
                                             <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
-                                            {weekDates.map((weekStart, weekIndex) => {
+                                            {displayableWeekDates.map((weekStart, weekIndex) => {
                                                 const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
                                                 const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
                                                 let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
                                                 const tooltipText = isAssigned ? `Project: ${assignment.projectName}` : '';
-                                                
+
                                                 let isFillHighlighted = false;
                                                 if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
                                                     const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex); 
+                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex);
                                                     if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
                                                 }
 
                                                 return (
-                                                    <td key={weekStart.toISOString()} 
+                                                    <td key={weekStart.toISOString()}
                                                         className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
                                                         onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
                                                         onClick={(e) => handleCellClick(e, assignment, weekIndex)}
@@ -575,7 +620,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                             <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
                                                                 <span>{assignment.allocation}%</span>
                                                                 {isTaskmaster && isAssigned && (
-                                                                    <div 
+                                                                    <div
                                                                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                         onMouseDown={(e) => {
                                                                             e.preventDefault(); e.stopPropagation();
@@ -601,7 +646,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             </div>
             {editingCell && (
                 <div ref={popupRef}>
-                    <AssignmentEditPopup 
+                    <AssignmentEditPopup
                         assignment={editingCell.assignment}
                         detailer={detailers.find(d => d.id === editingCell.assignment.detailerId)}
                         position={editingCell.position}

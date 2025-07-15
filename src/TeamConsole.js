@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Import useCallback
+import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { collection, doc, addDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NavigationContext } from './App'; // Import the new context
 
 // --- Helper Components ---
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
@@ -19,7 +20,6 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, curren
     );
 };
 
-// Moved outside TeamConsole for better scoping and reusability
 const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete, currentTheme }) => {
     const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
@@ -138,16 +138,15 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-// Added default empty functions for setView and setInitialSelectedEmployeeInWorkloader
-const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel, setView = () => console.warn("setView prop is missing or not a function in EmployeeDetailPanel"), setInitialSelectedEmployeeInWorkloader = () => console.warn("setInitialSelectedEmployeeInWorkloader prop is missing or not a function in EmployeeDetailPanel") }) => {
-    const handleGoToEmployeeWorkloader = useCallback((e, employeeId) => {
-        e.stopPropagation(); // Prevent any parent clicks
+const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel }) => {
+    const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
+
+    const handleGoToEmployeeWorkloader = (e, employeeId) => {
+        e.stopPropagation();
         if (accessLevel === 'taskmaster') {
-            // Call the function directly, as it's guaranteed to be a function now
-            setInitialSelectedEmployeeInWorkloader(employeeId);
-            setView('workloader'); // Navigate to Workloader Console
+            navigateToWorkloaderForEmployee(employeeId);
         }
-    }, [accessLevel, setInitialSelectedEmployeeInWorkloader, setView]); // Dependencies for useCallback
+    };
 
     return (
         <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
@@ -188,8 +187,7 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
 };
 
 
-// TeamConsole component remains unchanged as the issue was in EmployeeDetailPanel's prop handling
-const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, setView, setInitialSelectedEmployeeInWorkloader, accessLevel }) => {
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, accessLevel, setInitialSelectedEmployeeInWorkloader }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     const [viewMode, setViewMode] = useState('condensed');
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
@@ -197,25 +195,20 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [searchTerm, setSearchTerm] = useState('');
     const [allTrades, setAllTrades] = useState([]);
     const [activeTrades, setActiveTrades] = useState([]);
+    const { navigateToView } = useContext(NavigationContext);
 
-    // Effect to handle initial selection from WorkloaderConsole - Modified to re-include setInitialSelectedEmployeeInWorkloader
+
     useEffect(() => {
-        // Only attempt to set if initialSelectedEmployeeInTeamConsole is present
-        // AND detailers/assignments data are loaded.
-        if (initialSelectedEmployeeInTeamConsole && detailers.length > 0 && assignments.length > 0) {
-            // Verify the employee exists in the loaded detailers list
+        if (initialSelectedEmployeeInTeamConsole && detailers.length > 0) {
             const employeeExists = detailers.some(d => d.id === initialSelectedEmployeeInTeamConsole);
             if (employeeExists) {
                 setSelectedEmployeeId(initialSelectedEmployeeInTeamConsole);
-                // Clear the initial selection after successful use to prevent re-triggering
-                setInitialSelectedEmployeeInTeamConsole(null); 
+                setInitialSelectedEmployeeInTeamConsole(null);
             } else {
-                // If employee ID from initial selection doesn't exist in loaded data,
-                // clear the initial selection to avoid infinite loops or stale state.
                 setInitialSelectedEmployeeInTeamConsole(null);
             }
         }
-    }, [initialSelectedEmployeeInTeamConsole, detailers, assignments, setInitialSelectedEmployeeInTeamConsole]); // Depend on detailers and assignments
+    }, [initialSelectedEmployeeInTeamConsole, detailers, setInitialSelectedEmployeeInTeamConsole]);
 
     useEffect(() => {
         const trades = new Set();
@@ -331,7 +324,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                         currentWeekAllocation += Number(ass.allocation);
                     }
                 });
-                
+
                 const skills = employee.disciplineSkillsets;
                 let mainTrade = 'Uncategorized';
                 if (Array.isArray(skills) && skills.length > 0) {
@@ -364,7 +357,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         if (!selectedEmployeeId) return null;
         const employeeData = detailers.find(e => e.id === selectedEmployeeId);
         if (!employeeData) return null;
-        
+
         const employeeAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
         return {...employeeData, assignments: employeeAssignments};
 
@@ -379,7 +372,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 </div>
                  <div className="flex items-center gap-2 flex-wrap">
                     {allTrades.map(trade => (
-                        <button 
+                        <button
                             key={trade}
                             onClick={() => handleTradeFilterToggle(trade)}
                             className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
@@ -387,7 +380,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                             {trade}
                         </button>
                     ))}
-                    <button 
+                    <button
                         onClick={handleSelectAllTrades}
                         className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === allTrades.length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                     >
@@ -494,8 +487,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                     currentTheme={currentTheme}
                                     db={db}
                                     accessLevel={accessLevel}
-                                    setView={setView}
-                                    setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader}
                                 />
                             </motion.div>
                         ) : (

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
 import { doc, onSnapshot, setDoc, collection, getDocs } from 'firebase/firestore';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TutorialHighlight } from './App'; // Import TutorialHighlight
+import { TutorialHighlight, NavigationContext } from './App'; // Import TutorialHighlight and NavigationContext
 
 const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
@@ -623,7 +623,8 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
 });
 
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedProjectInWorkloader }) => {
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast, setInitialSelectedProjectInWorkloader }) => {
+    const { navigateToView } = useContext(NavigationContext);
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [collapsedSections, setCollapsedSections] = useState({ budgetLog: true, financialForecast: true, mainsManagement: true, actionTracker: true });
@@ -985,7 +986,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         e.stopPropagation();
         if (accessLevel === 'taskmaster') {
             setInitialSelectedProjectInWorkloader(projectId);
-            setView('workloader');
+            navigateToView('workloader');
         }
     };
 
@@ -1280,7 +1281,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setView, setInitialSelectedProjectInWorkloader, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setInitialSelectedProjectInWorkloader, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
 
@@ -1419,7 +1420,6 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                         currentTheme={currentTheme} 
                                         appId={appId} 
                                         showToast={showToast} 
-                                        setView={setView}
                                         setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader}
                                     />
                                 </motion.div>

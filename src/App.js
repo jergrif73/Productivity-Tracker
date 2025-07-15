@@ -14,14 +14,14 @@ import ForecastConsole from './ForecastConsole';
 import SkillsConsole from './SkillsConsole';
 import ReportingConsole from './ReportingConsole';
 import AdminConsole from './AdminConsole';
-import { tutorialContent } from './tutorial-steps'; 
+import { tutorialContent } from './tutorial-steps';
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
   apiKey: "AIzaSyC8aM0mFNiRmy8xcLsS48lSPfHQ9egrJ7s",
   authDomain: "productivity-tracker-3017d.firebaseapp.com",
   projectId: "productivity-tracker-3017d",
-  storageBucket: "productivity-tracker-3017d.appspot.com", 
+  storageBucket: "productivity-tracker-3017d.appspot.com",
   messagingSenderId: "489412895343",
   appId: "1:489412895343:web:780e7717db122a2b99639a",
   measurementId: "G-LGTREWPTGJ"
@@ -41,15 +41,22 @@ try {
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-prod-tracker-app';
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
 
-// --- Auth Context for accessLevel ---
+// --- Contexts ---
 const AuthContext = createContext({ accessLevel: 'default', setAccessLevel: () => {} });
+const TutorialContext = createContext();
+export const NavigationContext = createContext({
+    navigateToWorkloaderForEmployee: () => {},
+    navigateToWorkloaderForProject: () => {},
+    navigateToTeamConsoleForEmployee: () => {},
+    navigateToProjectConsoleForProject: () => {},
+    navigateToView: () => {},
+});
+
 
 // --- Tutorial System ---
-const TutorialContext = createContext();
-
 export const useTutorial = () => useContext(TutorialContext);
 
-export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel now passed as prop
+export const TutorialProvider = ({ children, accessLevel }) => {
     const [isTutorialActive, setIsTutorialActive] = useState(false);
     const [tutorialStep, setTutorialStep] = useState(null);
     const [currentTutorial, setCurrentTutorial] = useState(null);
@@ -58,7 +65,7 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
     const startTutorial = (view) => {
         const fullTutorial = tutorialContent[view];
         if (fullTutorial && fullTutorial.steps.length > 0) {
-            const filteredSteps = fullTutorial.steps.filter(step => 
+            const filteredSteps = fullTutorial.steps.filter(step =>
                 !step.roles || step.roles.includes(accessLevel)
             );
 
@@ -97,7 +104,7 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
             setTutorialStep(currentTutorial.steps[newIndex]);
         }
     };
-    
+
     const setStepByKey = (key) => {
         if (currentTutorial) {
             const stepIdx = currentTutorial.steps.findIndex(s => s.key === key);
@@ -108,12 +115,12 @@ export const TutorialProvider = ({ children, accessLevel }) => { // accessLevel 
         }
     };
 
-    const value = { 
-        isTutorialActive, 
+    const value = {
+        isTutorialActive,
         tutorialStep,
         stepIndex,
         totalSteps: currentTutorial ? currentTutorial.steps.length : 0,
-        startTutorial, 
+        startTutorial,
         endTutorial,
         nextStep,
         prevStep,
@@ -140,8 +147,8 @@ export const TutorialHighlight = ({ tutorialKey, children, className, style }) =
     };
 
     return (
-        <div 
-            className={`${className} ${isTutorialActive ? 'relative cursor-pointer' : ''}`} 
+        <div
+            className={`${className} ${isTutorialActive ? 'relative cursor-pointer' : ''}`}
             style={style}
             onClick={handleClick}
         >
@@ -167,19 +174,19 @@ const TutorialWidget = () => {
 
     const widgetVariants = {
         hidden: { opacity: 0, y: 50, scale: 0.8, rotate: -5 },
-        visible: { 
-            opacity: 1, 
-            y: 0, 
-            scale: 1, 
+        visible: {
+            opacity: 1,
+            y: 0,
+            scale: 1,
             rotate: 0,
-            transition: { 
-                type: "spring", 
+            transition: {
+                type: "spring",
                 stiffness: 200,
                 damping: 8,
                 mass: 1,
                 when: "beforeChildren",
                 ease: "easeOut"
-            } 
+            }
         },
         exit: { opacity: 0, y: 50, scale: 0.8, rotate: 5, transition: { duration: 0.2 } }
     };
@@ -369,12 +376,13 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
+
+    // State for managing cross-component navigation and initial selections
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
-    // FIX: Ensure setInitialSelectedEmployeeInWorkloader is correctly defined as a state setter
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
-    // New state for ProjectConsole filter
     const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState('');
     const [initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader] = useState(null);
+
     const { startTutorial, isTutorialActive } = useContext(TutorialContext);
 
 
@@ -394,6 +402,29 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         dark: { mainBg: 'bg-gray-900', headerBg: 'bg-gray-800', cardBg: 'bg-gray-700', textColor: 'text-gray-200', subtleText: 'text-gray-400', borderColor: 'border-gray-600', altRowBg: 'bg-gray-800', navBg: 'bg-gray-700', navBtn: 'text-gray-400 hover:bg-gray-600', navBtnActive: 'bg-gray-900 text-white shadow', consoleBg: 'bg-gray-800', inputBg: 'bg-gray-800', inputText: 'text-gray-200', inputBorder: 'border-gray-600', buttonBg: 'bg-gray-600', buttonText: 'text-gray-200' }
     };
     const currentTheme = themeClasses[theme];
+
+    const navigationContextValue = useMemo(() => ({
+        navigateToWorkloaderForEmployee: (employeeId) => {
+            setInitialSelectedEmployeeInWorkloader(employeeId);
+            setView('workloader');
+        },
+        navigateToWorkloaderForProject: (projectId) => {
+            setInitialSelectedProjectInWorkloader(projectId);
+            setView('workloader');
+        },
+        navigateToTeamConsoleForEmployee: (employeeId) => {
+            setInitialSelectedEmployeeInTeamConsole(employeeId);
+            setView('detailers');
+        },
+        navigateToProjectConsoleForProject: (projectName) => {
+            setInitialProjectConsoleFilter(projectName);
+            setView('projects');
+        },
+        navigateToView: (viewId) => {
+            setView(viewId);
+        }
+    }), [setView, setInitialSelectedEmployeeInWorkloader, setInitialSelectedProjectInWorkloader, setInitialSelectedEmployeeInTeamConsole, setInitialProjectConsoleFilter]);
+
 
     useEffect(() => {
         if (!auth) {
@@ -433,7 +464,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     useEffect(() => {
         if (!isAuthReady || !db) return;
         setLoading(true);
-    
+
         const collections = {
             detailers: setDetailers,
             projects: setProjects,
@@ -462,7 +493,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const handleNavClick = (viewId) => {
         setView(viewId);
     };
-    
+
     const navButtons = [
         { id: 'detailers', label: 'Team', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
@@ -473,7 +504,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         { id: 'reporting', label: 'Reporting', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg> },
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
     ];
-    
+
     const navConfig = {
         taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'forecast', 'reporting', 'admin'],
         tcl: ['projects', 'workloader', 'tasks', 'gantt'],
@@ -481,7 +512,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         default: []
     };
 
-    const visibleNavButtons = navButtons.filter(button => 
+    const visibleNavButtons = navButtons.filter(button =>
         navConfig[accessLevel]?.includes(button.id)
     );
 
@@ -492,37 +523,37 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                 default: return <div className="p-10"><SkeletonLoader className="h-32 w-full" /></div>;
             }
         }
-        
+
         const allowedViews = navConfig[accessLevel];
         const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
-        
-        // FIX: Ensure setInitialSelectedEmployeeInWorkloader is explicitly passed to TeamConsole
-        const consoleProps = { 
-            db, 
-            detailers, 
-            projects, 
-            assignments, 
-            tasks, 
-            taskLanes, 
-            currentTheme, 
-            accessLevel, 
-            theme, 
-            setTheme, 
-            appId, 
+
+        const consoleProps = {
+            db,
+            detailers,
+            projects,
+            assignments,
+            tasks,
+            taskLanes,
+            currentTheme,
+            accessLevel,
+            theme,
+            setTheme,
+            appId,
             showToast,
-            initialProjectConsoleFilter, 
-            setInitialProjectConsoleFilter, 
-            initialSelectedProjectInWorkloader, 
+            initialProjectConsoleFilter,
+            setInitialProjectConsoleFilter,
+            initialSelectedProjectInWorkloader,
             setInitialSelectedProjectInWorkloader,
             initialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInTeamConsole,
-            setInitialSelectedEmployeeInWorkloader // Explicitly pass the setter here
+            // FIX: Pass the state setter to WorkloaderConsole
+            setInitialSelectedEmployeeInWorkloader,
         };
 
         switch (currentView) {
             case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} />;
-            case 'projects': return <ProjectConsole {...consoleProps} setView={setView} />;
-            case 'workloader': return <WorkloaderConsole {...consoleProps} setView={setView} />;
+            case 'projects': return <ProjectConsole {...consoleProps} />;
+            case 'workloader': return <WorkloaderConsole {...consoleProps} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} />;
             case 'tasks': return <TaskConsole {...consoleProps} />;
             case 'gantt': return <GanttConsole {...consoleProps} />;
             case 'forecast': return <ForecastConsole {...consoleProps} />;
@@ -539,102 +570,104 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     if (authError) {
          return <div className="text-center p-10 text-red-500">{authError}</div>;
     }
-    
+
     if (!isLoggedIn) {
         return <SplashScreen onLogin={handleLoginAttempt} error={loginError} />;
     }
 
     return (
-        <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen ${isTutorialActive ? 'tutorial-active' : ''}`}>
-            <style>
-                {`
-                .hide-scrollbar-on-hover::-webkit-scrollbar {
-                    width: 8px;
-                    height: 8px;
-                }
-                .hide-scrollbar-on-hover::-webkit-scrollbar-thumb {
-                    background-color: transparent;
-                }
-                .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
-                    background-color: rgba(156, 163, 175, 0.5);
-                    border-radius: 4px;
-                }
-                .hide-scrollbar-on-hover::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .hide-scrollbar-on-hover:hover {
-                    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
-                }
-                .hide-scrollbar-on-hover {
-                    scrollbar-width: thin;
-                    scrollbar-color: transparent transparent;
-                }
-                .hide-scrollbar-on-hover:hover {
-                    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
-                }
-                `}
-            </style>
-            <Toaster toasts={toasts} />
-            <TutorialWidget />
-            <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
-                <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Workforce Productivity Tracker</h1>
-                        <nav className={`${currentTheme.navBg} p-1 rounded-lg`}>
-                            <div className="flex items-center space-x-1 flex-wrap justify-center">
-                                {visibleNavButtons.map(button => (
-                                    <TutorialHighlight tutorialKey={button.id} key={button.id}>
-                                        <button
-                                            onClick={() => handleNavClick(button.id)}
-                                            className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md transition-colors w-32 ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
-                                        >
-                                            {button.icon}
-                                            {button.label}
-                                        </button>
-                                    </TutorialHighlight>
-                                ))}
-                            </div>
-                        </nav>
-                    </div>
-                    <div className="flex justify-center items-center gap-4">
-                        <button
-                                onClick={() => startTutorial(view)}
-                                className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-purple-700 transition-colors"
+        <NavigationContext.Provider value={navigationContextValue}>
+            <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen ${isTutorialActive ? 'tutorial-active' : ''}`}>
+                <style>
+                    {`
+                    .hide-scrollbar-on-hover::-webkit-scrollbar {
+                        width: 8px;
+                        height: 8px;
+                    }
+                    .hide-scrollbar-on-hover::-webkit-scrollbar-thumb {
+                        background-color: transparent;
+                    }
+                    .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
+                        background-color: rgba(156, 163, 175, 0.5);
+                        border-radius: 4px;
+                    }
+                    .hide-scrollbar-on-hover::-webkit-scrollbar-track {
+                        background: transparent;
+                    }
+                    .hide-scrollbar-on-hover:hover {
+                        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+                    }
+                    .hide-scrollbar-on-hover {
+                        scrollbar-width: thin;
+                        scrollbar-color: transparent transparent;
+                    }
+                    .hide-scrollbar-on-hover:hover {
+                        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+                    }
+                    `}
+                </style>
+                <Toaster toasts={toasts} />
+                <TutorialWidget />
+                <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
+                    <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Workforce Productivity Tracker</h1>
+                            <nav className={`${currentTheme.navBg} p-1 rounded-lg`}>
+                                <div className="flex items-center space-x-1 flex-wrap justify-center">
+                                    {visibleNavButtons.map(button => (
+                                        <TutorialHighlight tutorialKey={button.id} key={button.id}>
+                                            <button
+                                                onClick={() => handleNavClick(button.id)}
+                                                className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md transition-colors w-32 ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
+                                            >
+                                                {button.icon}
+                                                {button.label}
+                                            </button>
+                                        </TutorialHighlight>
+                                    ))}
+                                </div>
+                            </nav>
+                        </div>
+                        <div className="flex justify-center items-center gap-4">
+                            <button
+                                    onClick={() => startTutorial(view)}
+                                    className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-purple-700 transition-colors"
+                                >
+                                    Guided Tour
+                                </button>
+                            <button
+                                    onClick={handleLogout}
+                                    className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-red-600 transition-colors"
+                                >
+                                    Logout ({accessLevel})
+                                </button>
+                        </div>
+                    </header>
+                    <main className={`flex-grow ${currentTheme.consoleBg} overflow-hidden flex flex-col`}>
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={view}
+                                className="h-full flex flex-col"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                transition={{ duration: 0.3 }}
                             >
-                                Guided Tour
-                            </button>
-                        <button
-                                onClick={handleLogout}
-                                className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-red-600 transition-colors"
-                            >
-                                Logout ({accessLevel})
-                            </button>
-                    </div>
-                </header>
-                <main className={`flex-grow ${currentTheme.consoleBg} overflow-hidden flex flex-col`}>
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={view}
-                            className="h-full flex flex-col"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.3 }}
-                        >
-                            {renderView()}
-                        </motion.div>
-                    </AnimatePresence>
-                    {viewingSkillsFor && (
-                        <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
-                            <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
-                        </Modal>
-                    )}
-                </main>
-                <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
-                    User ID: {userId || 'N/A'} | App ID: {appId}
-                </footer>
+                                {renderView()}
+                            </motion.div>
+                        </AnimatePresence>
+                        {viewingSkillsFor && (
+                            <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
+                                <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                            </Modal>
+                        )}
+                    </main>
+                    <footer className={`text-center p-2 text-xs border-t flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
+                        User ID: {userId || 'N/A'} | App ID: {appId}
+                    </footer>
+                </div>
             </div>
-        </div>
+        </NavigationContext.Provider>
     );
 };
 
@@ -671,12 +704,12 @@ const App = () => {
     return (
         <AuthContext.Provider value={authContextValue}>
             <TutorialProvider accessLevel={accessLevel}>
-                <AppContent 
-                    accessLevel={accessLevel} 
-                    isLoggedIn={isLoggedIn} 
-                    loginError={loginError} 
-                    handleLoginAttempt={handleLoginAttempt} 
-                    handleLogout={handleLogout} 
+                <AppContent
+                    accessLevel={accessLevel}
+                    isLoggedIn={isLoggedIn}
+                    loginError={loginError}
+                    handleLoginAttempt={handleLoginAttempt}
+                    handleLogout={handleLogout}
                 />
             </TutorialProvider>
         </AuthContext.Provider>

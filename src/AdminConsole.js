@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getDocs } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
@@ -73,11 +73,11 @@ const BubbleRating = ({ score, onScoreChange, currentTheme }) => {
     );
 };
 
-const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast }) => {
+const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocals }) => {
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
-    const [draggedDiscipline, setDraggedDiscipline] = useState(null); // New state for drag and drop
-    const [dragOverDiscipline, setDragOverDiscipline] = useState(null); // New state for drag over
+    const [draggedDiscipline, setDraggedDiscipline] = useState(null);
+    const [dragOverDiscipline, setDragOverDiscipline] = useState(null);
 
     const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
     const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
@@ -90,7 +90,6 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
     useEffect(() => {
         if (employee) {
             let skills = employee.disciplineSkillsets;
-            // Backward compatibility: Convert old object format to new array format
             if (skills && !Array.isArray(skills)) {
                 skills = Object.entries(skills).map(([name, score]) => ({ name, score }));
             }
@@ -136,7 +135,6 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
         }));
     };
 
-    // Drag and Drop Handlers
     const handleDragStart = (e, disciplineName) => {
         setDraggedDiscipline(disciplineName);
         e.dataTransfer.effectAllowed = 'move';
@@ -213,6 +211,14 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, showToast 
                             {titleOptions.map(title => <option key={title} value={title}>{title}</option>)}
                         </select>
                         <input name="employeeId" value={editableEmployee.employeeId} onChange={handleDataChange} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                        <input name="wage" type="number" value={editableEmployee.wage || ''} onChange={handleDataChange} placeholder="Wage/hr" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                        <input name="percentAboveScale" type="number" value={editableEmployee.percentAboveScale || ''} onChange={handleDataChange} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                        <select name="unionLocal" value={editableEmployee.unionLocal || ''} onChange={handleDataChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                            <option value="">Select Union Local...</option>
+                            {unionLocals.map(local => (
+                                <option key={local.id} value={local.name}>{local.name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Skills & Disciplines Section */}
@@ -568,7 +574,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 };
 
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
-    const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
+    const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
     
     const [editingEmployee, setEditingEmployee] = useState(null);
@@ -582,6 +588,64 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [confirmAction, setConfirmAction] = useState(null);
     const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
     const [projectSearchTerm, setProjectSearchTerm] = useState('');
+    
+    const [unionLocals, setUnionLocals] = useState([]);
+    const [newUnionLocalName, setNewUnionLocalName] = useState('');
+    const [editingUnionLocal, setEditingUnionLocal] = useState(null);
+    const [showUnionManagement, setShowUnionManagement] = useState(false);
+
+    // Fetch and manage Union Locals
+    useEffect(() => {
+        const unionLocalsRef = collection(db, `artifacts/${appId}/public/data/unionLocals`);
+        
+        const checkForInitialData = async () => {
+            const querySnapshot = await getDocs(unionLocalsRef);
+            if (querySnapshot.empty) {
+                const initialLocals = [
+                    { name: 'UA Local 290' },
+                    { name: 'UA Local 598' },
+                    { name: 'SMART Local 55' },
+                    { name: 'SMART Local 16' }
+                ];
+                const batch = [];
+                initialLocals.forEach(local => {
+                    batch.push(addDoc(unionLocalsRef, local));
+                });
+                await Promise.all(batch);
+            }
+        };
+
+        checkForInitialData();
+
+        const unsubscribe = onSnapshot(unionLocalsRef, (snapshot) => {
+            const localsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setUnionLocals(localsData.sort((a, b) => a.name.localeCompare(b.name)));
+        });
+
+        return () => unsubscribe();
+    }, [db, appId]);
+
+    const handleAddUnionLocal = async () => {
+        if (newUnionLocalName.trim() === '') return;
+        const unionLocalsRef = collection(db, `artifacts/${appId}/public/data/unionLocals`);
+        await addDoc(unionLocalsRef, { name: newUnionLocalName.trim() });
+        setNewUnionLocalName('');
+    };
+
+    const handleUpdateUnionLocal = async () => {
+        if (!editingUnionLocal || editingUnionLocal.name.trim() === '') {
+            setEditingUnionLocal(null);
+            return;
+        };
+        const unionLocalRef = doc(db, `artifacts/${appId}/public/data/unionLocals`, editingUnionLocal.id);
+        await updateDoc(unionLocalRef, { name: editingUnionLocal.name.trim() });
+        setEditingUnionLocal(null);
+    };
+
+    const handleDeleteUnionLocal = async (id) => {
+        const unionLocalRef = doc(db, `artifacts/${appId}/public/data/unionLocals`, id);
+        await deleteDoc(unionLocalRef);
+    };
 
 
     const handleToggleCollapse = (section) => {
@@ -661,8 +725,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 console.error('Please fill all employee fields.');
                 return;
             }
-            await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, skills: {}, disciplineSkillsets: {} });
-            setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '' });
+            await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, wage: Number(newEmployee.wage) || 0, percentAboveScale: Number(newEmployee.percentAboveScale) || 0, skills: {}, disciplineSkillsets: {} });
+            setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
         } else if (type === 'project') {
             if (!newProject.name || !newProject.projectId) {
                 console.error('Please fill all project fields.');
@@ -720,7 +784,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const handleUpdateEmployee = async (employeeData) => {
         const { id, ...data } = employeeData;
         const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, id);
-        await updateDoc(employeeRef, data);
+        await updateDoc(employeeRef, {...data, wage: Number(data.wage) || 0, percentAboveScale: Number(data.percentAboveScale) || 0});
     };
     
     const handleEditDataChange = (e, type) => {
@@ -741,7 +805,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                         onSave={handleUpdateEmployee}
                         onClose={() => setEditingEmployee(null)}
                         currentTheme={currentTheme}
-                        showToast={showToast}
+                        unionLocals={unionLocals}
                     />
                 )}
                 <ConfirmationModal
@@ -756,17 +820,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     {confirmAction?.message}
                 </ConfirmationModal>
 
-                {/* --- CSS to hide number input arrows --- */}
-                <style>{`
-                    .no-arrows::-webkit-inner-spin-button,
-                    .no-arrows::-webkit-outer-spin-button {
-                        -webkit-appearance: none;
-                        margin: 0;
-                    }
-                    .no-arrows {
-                        -moz-appearance: textfield;
-                    }
-                `}</style>
+                <style>{`.no-arrows::-webkit-inner-spin-button,.no-arrows::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}.no-arrows{-moz-appearance:textfield;}`}</style>
 
                 <AnimatePresence mode="wait">
                     {expandedProjectId ? (
@@ -801,33 +855,30 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                         >
-                            {/* --- Sticky Header --- */}
                             <div className={`py-2`}>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* Employee Header */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <TutorialHighlight tutorialKey="manageEmployees">
                                         <div className="flex justify-between items-center">
                                             <h2 className="text-xl font-bold">Manage Employees</h2>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm">Sort by:</span>
-                                                <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                                                <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
+                                                <button onClick={() => setEmployeeSortBy('firstName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First</button>
+                                                <button onClick={() => setEmployeeSortBy('lastName')} className={`px-2 py-1 text-xs rounded-md ${employeeSortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last</button>
                                             </div>
                                         </div>
                                     </TutorialHighlight>
-                                    {/* Project Header */}
                                     <TutorialHighlight tutorialKey="manageProjects">
                                         <div className="flex justify-between items-center">
                                             <h2 className="text-xl font-bold">Manage Projects</h2>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm">Sort by:</span>
-                                                <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                                                <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                                                <button onClick={() => setProjectSortBy('name')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alpha</button>
+                                                <button onClick={() => setProjectSortBy('projectId')} className={`px-2 py-1 text-xs rounded-md ${projectSortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>ID</button>
                                             </div>
                                         </div>
                                     </TutorialHighlight>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
                                     <input type="text" placeholder="Search employees..." value={employeeSearchTerm} onChange={(e) => setEmployeeSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                                     <div className="flex items-center gap-2">
                                         <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
@@ -845,9 +896,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                 </div>
                             </div>
 
-                            {/* --- Scrollable Content --- */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover"> 
-                                {/* Employee Content */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover"> 
                                 <div>
                                     <TutorialHighlight tutorialKey="addEmployeeFields">
                                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
@@ -869,6 +918,58 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             ))}
                                                         </select>
                                                         <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                        <input type="number" value={newEmployee.wage} onChange={e => setNewEmployee({...newEmployee, wage: e.target.value})} placeholder="Wage/hr" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                        <input type="number" value={newEmployee.percentAboveScale} onChange={e => setNewEmployee({...newEmployee, percentAboveScale: e.target.value})} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                        <div className="flex items-center gap-2">
+                                                            <select value={newEmployee.unionLocal} onChange={e => setNewEmployee({...newEmployee, unionLocal: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                                <option value="">Select Union Local...</option>
+                                                                {unionLocals.map(local => (
+                                                                    <option key={local.id} value={local.name}>{local.name}</option>
+                                                                ))}
+                                                            </select>
+                                                            <button type="button" onClick={() => setShowUnionManagement(!showUnionManagement)} className={`text-sm p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex-shrink-0`}>Manage</button>
+                                                        </div>
+                                                        <AnimatePresence>
+                                                        {showUnionManagement && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, height: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto' }}
+                                                                exit={{ opacity: 0, height: 0 }}
+                                                                className="mt-2 pt-2 border-t border-dashed border-gray-500/50"
+                                                            >
+                                                                <div className="space-y-2 mb-4 max-h-32 overflow-y-auto">
+                                                                    {unionLocals.map((local, index) => {
+                                                                        const bgColor = index % 2 === 0 ? 'bg-transparent' : 'bg-white/5';
+                                                                        return (
+                                                                            <div key={local.id} className={`flex justify-between items-center p-2 rounded-md ${bgColor}`}>
+                                                                                {editingUnionLocal?.id === local.id ? (
+                                                                                    <input 
+                                                                                        type="text"
+                                                                                        value={editingUnionLocal.name}
+                                                                                        onChange={(e) => setEditingUnionLocal({...editingUnionLocal, name: e.target.value})}
+                                                                                        onBlur={handleUpdateUnionLocal}
+                                                                                        onKeyPress={e => e.key === 'Enter' && handleUpdateUnionLocal()}
+                                                                                        className={`w-full p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                                                                        autoFocus
+                                                                                    />
+                                                                                ) : (
+                                                                                    <p className="text-sm">{local.name}</p>
+                                                                                )}
+                                                                                <div className="flex gap-2">
+                                                                                    <button onClick={() => setEditingUnionLocal(local)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                                                                                    <button onClick={() => handleDeleteUnionLocal(local.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <input value={newUnionLocalName} onChange={e => setNewUnionLocalName(e.target.value)} placeholder="New Union Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                                                    <button onClick={handleAddUnionLocal} className="bg-blue-500 text-white px-4 rounded-md hover:bg-blue-600 text-sm">Add</button>
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                        </AnimatePresence>
                                                     </div>
                                                     <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
                                                 </div>
@@ -881,10 +982,13 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                 const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                                                 return (
                                                 <div key={e.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
-                                                    <div className="flex justify-between items-center">
+                                                    <div className="flex justify-between items-start">
                                                         <div>
-                                                            <p>{e.firstName} {e.lastName}</p>
+                                                            <p className="font-semibold">{e.firstName} {e.lastName}</p>
                                                             <p className={`text-sm ${currentTheme.subtleText}`}>{e.title || 'N/A'} ({e.employeeId})</p>
+                                                            <p className={`text-xs ${currentTheme.subtleText}`}>
+                                                                Wage: ${e.wage || 0}/hr | % Above Scale: {e.percentAboveScale || 0}% | Union: {e.unionLocal || 'N/A'}
+                                                            </p>
                                                             <a href={`mailto:${e.email}`} className="text-xs text-blue-500 hover:underline">{e.email}</a>
                                                         </div>
                                                         <div className="flex gap-2">
@@ -898,7 +1002,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                     </TutorialHighlight>
                                 </div>
 
-                                {/* Project Content */}
                                 <div>
                                     <TutorialHighlight tutorialKey="addProjectFields">
                                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
@@ -918,26 +1021,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                                 <option key={status} value={status}>{status}</option>
                                                             ))}
                                                         </select>
-                                                        <div className="flex items-center gap-2">
-                                                            <label className="w-32">Initial Budget ($):</label>
-                                                            <input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <label className="w-32">Blended Rate ($/hr):</label>
-                                                            <input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <label className="w-32">BIM Blended Rate ($/hr):</label>
-                                                            <input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <label className="w-32">Contingency ($):</label>
-                                                            <input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <label className="w-32">Project Dashboard:</label>
-                                                            <input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        </div>
+                                                        <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                        <div className="flex items-center gap-2"><label className="w-32">Blended Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                        <div className="flex items-center gap-2"><label className="w-32">BIM Blended Rate ($/hr):</label><input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                        <div className="flex items-center gap-2"><label className="w-32">Contingency ($):</label><input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                        <div className="flex items-center gap-2"><label className="w-32">Project Dashboard:</label><input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     </div>
                                                     <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
                                                 </div>
@@ -949,7 +1037,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             {filteredProjects.map((p, index) => {
                                                 const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
                                                 const currentStatus = p.status || (p.archived ? "Archive" : "Controlling");
-                                                
                                                 return (
                                                     <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
                                                     {editingProjectId === p.id ? (
@@ -957,34 +1044,14 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                             <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                             <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                                                {projectStatuses.map(status => (
-                                                                    <option key={status} value={status}>{status}</option>
-                                                                ))}
+                                                                {projectStatuses.map(status => (<option key={status} value={status}>{status}</option>))}
                                                             </select>
-                                                            <div className="flex items-center gap-2">
-                                                                <label className="w-32">Initial Budget ($):</label>
-                                                                <input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <label className="w-32">Blended Rate ($/hr):</label>
-                                                                <input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <label className="w-32">BIM Blended Rate ($/hr):</label>
-                                                                <input name="bimBlendedRate" value={editingProjectData.bimBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="BIM Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <label className="w-32">Contingency ($):</label>
-                                                                <input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <label className="w-32">Project Dashboard:</label>
-                                                                <input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                            </div>
-                                                            <div className="flex gap-2 pt-4">
-                                                                <button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button>
-                                                                <button onClick={() => setEditingProjectId(null)} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button>
-                                                            </div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Blended Rate ($/hr):</label><input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">BIM Blended Rate ($/hr):</label><input name="bimBlendedRate" value={editingProjectData.bimBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="BIM Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Contingency ($):</label><input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Project Dashboard:</label><input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                            <div className="flex gap-2 pt-4"><button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button><button onClick={() => setEditingProjectId(null)} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button></div>
                                                         </div>
                                                     ) : (
                                                         <div className="cursor-pointer" onClick={() => setExpandedProjectId(p.id)}>
@@ -994,16 +1061,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                                     <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | BIM Rate: ${p.bimBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                                                    {projectStatuses.map(status => (
-                                                                        <Tooltip key={status} text={statusDescriptions[status]}>
-                                                                            <button 
-                                                                                onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }}
-                                                                                className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}
-                                                                            >
-                                                                                {status.charAt(0)}
-                                                                            </button>
-                                                                        </Tooltip>
-                                                                    ))}
+                                                                    {projectStatuses.map(status => (<Tooltip key={status} text={statusDescriptions[status]}><button onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }} className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}>{status.charAt(0)}</button></Tooltip>))}
                                                                     <button onClick={(e) => { e.stopPropagation(); handleEditProject(p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
                                                                     <button onClick={(e) => { e.stopPropagation(); confirmDelete('project', p); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
                                                                 </div>
