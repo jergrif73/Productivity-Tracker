@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
-import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // Note: The Tooltip component would also be moved to its own file in a full refactor.
 const Tooltip = ({ text, children }) => {
@@ -363,80 +362,63 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     }, [initialSelectedProjectInWorkloader, projectGroupedData, setInitialSelectedProjectInWorkloader]);
 
     // Function to handle navigation to Project Console
-    const handleGoToProjectDetails = (e, projectId) => {
+    const handleGoToProjectDetails = (e, projectId, projectName) => { // Added projectName
         e.stopPropagation();
         if (isTaskmaster) {
-            // Find the project object to get its name for the filter
-            const project = projects.find(p => p.id === projectId);
-            if (project) {
-                setInitialProjectConsoleFilter(project.name); // Pass the project name
-            } else {
-                // Fallback if project not found, though it shouldn't happen if projectId is valid
-                setInitialProjectConsoleFilter(''); 
-            }
+            setInitialProjectConsoleFilter(projectName); // Set the project name for filtering
             setView('projects');
         }
     };
 
     return (
         <div className="space-y-4 h-full flex flex-col">
-            <TutorialHighlight tutorialKey="workloader">
-                <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
+             <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
+                 <div className="flex items-center gap-2">
+                     <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
+                     <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
+                     <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'>'}</button>
+                     <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
+                 </div>
+                 <div className="flex items-center gap-4 flex-grow">
+                    <input
+                        type="text"
+                        placeholder={`Search by ${groupBy}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full max-w-xs`}
+                    />
                     <div className="flex items-center gap-2">
-                        <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
-                        <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
-                        <button onClick={() => handleDateNav(7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'>'}</button>
-                        <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
+                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Group by:</span>
+                        <button onClick={() => handleGroupByChange('project')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'project' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project</button>
+                        <button onClick={() => handleGroupByChange('employee')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'employee' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Employee</button>
                     </div>
-                    <div className="flex items-center gap-4 flex-grow">
-                        <TutorialHighlight tutorialKey="searchTimeline">
-                            <input
-                                type="text"
-                                placeholder={`Search by ${groupBy}...`}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full max-w-xs`}
-                            />
-                        </TutorialHighlight>
-                        <TutorialHighlight tutorialKey="groupAndSort">
-                            <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Group by:</span>
-                                <button onClick={() => handleGroupByChange('project')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'project' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project</button>
-                                <button onClick={() => handleGroupByChange('employee')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'employee' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Employee</button>
-                            </div>
-                        </TutorialHighlight>
-                        <TutorialHighlight tutorialKey="groupAndSort"> {/* Re-using key as sorting is part of grouping controls */}
-                            <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
-                                {groupBy === 'project' ? (
-                                    <>
-                                        <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                                        <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button onClick={() => setSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                                        <button onClick={() => setSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                                    </>
-                                )}
-                            </div>
-                        </TutorialHighlight>
-                        <TutorialHighlight tutorialKey="expandAndCollapse">
-                            <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                                {areAllExpanded ? 'Collapse All' : 'Expand All'}
-                            </button>
-                        </TutorialHighlight>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                        {groupBy === 'project' ? (
+                            <>
+                                <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                                <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                            </>
+                        ) : (
+                             <>
+                                <button onClick={() => setSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                                <button onClick={() => setSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
+                            </>
+                        )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                        {Object.entries(legendColorMapping).map(([trade, color]) => (
-                            <div key={trade} className="flex items-center gap-2">
-                                <div className={`w-4 h-4 rounded-sm ${color}`}></div>
-                                <span className={currentTheme.textColor}>{trade}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </TutorialHighlight>
+                    <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                        {areAllExpanded ? 'Collapse All' : 'Expand All'}
+                    </button>
+                 </div>
+                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                     {Object.entries(legendColorMapping).map(([trade, color]) => (
+                         <div key={trade} className="flex items-center gap-2">
+                             <div className={`w-4 h-4 rounded-sm ${color}`}></div>
+                             <span className={currentTheme.textColor}>{trade}</span>
+                         </div>
+                     ))}
+                 </div>
+             </div>
 
             <div className={`overflow-auto border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow hide-scrollbar-on-hover`}>
                 <table className="min-w-full text-sm text-left border-collapse">
@@ -464,29 +446,25 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             const isExpanded = expandedIds.has(project.id);
                             return (
                                 <tbody key={project.id}>
-                                    <tr onClick={() => toggleExpansion(project.id)}>
-                                        <TutorialHighlight tutorialKey="expandAndCollapse"> {/* Highlight the entire row for expansion */}
-                                            <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`}>
-                                                <div className="flex items-center"> {/* Removed justify-between here */}
-                                                    <div className="flex items-center flex-grow"> {/* Added flex-grow here */}
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                                        </svg>
-                                                        {project.name} ({project.projectId})
-                                                    </div>
-                                                    {isTaskmaster && (
-                                                        <TutorialHighlight tutorialKey="goToProjectDetails">
-                                                            <button
-                                                                onClick={(e) => handleGoToProjectDetails(e, project.id)}
-                                                                className={`ml-auto px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
-                                                            >
-                                                                Project Details
-                                                            </button>
-                                                        </TutorialHighlight>
-                                                    )}
+                                    <tr>
+                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                                    </svg>
+                                                    {project.name} ({project.projectId})
                                                 </div>
-                                            </th>
-                                        </TutorialHighlight>
+                                                {isTaskmaster && (
+                                                    <button
+                                                        onClick={(e) => handleGoToProjectDetails(e, project.id, project.name)} // Pass project.name
+                                                        className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
+                                                    >
+                                                        Project Details
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </th>
                                     </tr>
                                     {isExpanded && project.assignments.map(assignment => {
                                         const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
@@ -516,24 +494,20 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                         >
                                                             {(isAssigned || isFillHighlighted) && (
                                                             <Tooltip text={tooltipText}>
-                                                                <TutorialHighlight tutorialKey="editAssignments">
-                                                                    <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
-                                                                        <span>{assignment.allocation}%</span>
-                                                                        {isTaskmaster && isAssigned && (
-                                                                            <TutorialHighlight tutorialKey="dragFillAssignment">
-                                                                                <div 
-                                                                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                                                                                    onMouseDown={(e) => {
-                                                                                        e.preventDefault(); e.stopPropagation();
-                                                                                        setDragFillStart({ assignment, weekIndex });
-                                                                                    }}
-                                                                                >
-                                                                                    <div className="h-full w-1 bg-white/50 rounded"></div>
-                                                                                </div>
-                                                                            </TutorialHighlight>
-                                                                        )}
-                                                                    </div>
-                                                                </TutorialHighlight>
+                                                                <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                    <span>{assignment.allocation}%</span>
+                                                                    {isTaskmaster && isAssigned && (
+                                                                        <div 
+                                                                            className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                            onMouseDown={(e) => {
+                                                                                e.preventDefault(); e.stopPropagation();
+                                                                                setDragFillStart({ assignment, weekIndex });
+                                                                            }}
+                                                                        >
+                                                                            <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </Tooltip>
                                                             )}
                                                         </td>
@@ -550,29 +524,25 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             const isExpanded = expandedIds.has(employee.id);
                             return (
                             <tbody key={employee.id}>
-                                <tr onClick={() => toggleExpansion(employee.id)}>
-                                    <TutorialHighlight tutorialKey="expandAndCollapse"> {/* Highlight the entire row for expansion */}
-                                        <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                                    </svg>
-                                                    {employee.firstName} {employee.lastName}
-                                                </div>
-                                                {isTaskmaster && (
-                                                    <TutorialHighlight tutorialKey="goToEmployeeAssignments">
-                                                        <button
-                                                            onClick={(e) => handleGoToEmployeeAssignments(e, employee.id)}
-                                                            className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
-                                                        >
-                                                            Projects Assignment
-                                                        </button>
-                                                    </TutorialHighlight>
-                                                )}
+                                <tr>
+                                    <th colSpan={3 + weekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(employee.id)}>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                                </svg>
+                                                {employee.firstName} {employee.lastName}
                                             </div>
-                                        </th>
-                                    </TutorialHighlight>
+                                            {isTaskmaster && (
+                                                <button
+                                                    onClick={(e) => handleGoToEmployeeAssignments(e, employee.id)}
+                                                    className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
+                                                >
+                                                    Projects Assignment
+                                                </button>
+                                            )}
+                                        </div>
+                                    </th>
                                 </tr>
                                 {isExpanded && employee.assignments.map(assignment => {
                                     const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
@@ -602,24 +572,20 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                     >
                                                         {(isAssigned || isFillHighlighted) && (
                                                         <Tooltip text={tooltipText}>
-                                                            <TutorialHighlight tutorialKey="editAssignments">
-                                                                <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
-                                                                    <span>{assignment.allocation}%</span>
-                                                                    {isTaskmaster && isAssigned && (
-                                                                        <TutorialHighlight tutorialKey="dragFillAssignment">
-                                                                            <div 
-                                                                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
-                                                                                onMouseDown={(e) => {
-                                                                                    e.preventDefault(); e.stopPropagation();
-                                                                                    setDragFillStart({ assignment, weekIndex });
-                                                                                }}
-                                                                            >
-                                                                                <div className="h-full w-1 bg-white/50 rounded"></div>
-                                                                            </div>
-                                                                        </TutorialHighlight>
-                                                                    )}
-                                                                </div>
-                                                            </TutorialHighlight>
+                                                            <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                <span>{assignment.allocation}%</span>
+                                                                {isTaskmaster && isAssigned && (
+                                                                    <div 
+                                                                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                        onMouseDown={(e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
+                                                                            setDragFillStart({ assignment, weekIndex });
+                                                                        }}
+                                                                    >
+                                                                        <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </Tooltip>
                                                         )}
                                                     </td>

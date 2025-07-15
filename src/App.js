@@ -370,6 +370,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [theme, setTheme] = useState('dark');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
+    // FIX: Ensure setInitialSelectedEmployeeInWorkloader is correctly defined as a state setter
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
     // New state for ProjectConsole filter
     const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState('');
@@ -495,7 +496,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         const allowedViews = navConfig[accessLevel];
         const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
         
-        // FIX: Correctly include initialProjectConsoleFilter in consoleProps
+        // FIX: Ensure setInitialSelectedEmployeeInWorkloader is explicitly passed to TeamConsole
         const consoleProps = { 
             db, 
             detailers, 
@@ -509,17 +510,17 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             setTheme, 
             appId, 
             showToast,
-            initialProjectConsoleFilter, // Correct state variable for ProjectConsole filter
-            setInitialProjectConsoleFilter, // Setter for ProjectConsole filter
+            initialProjectConsoleFilter, 
+            setInitialProjectConsoleFilter, 
             initialSelectedProjectInWorkloader, 
             setInitialSelectedProjectInWorkloader,
             initialSelectedEmployeeInTeamConsole,
-            setInitialSelectedEmployeeInTeamConsole
+            setInitialSelectedEmployeeInTeamConsole,
+            setInitialSelectedEmployeeInWorkloader // Explicitly pass the setter here
         };
 
         switch (currentView) {
             case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} />;
-            // FIX: Pass all necessary props via consoleProps
             case 'projects': return <ProjectConsole {...consoleProps} setView={setView} />;
             case 'workloader': return <WorkloaderConsole {...consoleProps} setView={setView} />;
             case 'tasks': return <TaskConsole {...consoleProps} />;

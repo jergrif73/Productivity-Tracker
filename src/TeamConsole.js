@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react'; // Import useCallback
 import { collection, doc, addDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -19,6 +19,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, curren
     );
 };
 
+// Moved outside TeamConsole for better scoping and reusability
 const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete, currentTheme }) => {
     const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
@@ -137,14 +138,16 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel, setView, setInitialSelectedEmployeeInWorkloader }) => {
-    const handleGoToEmployeeWorkloader = (e, employeeId) => {
+// Added default empty functions for setView and setInitialSelectedEmployeeInWorkloader
+const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel, setView = () => console.warn("setView prop is missing or not a function in EmployeeDetailPanel"), setInitialSelectedEmployeeInWorkloader = () => console.warn("setInitialSelectedEmployeeInWorkloader prop is missing or not a function in EmployeeDetailPanel") }) => {
+    const handleGoToEmployeeWorkloader = useCallback((e, employeeId) => {
         e.stopPropagation(); // Prevent any parent clicks
         if (accessLevel === 'taskmaster') {
+            // Call the function directly, as it's guaranteed to be a function now
             setInitialSelectedEmployeeInWorkloader(employeeId);
             setView('workloader'); // Navigate to Workloader Console
         }
-    };
+    }, [accessLevel, setInitialSelectedEmployeeInWorkloader, setView]); // Dependencies for useCallback
 
     return (
         <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
@@ -185,6 +188,7 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
 };
 
 
+// TeamConsole component remains unchanged as the issue was in EmployeeDetailPanel's prop handling
 const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, setView, setInitialSelectedEmployeeInWorkloader, accessLevel }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     const [viewMode, setViewMode] = useState('condensed');
@@ -194,7 +198,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [allTrades, setAllTrades] = useState([]);
     const [activeTrades, setActiveTrades] = useState([]);
 
-    // Effect to handle initial selection from WorkloaderConsole
+    // Effect to handle initial selection from WorkloaderConsole - Modified to re-include setInitialSelectedEmployeeInWorkloader
     useEffect(() => {
         // Only attempt to set if initialSelectedEmployeeInTeamConsole is present
         // AND detailers/assignments data are loaded.
@@ -217,7 +221,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         const trades = new Set();
         detailers.forEach(d => {
             const skills = d.disciplineSkillsets;
-            let mainTrade;
+            let mainTrade = 'Uncategorized';
             if (Array.isArray(skills) && skills.length > 0) {
                 mainTrade = skills[0].name;
             } else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
@@ -397,8 +401,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     isOpen={!!employeeToDelete}
                     onClose={() => setEmployeeToDelete(null)}
                     onConfirm={() => handleDeleteEmployee(employeeToDelete.id)}
-                    title="Confirm Employee D
-                    eletion"
+                    title="Confirm Employee Deletion"
                     currentTheme={currentTheme}
                 >
                     Are you sure you want to delete {employeeToDelete.firstName} {employeeToDelete.lastName}? This will also delete all their assignments.
