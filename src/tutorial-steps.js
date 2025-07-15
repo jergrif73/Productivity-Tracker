@@ -258,6 +258,12 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
+            key: "dynamicTimeline",
+            title: "Dynamic Timeline View",
+            content: "The timeline is dynamic. **It automatically hides empty weeks and rows with no scheduled work**, keeping the view clean and focused. As you add or extend assignments, the timeline will expand to show them.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
             key: "groupAndSort",
             title: "Grouping & Sorting Your View",
             content: "**Use the 'Group by' toggle to switch between a project-centric and an employee-centric view**. The 'Sort by' options will change based on your selection, allowing you to organize the list alphabetically, by ID, or by name.",
@@ -428,6 +434,12 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "viewToggle",
+            title: "Line vs. Stacked View",
+            content: "Use this toggle to switch between a **'Line View'** and a **'Stacked View'**. The line view is great for comparing individual trade demands, while the stacked view shows the total combined workload and its composition.",
+            roles: ['taskmaster']
+        },
+        {
             key: "dateNavigationForecast",
             title: "Navigate the Forecast Timeline",
             content: "**Use the '<' and '>' buttons to shift the forecast timeline backward or forward**. The **'Today' button will reset the view to the current week**. This allows you to analyze historical trends or plan for future periods.",
@@ -442,13 +454,19 @@ export const tutorialContent = {
         {
             key: "forecastLines",
             title: "Understanding Forecast Lines (Demand)",
-            content: "The **colored lines represent the forecasted weekly hours (demand) for different trades** across all active projects. Each color corresponds to a specific trade, as indicated in the legend below the chart. These hours are crucial for understanding where future work is expected.",
+            content: "The **colored lines or bars represent the forecasted weekly hours (demand) for different trades** across all active projects. Each color corresponds to a specific trade, as indicated in the legend below the chart. These hours are crucial for understanding where future work is expected.",
             roles: ['taskmaster']
         },
         {
             key: "assignedLine",
             title: "Understanding Assigned Hours (Supply)",
-            content: "The **dashed white line represents the total assigned hours (supply)** for all detailers across all projects for each week. This data comes from the assignments made in the Team Console. It shows the actual capacity committed by your team.",
+            content: "In 'Line View', the **dashed white line represents the total assigned hours (supply)** for all detailers across all projects for each week. This data comes from the assignments made in the Team Console. It shows the actual capacity committed by your team.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "fortyHourReference",
+            title: "40-Hour Reference Lines",
+            content: "In both views, the **dashed red lines and their corresponding labels on the vertical axis mark 40-hour increments**. This helps you quickly gauge workload against standard full-time capacity.",
             roles: ['taskmaster']
         },
         {
@@ -476,7 +494,13 @@ export const tutorialContent = {
         {
             key: "addEmployeeFields",
             title: "Adding New Employee Details",
-            content: "**Use these input fields to enter new employee details** such as first name, last name, email, title, and employee ID. Ensure all required fields are filled to successfully add a new employee to your team roster.",
+            content: "**Use these input fields to enter new employee details** including name, title, email, wage, and union affiliation. Ensure all required fields are filled to successfully add a new employee to your team roster.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "manageUnionLocals",
+            title: "Managing Union Locals",
+            content: "Inside the 'Add New Employee' form, **click the 'Manage' button next to the Union Local dropdown**. This will reveal an interface where you can add, edit, or delete union locals from the list used in the dropdown.",
             roles: ['taskmaster']
         },
         {
@@ -506,7 +530,7 @@ export const tutorialContent = {
         {
             key: "weeklyForecast",
             title: "Weekly Hour Forecast",
-            content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you **input the *demand*—the number of hours you *forecast* each trade will need for this project each week**. This data powers the **Gantt Console** and the **Forecast Console**, providing crucial insights into future workload.",
+            content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you **input the *demand*—the number of hours you *forecast* each trade will need for this project each week**. This data powers the **Gantt Console** and the **Forecast Console**, providing crucial insights into future workload. Weeks in this view start on Monday.",
             roles: ['taskmaster']
         },
         {
@@ -524,4 +548,3 @@ export const tutorialContent = {
     ]
   },
 };
-

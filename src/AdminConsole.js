@@ -308,20 +308,29 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [weeklyHours, setWeeklyHours] = useState({});
     const [activeTrades, setActiveTrades] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [dragState, setDragState] = useState(null);
     const [isAdding, setIsAdding] = useState(false);
     const [newTrade, setNewTrade] = useState('');
+
+    const [dragState, setDragState] = useState(null);
+    const dragStateRef = useRef(null);
+
+    useEffect(() => {
+        dragStateRef.current = dragState;
+    }, [dragState]);
 
     const weekCount = 52;
 
     const getWeekDates = (from, count) => {
-        const sunday = new Date(from);
-        sunday.setHours(0, 0, 0, 0);
-        sunday.setDate(sunday.getDate() - sunday.getDay());
+        const monday = new Date(from);
+        monday.setHours(0, 0, 0, 0);
+        const day = monday.getDay();
+        const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+        monday.setDate(diff);
+
         const weeks = [];
         for (let i = 0; i < count; i++) {
-            const weekStart = new Date(sunday);
-            weekStart.setDate(sunday.getDate() + (i * 7));
+            const weekStart = new Date(monday);
+            weekStart.setDate(monday.getDate() + (i * 7));
             weeks.push(weekStart.toISOString().split('T')[0]);
         }
         return weeks;
@@ -406,9 +415,10 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     };
 
     const handleMouseEnter = (trade, week) => {
-        if (!dragState || dragState.startTrade !== trade) return;
+        const currentDragState = dragStateRef.current;
+        if (!currentDragState || currentDragState.startTrade !== trade) return;
         
-        const startIndex = weekDates.indexOf(dragState.startWeek);
+        const startIndex = weekDates.indexOf(currentDragState.startWeek);
         const currentIndex = weekDates.indexOf(week);
         
         const newSelection = {};
@@ -423,14 +433,15 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     };
 
     const handleMouseUp = useCallback(() => {
-        if (!dragState) return;
+        const currentDragState = dragStateRef.current;
+        if (!currentDragState) return;
 
-        const { startTrade, fillValue, selection } = dragState;
+        const { startTrade, fillValue, selection } = currentDragState;
         
         setWeeklyHours(prevWeeklyHours => {
             const updatedHours = { ...(prevWeeklyHours[startTrade] || {}) };
-            Object.keys(selection).forEach(week => {
-                updatedHours[week] = fillValue;
+            Object.keys(selection).forEach(weekKey => {
+                updatedHours[weekKey] = fillValue;
             });
             return {
                 ...prevWeeklyHours,
@@ -439,7 +450,14 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         });
 
         setDragState(null);
-    }, [dragState]);
+    }, []);
+
+    useEffect(() => {
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [handleMouseUp]);
     
     const handlePaste = (event, startTrade, startWeekDate) => {
         event.preventDefault();
@@ -476,13 +494,6 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         });
         setWeeklyHours(newWeeklyHours);
     };
-
-    useEffect(() => {
-        window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [handleMouseUp]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -542,7 +553,13 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                                 className="absolute bottom-0 right-0 w-2 h-2 bg-blue-600 cursor-crosshair"
                                                 onMouseDown={(e) => {
                                                     e.preventDefault(); e.stopPropagation();
-                                                    setDragState({ assignment: { id: 'drag-fill', trade: trade }, weekIndex: weekIndex, startWeek: week, fillValue: weeklyHours[trade]?.[week] || 0, selection: {} });
+                                                    const valueToFill = weeklyHours[trade]?.[week] || 0;
+                                                    setDragState({ 
+                                                        startTrade: trade,
+                                                        startWeek: week, 
+                                                        fillValue: valueToFill,
+                                                        selection: { [week]: true }
+                                                    });
                                                 }}
                                             ></div>
                                         </td>
@@ -839,13 +856,15 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                     <h2 className="text-2xl font-bold text-blue-500 hover:underline">&larr; Back to All Projects</h2>
                                     <p className="text-lg font-semibold">{projects.find(p => p.id === expandedProjectId)?.name} ({projects.find(p => p.id === expandedProjectId)?.projectId})</p>
                                 </div>
-                                <WeeklyTimeline 
-                                    project={projects.find(p => p.id === expandedProjectId)}
-                                    db={db}
-                                    appId={appId}
-                                    currentTheme={currentTheme}
-                                    showToast={showToast}
-                                />
+                                <TutorialHighlight tutorialKey="weeklyForecast">
+                                    <WeeklyTimeline 
+                                        project={projects.find(p => p.id === expandedProjectId)}
+                                        db={db}
+                                        appId={appId}
+                                        currentTheme={currentTheme}
+                                        showToast={showToast}
+                                    />
+                                </TutorialHighlight>
                             </div>
                         </motion.div>
                     ) : (
@@ -880,19 +899,21 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
                                     <input type="text" placeholder="Search employees..." value={employeeSearchTerm} onChange={(e) => setEmployeeSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                    <div className="flex items-center gap-2">
-                                        <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                        {projectStatuses.map(status => (
-                                            <Tooltip key={status} text={statusDescriptions[status]}>
-                                                <button 
-                                                    onClick={() => handleStatusFilterToggle(status)}
-                                                    className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                                                >
-                                                    {status.charAt(0)}
-                                                </button>
-                                            </Tooltip>
-                                        ))}
-                                    </div>
+                                    <TutorialHighlight tutorialKey="projectStatusImpact">
+                                        <div className="flex items-center gap-2">
+                                            <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                            {projectStatuses.map(status => (
+                                                <Tooltip key={status} text={statusDescriptions[status]}>
+                                                    <button 
+                                                        onClick={() => handleStatusFilterToggle(status)}
+                                                        className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                                    >
+                                                        {status.charAt(0)}
+                                                    </button>
+                                                </Tooltip>
+                                            ))}
+                                        </div>
+                                    </TutorialHighlight>
                                 </div>
                             </div>
 
@@ -920,15 +941,17 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                         <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                         <input type="number" value={newEmployee.wage} onChange={e => setNewEmployee({...newEmployee, wage: e.target.value})} placeholder="Wage/hr" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                         <input type="number" value={newEmployee.percentAboveScale} onChange={e => setNewEmployee({...newEmployee, percentAboveScale: e.target.value})} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <div className="flex items-center gap-2">
-                                                            <select value={newEmployee.unionLocal} onChange={e => setNewEmployee({...newEmployee, unionLocal: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                                                <option value="">Select Union Local...</option>
-                                                                {unionLocals.map(local => (
-                                                                    <option key={local.id} value={local.name}>{local.name}</option>
-                                                                ))}
-                                                            </select>
-                                                            <button type="button" onClick={() => setShowUnionManagement(!showUnionManagement)} className={`text-sm p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex-shrink-0`}>Manage</button>
-                                                        </div>
+                                                        <TutorialHighlight tutorialKey="manageUnionLocals">
+                                                            <div className="flex items-center gap-2">
+                                                                <select value={newEmployee.unionLocal} onChange={e => setNewEmployee({...newEmployee, unionLocal: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                                    <option value="">Select Union Local...</option>
+                                                                    {unionLocals.map(local => (
+                                                                        <option key={local.id} value={local.name}>{local.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                                <button type="button" onClick={() => setShowUnionManagement(!showUnionManagement)} className={`text-sm p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex-shrink-0`}>Manage</button>
+                                                            </div>
+                                                        </TutorialHighlight>
                                                         <AnimatePresence>
                                                         {showUnionManagement && (
                                                             <motion.div

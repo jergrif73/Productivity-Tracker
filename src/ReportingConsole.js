@@ -1,12 +1,26 @@
 import React, { useState, useMemo } from 'react';
+import { TutorialHighlight } from './App';
 
 const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme }) => {
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [selectedProjectId, setSelectedProjectId] = useState('');
+    const [selectedLevel, setSelectedLevel] = useState('');
+    const [selectedTrade, setSelectedTrade] = useState('');
     const [reportData, setReportData] = useState(null);
     const [reportHeaders, setReportHeaders] = useState([]);
+
+    const uniqueTitles = useMemo(() => [...new Set(detailers.map(d => d.title).filter(Boolean))].sort(), [detailers]);
+    const uniqueTrades = useMemo(() => {
+        const trades = new Set();
+        detailers.forEach(d => {
+            if (Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0) {
+                trades.add(d.disciplineSkillsets[0].name); // Assuming primary trade is the first one
+            }
+        });
+        return [...trades].sort();
+    }, [detailers]);
 
     const getDaysInRange = (assStart, assEnd, reportStart, reportEnd) => {
         const effectiveStart = Math.max(assStart.getTime(), reportStart.getTime());
@@ -131,12 +145,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                 data = projectsToReport.map(p => {
                         const projectActivities = projectActivitiesMap.get(p.id);
 
-                        // Actual Burn
                         const actualBurn = projectActivities 
                             ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.hoursUsed) || 0), 0)
                             : 0;
 
-                        // Assigned Supply
                         const assignedHours = assignments
                             .filter(a => a.projectId === p.id)
                             .reduce((sum, ass) => {
@@ -144,11 +156,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                 const assignmentEnd = new Date(ass.endDate);
                                 const diffTime = Math.abs(assignmentEnd - assignmentStart);
                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                const workDays = Math.ceil(diffDays * (5/7)); // Approx.
+                                const workDays = Math.ceil(diffDays * (5/7));
                                 return sum + (workDays * 8 * (Number(ass.allocation) / 100));
                             }, 0);
 
-                        // Forecasted Demand
                         const forecastedHours = projectActivities
                             ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.estimatedHours) || 0), 0)
                             : 0;
@@ -165,6 +176,72 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                         ];
                     });
                 break;
+            
+            case 'employee-details':
+                const baseHeaders = [
+                    "First Name", "Last Name", "Title", "Employee ID", "Email",
+                    "Wage/hr", "% Above Scale", "Union Local"
+                ];
+                const generalSkillHeaders = [];
+                for (let i = 1; i <= 5; i++) {
+                    generalSkillHeaders.push(`General Skill ${i}`, `Skill ${i} Score`);
+                }
+                const disciplineSkillHeaders = [];
+                for (let i = 1; i <= 7; i++) {
+                    disciplineSkillHeaders.push(`Discipline ${i}`, `Discipline ${i} Score`);
+                }
+                headers = [...baseHeaders, ...generalSkillHeaders, ...disciplineSkillHeaders];
+
+                let filteredDetailers = [...detailers];
+
+                if (selectedLevel) {
+                    filteredDetailers = filteredDetailers.filter(d => d.title === selectedLevel);
+                }
+
+                if (selectedTrade) {
+                    filteredDetailers = filteredDetailers.filter(d => {
+                        const primaryTrade = d.disciplineSkillsets && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
+                        return primaryTrade === selectedTrade;
+                    });
+                }
+
+                data = filteredDetailers.map(d => {
+                    const baseData = [
+                        d.firstName,
+                        d.lastName,
+                        d.title || 'N/A',
+                        d.employeeId || 'N/A',
+                        d.email || 'N/A',
+                        d.wage || 0,
+                        d.percentAboveScale || 0,
+                        d.unionLocal || 'N/A',
+                    ];
+
+                    const generalSkillsData = [];
+                    const generalSkills = d.skills ? Object.entries(d.skills) : [];
+                    for (let i = 0; i < 5; i++) {
+                        if (i < generalSkills.length) {
+                            generalSkillsData.push(generalSkills[i][0]); // Skill name
+                            generalSkillsData.push(generalSkills[i][1]); // Skill score
+                        } else {
+                            generalSkillsData.push('', ''); // Pad with empty values
+                        }
+                    }
+
+                    const disciplineSkillsData = [];
+                    const disciplineSkills = d.disciplineSkillsets || [];
+                    for (let i = 0; i < 7; i++) {
+                        if (i < disciplineSkills.length) {
+                            disciplineSkillsData.push(disciplineSkills[i].name); // Discipline name
+                            disciplineSkillsData.push(disciplineSkills[i].score); // Discipline score
+                        } else {
+                            disciplineSkillsData.push('', ''); // Pad with empty values
+                        }
+                    }
+
+                    return [...baseData, ...generalSkillsData, ...disciplineSkillsData];
+                });
+                break;
 
 
             default:
@@ -177,6 +254,11 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     const handleClearReport = () => {
         setReportData(null);
         setReportHeaders([]);
+        setSelectedLevel('');
+        setSelectedTrade('');
+        setSelectedProjectId('');
+        setStartDate('');
+        setEndDate('');
     };
 
     const exportToCSV = () => {
@@ -184,7 +266,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
 
         let csvContent = "data:text/csv;charset=utf-8," 
             + reportHeaders.map(h => `"${h}"`).join(",") + "\n" 
-            + reportData.map(e => e.map(cell => `"${cell}"`).join(",")).join("\n");
+            + reportData.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
 
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -195,42 +277,91 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         document.body.removeChild(link);
     };
 
+    const renderFilters = () => {
+        switch (reportType) {
+            case 'employee-details':
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Filter by Level</label>
+                            <select value={selectedLevel} onChange={e => setSelectedLevel(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">All Levels</option>
+                                {uniqueTitles.map(title => <option key={title} value={title}>{title}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Filter by Trade</label>
+                            <select value={selectedTrade} onChange={e => setSelectedTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">All Primary Trades</option>
+                                {uniqueTrades.map(trade => <option key={trade} value={trade}>{trade}</option>)}
+                            </select>
+                        </div>
+                    </>
+                );
+            case 'forecast-vs-actual':
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Project</label>
+                            <select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">All Projects</option>
+                                {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Start Date</label>
+                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">End Date</label>
+                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                        </div>
+                    </>
+                );
+            case 'project-hours':
+            case 'detailer-workload':
+            case 'task-status':
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Start Date</label>
+                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">End Date</label>
+                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                        </div>
+                    </>
+                );
+            default:
+                return null;
+        }
+    }
+
     return (
         <div className="p-4 space-y-6">
-            <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting Console</h2>
+            <TutorialHighlight tutorialKey="reporting">
+                <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting Console</h2>
+            </TutorialHighlight>
 
             <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4`}>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Report Type</label>
-                        <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                            <option value="">Select a report...</option>
-                            <option value="project-hours">Project Hours Summary</option>
-                            <option value="detailer-workload">Detailer Workload Summary</option>
-                            <option value="task-status">Task Status Report</option>
-                            <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
-                        </select>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium mb-1">Project</label>
-                        <select 
-                            value={selectedProjectId} 
-                            onChange={e => setSelectedProjectId(e.target.value)} 
-                            className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                            disabled={reportType !== 'forecast-vs-actual'}
-                        >
-                            <option value="">All Projects</option>
-                            {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Start Date</label>
-                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">End Date</label>
-                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <TutorialHighlight tutorialKey="reportType">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Report Type</label>
+                            <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">Select a report...</option>
+                                <option value="project-hours">Project Hours Summary</option>
+                                <option value="detailer-workload">Detailer Workload Summary</option>
+                                <option value="task-status">Task Status Report</option>
+                                <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
+                                <option value="employee-details">Employee Skills & Details</option>
+                            </select>
+                        </div>
+                    </TutorialHighlight>
+                    
+                    {renderFilters()}
+
                     <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate Report</button>
                 </div>
             </div>
@@ -239,10 +370,12 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                  <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xl font-semibold">Report Results</h3>
-                        <div className="flex gap-2">
-                             <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                             <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
-                        </div>
+                        <TutorialHighlight tutorialKey="exportToCSV">
+                            <div className="flex gap-2">
+                                 <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                                 <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                            </div>
+                        </TutorialHighlight>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full">
