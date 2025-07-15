@@ -330,14 +330,27 @@ const SplashScreen = ({ onLogin, error }) => {
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
     const theme = currentTheme || { cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600' };
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
-            <div className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto`}>
+        <motion.div
+            className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose} // Close on backdrop click
+        >
+            <motion.div
+                initial={{ y: "-20px", opacity: 0 }}
+                animate={{ y: "0", opacity: 1 }}
+                exit={{ y: "20px", opacity: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25, mass: 0.5 }}
+                className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}
+                onClick={e => e.stopPropagation()} // Prevent closing when clicking inside modal
+            >
                 <div className="flex justify-end">
                     <button onClick={onClose} className={`text-2xl font-bold ${theme.subtleText} hover:${theme.textColor}`}>&times;</button>
                 </div>
                 {children}
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
     );
 };
 
@@ -358,7 +371,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
-    const [initialSelectedProjectInProjectConsole, setInitialSelectedProjectInProjectConsole] = useState(null);
+    // New state for ProjectConsole filter
     const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState('');
     const [initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader] = useState(null);
     const { startTutorial, isTutorialActive } = useContext(TutorialContext);
@@ -454,7 +467,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
         { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
-        { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg> },
+        { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.001 0 0120.488 9z" /></svg> },
         { id: 'forecast', label: 'Forecast', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C3.732 5.943 7.522 3 10 3s6.268 2.943 9.542 7c-3.274 4.057-7.03 7-9.542 7S3.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> },
         { id: 'reporting', label: 'Reporting', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg> },
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
@@ -482,12 +495,33 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         const allowedViews = navConfig[accessLevel];
         const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
         
-        const consoleProps = { db, detailers, projects, assignments, tasks, taskLanes, currentTheme, accessLevel, theme, setTheme, appId, showToast };
+        // FIX: Correctly include initialProjectConsoleFilter in consoleProps
+        const consoleProps = { 
+            db, 
+            detailers, 
+            projects, 
+            assignments, 
+            tasks, 
+            taskLanes, 
+            currentTheme, 
+            accessLevel, 
+            theme, 
+            setTheme, 
+            appId, 
+            showToast,
+            initialProjectConsoleFilter, // Correct state variable for ProjectConsole filter
+            setInitialProjectConsoleFilter, // Setter for ProjectConsole filter
+            initialSelectedProjectInWorkloader, 
+            setInitialSelectedProjectInWorkloader,
+            initialSelectedEmployeeInTeamConsole,
+            setInitialSelectedEmployeeInTeamConsole
+        };
 
         switch (currentView) {
-            case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} initialSelectedEmployeeInTeamConsole={initialSelectedEmployeeInTeamConsole} setInitialSelectedEmployeeInTeamConsole={setInitialSelectedEmployeeInTeamConsole} setView={setView} setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader} />;
-            case 'projects': return <ProjectConsole {...consoleProps} initialSelectedProjectInProjectConsole={initialSelectedProjectInProjectConsole} setInitialSelectedProjectInProjectConsole={setInitialSelectedProjectInProjectConsole} setView={setView} setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader} initialProjectConsoleFilter={initialProjectConsoleFilter} setInitialProjectConsoleFilter={setInitialProjectConsoleFilter} />;
-            case 'workloader': return <WorkloaderConsole {...consoleProps} setView={setView} setInitialSelectedEmployeeInTeamConsole={setInitialSelectedEmployeeInTeamConsole} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} setInitialSelectedEmployeeInWorkloader={setInitialSelectedEmployeeInWorkloader} setInitialSelectedProjectInProjectConsole={setInitialSelectedProjectInProjectConsole} initialSelectedProjectInWorkloader={initialSelectedProjectInWorkloader} setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader} setInitialProjectConsoleFilter={setInitialProjectConsoleFilter} />;
+            case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} />;
+            // FIX: Pass all necessary props via consoleProps
+            case 'projects': return <ProjectConsole {...consoleProps} setView={setView} />;
+            case 'workloader': return <WorkloaderConsole {...consoleProps} setView={setView} />;
             case 'tasks': return <TaskConsole {...consoleProps} />;
             case 'gantt': return <GanttConsole {...consoleProps} />;
             case 'forecast': return <ForecastConsole {...consoleProps} />;
@@ -527,8 +561,8 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                 .hide-scrollbar-on-hover::-webkit-scrollbar-track {
                     background: transparent;
                 }
-                .hide-scrollbar-on-hover:hover::-webkit-scrollbar-track {
-                    background: rgba(0, 0, 0, 0.1);
+                .hide-scrollbar-on-hover:hover {
+                    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
                 }
                 .hide-scrollbar-on-hover {
                     scrollbar-width: thin;
