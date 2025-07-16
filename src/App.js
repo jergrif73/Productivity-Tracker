@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -10,7 +10,7 @@ import ProjectConsole from './ProjectConsole';
 import WorkloaderConsole from './WorkloaderConsole';
 import TaskConsole from './TaskConsole';
 import GanttConsole from './GanttConsole';
-import ForecastConsole from './ForecastConsole';
+import ProjectForecastConsole from './ProjectForecastConsole'; // Import the new console
 import SkillsConsole from './SkillsConsole';
 import ReportingConsole from './ReportingConsole';
 import AdminConsole from './AdminConsole';
@@ -43,7 +43,7 @@ const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? wi
 
 // --- Contexts ---
 const AuthContext = createContext({ accessLevel: 'default', setAccessLevel: () => {} });
-const TutorialContext = createContext();
+export const TutorialContext = createContext();
 export const NavigationContext = createContext({
     navigateToWorkloaderForEmployee: () => {},
     navigateToWorkloaderForProject: () => {},
@@ -372,6 +372,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [tasks, setTasks] = useState([]);
     const [taskLanes, setTaskLanes] = useState([]);
     const [allProjectActivities, setAllProjectActivities] = useState([]);
+    // **REMOVED**: The old `rawForecastData` state is no longer needed.
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
@@ -481,13 +482,16 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                 setter(data);
             }, err => console.error(`Error fetching ${name}:`, err));
         });
-
-        setTimeout(() => setLoading(false), 1000);
+        
+        setLoading(false);
 
         return () => {
             unsubscribers.forEach(unsub => unsub());
         };
     }, [isAuthReady]);
+
+    // **REMOVED**: The old `useEffect` for fetching `rawForecastData` has been removed
+    // as this logic is now handled within the `ProjectForecastConsole` itself.
 
 
     const handleNavClick = (viewId) => {
@@ -500,13 +504,13 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
         { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.001 0 0120.488 9z" /></svg> },
-        { id: 'forecast', label: 'Forecast', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C3.732 5.943 7.522 3 10 3s6.268 2.943 9.542 7c-3.274 4.057-7.03 7-9.542 7S3.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> },
+        { id: 'project-forecast', label: 'Forecast', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L9 9.61l-3.66-1.57a1 1 0 00-1.23.26l-2 3a1 1 0 00.22 1.5l4 2a1 1 0 00.94 0l7-3a1 1 0 000-1.84l-3-1.29-3.66 1.57a1 1 0 00-1.23-.26l-2-3a1 1 0 00.22-1.5l4-2z" /></svg> },
         { id: 'reporting', label: 'Reporting', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg> },
         { id: 'admin', label: 'Manage', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01-.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
     ];
 
     const navConfig = {
-        taskmaster: ['workloader', 'detailers', 'projects', 'tasks', 'gantt', 'forecast', 'reporting', 'admin'],
+        taskmaster: ['workloader', 'detailers', 'projects', 'tasks', 'gantt', 'project-forecast', 'reporting', 'admin'],
         tcl: ['workloader', 'projects', 'tasks', 'gantt'],
         viewer: ['workloader', 'tasks', 'gantt'],
         default: []
@@ -520,7 +524,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         if (loading) {
             switch (view) {
                 case 'detailers': return <TeamConsoleSkeleton currentTheme={currentTheme} />;
-                default: return <div className="p-10"><SkeletonLoader className="h-32 w-full" /></div>;
+                default: return <div className="p-10 text-center">Loading Data...</div>;
             }
         }
 
@@ -547,6 +551,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             initialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInWorkloader,
+            // **REMOVED**: rawForecastData is no longer passed as a prop
         };
 
         switch (currentView) {
@@ -555,7 +560,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             case 'workloader': return <WorkloaderConsole {...consoleProps} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} />;
             case 'tasks': return <TaskConsole {...consoleProps} />;
             case 'gantt': return <GanttConsole {...consoleProps} />;
-            case 'forecast': return <ForecastConsole {...consoleProps} detailers={detailers} />;
+            case 'project-forecast': return <ProjectForecastConsole {...consoleProps} />;
             case 'reporting': return <ReportingConsole {...consoleProps} allProjectActivities={allProjectActivities} />;
             case 'admin': return <AdminConsole {...consoleProps} />;
             default: return <div className="text-center p-10">Select a view from the navigation.</div>;

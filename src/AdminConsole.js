@@ -313,11 +313,24 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [dragState, setDragState] = useState(null);
     const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
     
-    const [displayHours, setDisplayHours] = useState({});
+    // **FIX**: Separate state for data from Firestore and local user changes
+    const [firestoreHours, setFirestoreHours] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const debouncedChanges = useDebounce(pendingChanges, 1000);
 
-    const weekCount = 52;
+    // **FIX**: `displayHours` is now a memoized value that merges Firestore data and local changes
+    const displayHours = useMemo(() => {
+        const merged = JSON.parse(JSON.stringify(firestoreHours)); // Deep copy to prevent mutation
+        for (const rowId in pendingChanges) {
+            if (!merged[rowId]) merged[rowId] = {};
+            for (const week in pendingChanges[rowId]) {
+                merged[rowId][week] = pendingChanges[rowId][week];
+            }
+        }
+        return merged;
+    }, [firestoreHours, pendingChanges]);
+
+    const weekCount = 156;
 
     const getWeekDates = (from, count) => {
         const monday = new Date(from);
@@ -337,6 +350,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
     const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
     
+    // **FIX**: This useEffect now only fetches data and does not depend on `pendingChanges`
     useEffect(() => {
         setLoading(true);
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
@@ -344,7 +358,6 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             if (docSnap.exists() && docSnap.data().rows) {
                 setTimelineRows(docSnap.data().rows);
             } else {
-                // Handle legacy data if needed, or just start fresh
                 setTimelineRows([]);
             }
         });
@@ -357,16 +370,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     hoursData[doc.id] = doc.data();
                 }
             });
-            setDisplayHours(prevDisplay => {
-                const newDisplay = JSON.parse(JSON.stringify(hoursData));
-                for (const rowId in pendingChanges) {
-                    if (!newDisplay[rowId]) newDisplay[rowId] = {};
-                    for (const week in pendingChanges[rowId]) {
-                        newDisplay[rowId][week] = pendingChanges[rowId][week];
-                    }
-                }
-                return newDisplay;
-            });
+            setFirestoreHours(hoursData); // Only update the raw Firestore data state
             setLoading(false);
         });
 
@@ -374,7 +378,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             unsubscribeConfig();
             unsubscribeHours();
         };
-    }, [project.id, db, appId, pendingChanges]);
+    }, [project.id, db, appId]);
 
     useEffect(() => {
         if (Object.keys(debouncedChanges).length === 0) return;
@@ -397,16 +401,10 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         });
     }, [debouncedChanges, appId, db, project.id]);
 
+    // **FIX**: This handler now only updates the `pendingChanges` state.
     const handleHoursChange = (rowId, week, hours) => {
         const numericValue = hours === '' ? '' : Number(hours);
         
-        setDisplayHours(prev => {
-            const newHours = JSON.parse(JSON.stringify(prev));
-            if (!newHours[rowId]) newHours[rowId] = {};
-            newHours[rowId][week] = numericValue;
-            return newHours;
-        });
-
         setPendingChanges(prev => {
             const newChanges = JSON.parse(JSON.stringify(prev));
             if (!newChanges[rowId]) newChanges[rowId] = {};
@@ -470,21 +468,11 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         if (!dragState) return;
         const { startRowId, fillValue, selection } = dragState;
         
-        const changesForUI = {};
         const changesForDB = {};
 
         Object.keys(selection).forEach(weekKey => {
-            changesForUI[weekKey] = fillValue;
             changesForDB[weekKey] = fillValue;
         });
-
-        setDisplayHours(prev => ({
-            ...prev,
-            [startRowId]: {
-                ...(prev[startRowId] || {}),
-                ...changesForUI,
-            }
-        }));
 
         setPendingChanges(prev => ({
             ...prev,
@@ -515,14 +503,12 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
         if (startRowIndex === -1 || startWeekIndex === -1) return;
 
-        const uiChanges = JSON.parse(JSON.stringify(displayHours));
-        const dbChanges = JSON.parse(JSON.stringify(pendingChanges));
+        const dbChanges = { ...pendingChanges };
 
         parsedData.forEach((rowData, rowIndex) => {
             const currentRowIndex = startRowIndex + rowIndex;
             if (currentRowIndex < timelineRows.length) {
                 const currentRow = timelineRows[currentRowIndex];
-                if (!uiChanges[currentRow.id]) uiChanges[currentRow.id] = {};
                 if (!dbChanges[currentRow.id]) dbChanges[currentRow.id] = {};
 
                 rowData.forEach((cellData, colIndex) => {
@@ -531,14 +517,12 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                         const currentWeek = weekDates[currentWeekIndex];
                         const value = parseInt(cellData, 10);
                         if (!isNaN(value)) {
-                            uiChanges[currentRow.id][currentWeek] = value;
                             dbChanges[currentRow.id][currentWeek] = value;
                         }
                     }
                 });
             }
         });
-        setDisplayHours(uiChanges);
         setPendingChanges(dbChanges);
     };
 
@@ -564,7 +548,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             await batch.commit();
             // Also clear local state
             setTimelineRows([]);
-            setDisplayHours({});
+            setFirestoreHours({});
             setPendingChanges({});
             showToast("Forecast data for this project has been cleared.", "success");
         } catch (error) {
@@ -949,10 +933,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     {expandedProjectId ? (
                         <motion.div
                             key="timeline"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto', transition: { type: "spring", stiffness: 200, damping: 25 } }}
-                            exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
-                            className="overflow-hidden"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
                         >
                             <div className={`p-4 ${currentTheme.consoleBg} h-full`}>
                                 <div 
