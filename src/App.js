@@ -363,7 +363,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
 
 // --- Main Application Component ---
 const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout }) => {
-    const [view, setView] = useState('projects');
+    const [view, setView] = useState('workloader');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
     const [detailers, setDetailers] = useState([]);
@@ -495,9 +495,9 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     };
 
     const navButtons = [
+        { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
         { id: 'detailers', label: 'Team', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
-        { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
         { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.001 0 0120.488 9z" /></svg> },
         { id: 'forecast', label: 'Forecast', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C3.732 5.943 7.522 3 10 3s6.268 2.943 9.542 7c-3.274 4.057-7.03 7-9.542 7S3.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> },
@@ -506,8 +506,8 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     ];
 
     const navConfig = {
-        taskmaster: ['detailers', 'projects', 'workloader', 'tasks', 'gantt', 'forecast', 'reporting', 'admin'],
-        tcl: ['projects', 'workloader', 'tasks', 'gantt'],
+        taskmaster: ['workloader', 'detailers', 'projects', 'tasks', 'gantt', 'forecast', 'reporting', 'admin'],
+        tcl: ['workloader', 'projects', 'tasks', 'gantt'],
         viewer: ['workloader', 'tasks', 'gantt'],
         default: []
     };
@@ -640,11 +640,11 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                 </button>
                         </div>
                     </header>
-                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0`}>
+                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0 flex flex-col`}>
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={view}
-                                className="h-full"
+                                className="flex-1 min-h-0"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -20 }}

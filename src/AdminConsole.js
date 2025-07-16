@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
@@ -305,18 +305,17 @@ const statusDescriptions = {
 
 const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [startDate, setStartDate] = useState(new Date());
-    const [weeklyHours, setWeeklyHours] = useState({});
-    const [activeTrades, setActiveTrades] = useState([]);
+    const [timelineRows, setTimelineRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
     const [newTrade, setNewTrade] = useState('');
-
+    const [newDescription, setNewDescription] = useState('');
     const [dragState, setDragState] = useState(null);
-    const dragStateRef = useRef(null);
-
-    useEffect(() => {
-        dragStateRef.current = dragState;
-    }, [dragState]);
+    const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+    
+    const [displayHours, setDisplayHours] = useState({});
+    const [pendingChanges, setPendingChanges] = useState({});
+    const debouncedChanges = useDebounce(pendingChanges, 1000);
 
     const weekCount = 52;
 
@@ -324,7 +323,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         const monday = new Date(from);
         monday.setHours(0, 0, 0, 0);
         const day = monday.getDay();
-        const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+        const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
         monday.setDate(diff);
 
         const weeks = [];
@@ -341,11 +340,12 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     useEffect(() => {
         setLoading(true);
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
-        const unsubscribe = onSnapshot(configRef, (docSnap) => {
-            if (docSnap.exists() && docSnap.data().activeTrades) {
-                setActiveTrades(docSnap.data().activeTrades);
+        const unsubscribeConfig = onSnapshot(configRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().rows) {
+                setTimelineRows(docSnap.data().rows);
             } else {
-                setActiveTrades([]);
+                // Handle legacy data if needed, or just start fresh
+                setTimelineRows([]);
             }
         });
 
@@ -357,68 +357,102 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     hoursData[doc.id] = doc.data();
                 }
             });
-            setWeeklyHours(hoursData);
+            setDisplayHours(prevDisplay => {
+                const newDisplay = JSON.parse(JSON.stringify(hoursData));
+                for (const rowId in pendingChanges) {
+                    if (!newDisplay[rowId]) newDisplay[rowId] = {};
+                    for (const week in pendingChanges[rowId]) {
+                        newDisplay[rowId][week] = pendingChanges[rowId][week];
+                    }
+                }
+                return newDisplay;
+            });
             setLoading(false);
         });
 
         return () => {
-            unsubscribe();
+            unsubscribeConfig();
             unsubscribeHours();
         };
     }, [project.id, db, appId]);
 
-    const handleHoursChange = (trade, week, hours) => {
-        const newWeeklyHours = {
-            ...weeklyHours,
-            [trade]: {
-                ...weeklyHours[trade],
-                [week]: parseInt(hours, 10) || 0,
-            }
-        };
-        setWeeklyHours(newWeeklyHours);
+    useEffect(() => {
+        if (Object.keys(debouncedChanges).length === 0) return;
+
+        const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`);
+        const batch = writeBatch(db);
+
+        Object.entries(debouncedChanges).forEach(([rowId, weekData]) => {
+            const rowRef = doc(weeklyHoursRef, rowId);
+            const sanitizedData = {};
+            Object.keys(weekData).forEach(week => {
+                const val = weekData[week];
+                sanitizedData[week] = (val === '' || isNaN(val)) ? 0 : Number(val);
+            });
+            batch.set(rowRef, sanitizedData, { merge: true });
+        });
+
+        batch.commit().then(() => {
+            setPendingChanges({});
+        });
+    }, [debouncedChanges, appId, db, project.id]);
+
+    const handleHoursChange = (rowId, week, hours) => {
+        const numericValue = hours === '' ? '' : Number(hours);
+        
+        setDisplayHours(prev => {
+            const newHours = JSON.parse(JSON.stringify(prev));
+            if (!newHours[rowId]) newHours[rowId] = {};
+            newHours[rowId][week] = numericValue;
+            return newHours;
+        });
+
+        setPendingChanges(prev => {
+            const newChanges = JSON.parse(JSON.stringify(prev));
+            if (!newChanges[rowId]) newChanges[rowId] = {};
+            newChanges[rowId][week] = numericValue;
+            return newChanges;
+        });
+    };
+    
+    const handleDescriptionChange = async (rowId, newDescription) => {
+        const updatedRows = timelineRows.map(row => 
+            row.id === rowId ? { ...row, description: newDescription } : row
+        );
+        setTimelineRows(updatedRows); // Optimistic UI update
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+        await setDoc(configRef, { rows: updatedRows }, { merge: true });
     };
 
-    const debouncedWeeklyHours = useDebounce(weeklyHours, 1500);
-
-    useEffect(() => {
-        if (loading || !project.id || Object.keys(debouncedWeeklyHours).length === 0) return;
-        const saveData = async () => {
-            const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`);
-            const promises = Object.entries(debouncedWeeklyHours).map(([trade, weekData]) => {
-                if (activeTrades.includes(trade)) {
-                    return setDoc(doc(weeklyHoursRef, trade), weekData, { merge: true });
-                }
-                return Promise.resolve();
-            });
-            await Promise.all(promises);
-        };
-        saveData();
-    }, [debouncedWeeklyHours, activeTrades, project.id, loading, db, appId]);
-
     const handleAddTrade = async () => {
-        if (newTrade && !activeTrades.includes(newTrade)) {
-            const updatedTrades = [...activeTrades, newTrade];
+        if (newTrade) {
+            const newRow = {
+                id: `row_${Date.now()}`,
+                trade: newTrade,
+                description: newDescription || ''
+            };
+            const updatedRows = [...timelineRows, newRow];
             const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
-            await setDoc(configRef, { activeTrades: updatedTrades });
+            await setDoc(configRef, { rows: updatedRows });
             setIsAdding(false);
             setNewTrade('');
+            setNewDescription('');
         }
     };
 
-    const handleDeleteTrade = async (tradeToDelete) => {
-        const updatedTrades = activeTrades.filter(t => t !== tradeToDelete);
+    const handleDeleteRow = async (rowIdToDelete) => {
+        const updatedRows = timelineRows.filter(r => r.id !== rowIdToDelete);
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
-        await setDoc(configRef, { activeTrades: updatedTrades });
+        await setDoc(configRef, { rows: updatedRows });
 
-        const tradeHoursRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, tradeToDelete);
-        await deleteDoc(tradeHoursRef);
+        const rowHoursRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, rowIdToDelete);
+        await deleteDoc(rowHoursRef);
     };
 
-    const handleMouseEnter = (trade, week) => {
-        const currentDragState = dragStateRef.current;
-        if (!currentDragState || currentDragState.startTrade !== trade) return;
+    const handleMouseEnter = (rowId, week) => {
+        if (!dragState || dragState.startRowId !== rowId) return;
         
-        const startIndex = weekDates.indexOf(currentDragState.startWeek);
+        const startIndex = weekDates.indexOf(dragState.startWeek);
         const currentIndex = weekDates.indexOf(week);
         
         const newSelection = {};
@@ -433,24 +467,35 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     };
 
     const handleMouseUp = useCallback(() => {
-        const currentDragState = dragStateRef.current;
-        if (!currentDragState) return;
-
-        const { startTrade, fillValue, selection } = currentDragState;
+        if (!dragState) return;
+        const { startRowId, fillValue, selection } = dragState;
         
-        setWeeklyHours(prevWeeklyHours => {
-            const updatedHours = { ...(prevWeeklyHours[startTrade] || {}) };
-            Object.keys(selection).forEach(weekKey => {
-                updatedHours[weekKey] = fillValue;
-            });
-            return {
-                ...prevWeeklyHours,
-                [startTrade]: updatedHours
-            };
+        const changesForUI = {};
+        const changesForDB = {};
+
+        Object.keys(selection).forEach(weekKey => {
+            changesForUI[weekKey] = fillValue;
+            changesForDB[weekKey] = fillValue;
         });
 
+        setDisplayHours(prev => ({
+            ...prev,
+            [startRowId]: {
+                ...(prev[startRowId] || {}),
+                ...changesForUI,
+            }
+        }));
+
+        setPendingChanges(prev => ({
+            ...prev,
+            [startRowId]: {
+                ...(prev[startRowId] || {}),
+                ...changesForDB,
+            }
+        }));
+
         setDragState(null);
-    }, []);
+    }, [dragState]);
 
     useEffect(() => {
         window.addEventListener('mouseup', handleMouseUp);
@@ -459,26 +504,26 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         };
     }, [handleMouseUp]);
     
-    const handlePaste = (event, startTrade, startWeekDate) => {
+    const handlePaste = (event, startRowId, startWeekDate) => {
         event.preventDefault();
         const pasteData = event.clipboardData.getData('text');
         const rows = pasteData.split(/\r?\n/).filter(row => row.length > 0);
         const parsedData = rows.map(row => row.split('\t'));
 
-        const startTradeIndex = activeTrades.indexOf(startTrade);
+        const startRowIndex = timelineRows.findIndex(r => r.id === startRowId);
         const startWeekIndex = weekDates.indexOf(startWeekDate);
 
-        if (startTradeIndex === -1 || startWeekIndex === -1) return;
+        if (startRowIndex === -1 || startWeekIndex === -1) return;
 
-        const newWeeklyHours = { ...weeklyHours };
+        const uiChanges = JSON.parse(JSON.stringify(displayHours));
+        const dbChanges = JSON.parse(JSON.stringify(pendingChanges));
 
         parsedData.forEach((rowData, rowIndex) => {
-            const currentTradeIndex = startTradeIndex + rowIndex;
-            if (currentTradeIndex < activeTrades.length) {
-                const currentTrade = activeTrades[currentTradeIndex];
-                if (!newWeeklyHours[currentTrade]) {
-                    newWeeklyHours[currentTrade] = {};
-                }
+            const currentRowIndex = startRowIndex + rowIndex;
+            if (currentRowIndex < timelineRows.length) {
+                const currentRow = timelineRows[currentRowIndex];
+                if (!uiChanges[currentRow.id]) uiChanges[currentRow.id] = {};
+                if (!dbChanges[currentRow.id]) dbChanges[currentRow.id] = {};
 
                 rowData.forEach((cellData, colIndex) => {
                     const currentWeekIndex = startWeekIndex + colIndex;
@@ -486,13 +531,15 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                         const currentWeek = weekDates[currentWeekIndex];
                         const value = parseInt(cellData, 10);
                         if (!isNaN(value)) {
-                            newWeeklyHours[currentTrade][currentWeek] = value;
+                            uiChanges[currentRow.id][currentWeek] = value;
+                            dbChanges[currentRow.id][currentWeek] = value;
                         }
                     }
                 });
             }
         });
-        setWeeklyHours(newWeeklyHours);
+        setDisplayHours(uiChanges);
+        setPendingChanges(dbChanges);
     };
 
     const handleDateNav = (offset) => {
@@ -502,22 +549,58 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             return newDate;
         });
     };
+    
+    const handleClearForecast = async () => {
+        const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`);
+        const querySnapshot = await getDocs(weeklyHoursRef);
+        
+        const batch = writeBatch(db);
 
-    const availableTrades = disciplineOptions.filter(opt => !activeTrades.includes(opt));
+        querySnapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        try {
+            await batch.commit();
+            // Also clear local state
+            setTimelineRows([]);
+            setDisplayHours({});
+            setPendingChanges({});
+            showToast("Forecast data for this project has been cleared.", "success");
+        } catch (error) {
+            console.error("Error clearing forecast data: ", error);
+            showToast("Failed to clear forecast data.", "error");
+        }
+        setIsClearConfirmOpen(false);
+    };
 
     return (
         <TutorialHighlight tutorialKey="weeklyForecast">
+             <ConfirmationModal
+                isOpen={isClearConfirmOpen}
+                onClose={() => setIsClearConfirmOpen(false)}
+                onConfirm={handleClearForecast}
+                title="Confirm Clear Forecast"
+                currentTheme={currentTheme}
+            >
+                Are you sure you want to permanently delete all weekly forecast hours and trades for this project? This action cannot be undone.
+            </ConfirmationModal>
             <div className="mt-4 pt-4 border-t border-gray-500/50 space-y-2" onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-end items-center gap-2 mb-2">
-                    <button onClick={() => handleDateNav(-28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<< 4w'}</button>
-                    <button onClick={() => setStartDate(new Date())} className={`p-1 px-2 text-xs border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
-                    <button onClick={() => handleDateNav(28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
+                <div className="flex justify-between items-center gap-2 mb-2">
+                     <button onClick={() => setIsClearConfirmOpen(true)} className={`p-1 px-3 text-xs rounded-md bg-red-600 text-white hover:bg-red-700`}>
+                        Clear Forecast
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => handleDateNav(-28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<< 4w'}</button>
+                        <button onClick={() => setStartDate(new Date())} className={`p-1 px-2 text-xs border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
+                        <button onClick={() => handleDateNav(28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
+                    </div>
                 </div>
                 <div className="overflow-x-auto hide-scrollbar-on-hover">
                     <table className="min-w-full text-sm text-center border-collapse">
                         <thead className="sticky top-0 z-10">
                             <tr>
-                                <th className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.headerBg} sticky left-0 z-20`}>Trade</th>
+                                <th className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.headerBg} sticky left-0 z-20 w-64`}>Trade / Description</th>
                                 {weekDates.map(week => (
                                     <th key={week} className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.headerBg}`}>
                                         {new Date(week + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
@@ -526,26 +609,36 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                             </tr>
                         </thead>
                         <tbody>
-                            {activeTrades.map(trade => (
-                                <tr key={trade}>
-                                    <td className={`p-2 font-semibold border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
-                                        <div className="flex justify-between items-center">
-                                            <span>{trade}</span>
-                                            <button onClick={() => handleDeleteTrade(trade)} className="text-red-500 hover:text-red-700 ml-2 font-bold text-lg">&times;</button>
+                            {timelineRows.map(row => (
+                                <tr key={row.id}>
+                                    <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={() => handleDeleteRow(row.id)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                            <div className="flex-grow">
+                                                <p className="font-semibold text-left">{row.trade}</p>
+                                                <input
+                                                    type="text"
+                                                    value={row.description}
+                                                    onChange={(e) => handleDescriptionChange(row.id, e.target.value)}
+                                                    placeholder="Description..."
+                                                    className={`w-full p-1 text-xs bg-transparent rounded ${currentTheme.subtleText} focus:bg-white focus:text-black`}
+                                                />
+                                            </div>
                                         </div>
                                     </td>
-                                    {weekDates.map((week, weekIndex) => {
-                                        const isSelected = dragState?.startTrade === trade && dragState?.selection[week];
+                                    {weekDates.map((week) => {
+                                        const isSelected = dragState?.startRowId === row.id && dragState?.selection[week];
+                                        const displayValue = displayHours[row.id]?.[week];
                                         return (
-                                        <td key={`${trade}-${week}`} 
+                                        <td key={`${row.id}-${week}`} 
                                             className={`p-0 border relative ${currentTheme.borderColor}`} 
-                                            onMouseEnter={() => handleMouseEnter(trade, week)}
-                                            onPaste={(e) => handlePaste(e, trade, week)}
+                                            onMouseEnter={() => handleMouseEnter(row.id, week)}
+                                            onPaste={(e) => handlePaste(e, row.id, week)}
                                         >
                                             <input
                                                 type="number"
-                                                value={weeklyHours[trade]?.[week] || ''}
-                                                onChange={(e) => handleHoursChange(trade, week, e.target.value)}
+                                                value={displayValue ?? ''}
+                                                onChange={(e) => handleHoursChange(row.id, week, e.target.value)}
                                                 disabled={loading}
                                                 className={`w-full h-full p-1 text-center bg-transparent focus:bg-blue-200 focus:text-black outline-none no-arrows ${currentTheme.inputText} ${isSelected ? 'bg-blue-300/50' : ''}`}
                                             />
@@ -553,9 +646,9 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                                 className="absolute bottom-0 right-0 w-2 h-2 bg-blue-600 cursor-crosshair"
                                                 onMouseDown={(e) => {
                                                     e.preventDefault(); e.stopPropagation();
-                                                    const valueToFill = weeklyHours[trade]?.[week] || 0;
+                                                    const valueToFill = displayValue || 0;
                                                     setDragState({ 
-                                                        startTrade: trade,
+                                                        startRowId: row.id,
                                                         startWeek: week, 
                                                         fillValue: valueToFill,
                                                         selection: { [week]: true }
@@ -569,13 +662,22 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                             {isAdding && (
                                 <tr>
                                     <td className={`p-2 border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
-                                        <div className="flex gap-2">
+                                        <div className="flex flex-col gap-2">
                                             <select value={newTrade} onChange={(e) => setNewTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                                 <option value="">Select a trade...</option>
-                                                {availableTrades.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
-                                            <button onClick={handleAddTrade} className="bg-green-500 text-white px-4 py-2 rounded-md">Add</button>
-                                            <button onClick={() => setIsAdding(false)} className="bg-gray-500 text-white px-4 py-2 rounded-md">Cancel</button>
+                                            <input 
+                                                type="text"
+                                                value={newDescription}
+                                                onChange={(e) => setNewDescription(e.target.value)}
+                                                placeholder="Optional: e.g., Process, Mechanical"
+                                                className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                            />
+                                            <div className="flex gap-2">
+                                                <button onClick={handleAddTrade} className="bg-green-500 text-white px-4 py-2 rounded-md">Add</button>
+                                                <button onClick={() => setIsAdding(false)} className="bg-gray-500 text-white px-4 py-2 rounded-md">Cancel</button>
+                                            </div>
                                         </div>
                                     </td>
                                     <td colSpan={weekDates.length}></td>
@@ -584,7 +686,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                         </tbody>
                     </table>
                 </div>
-                {!isAdding && <button onClick={() => setIsAdding(true)} className="text-sm text-blue-500 hover:underline mt-2">+ Add Trade</button>}
+                {!isAdding && <button onClick={() => setIsAdding(true)} className="text-sm text-blue-500 hover:underline mt-2">+ Add Forecast Row</button>}
             </div>
         </TutorialHighlight>
     );
