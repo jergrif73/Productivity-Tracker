@@ -4,8 +4,8 @@ export const tutorialContent = {
     steps: [
       {
         key: "projects",
-        title: "Project Console Navigation",
-        content: "You are currently in the Project Console. This view allows you to see all active projects and dive into their financial and activity details. Project data is initially set up and managed in the **Admin Console**.",
+        title: "Navigating the Application",
+        content: "You are currently in the Project Console. The default view on login is the **Workloader Console**, which provides a timeline of all assignments. Use the navigation buttons in the header to switch between different consoles like this one, the Team Console, and more.",
         roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
@@ -176,6 +176,12 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "skillMatrixReport",
+            title: "Employee Skill Matrix (Chart)",
+            content: "This report generates a **visual heatmap of employee skills**. Use the filters to narrow down the employee list by their title or primary trade. This chart is excellent for quickly identifying skill gaps or finding the right person for a specific task.",
+            roles: ['taskmaster']
+        },
+        {
             key: "dateRangeSelection",
             title: "Date Range Selection for Reports",
             content: "For reports like 'Project Hours Summary' and 'Detailer Workload Summary', **specifying a start and end date allows you to analyze data for a specific period**, providing focused insights. Always ensure your date range is appropriate for the data you wish to analyze.",
@@ -185,12 +191,6 @@ export const tutorialContent = {
             key: "exportToCSV",
             title: "Export Report to CSV",
             content: "After generating a report, **click the 'Export to CSV' button to download the data in a spreadsheet format**. This is useful for further analysis, creating custom charts, or sharing outside the application.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "newReportSuggestions",
-            title: "Suggestions for New Reports",
-            content: "Consider adding reports like: \n- *Skill Matrix Report:* A grid showing all detailers and their skill ratings to easily find experts. \n- *Project Milestone Report:* Track completion dates of major tasks or phases across all projects. \n- *Budget vs. Actual by Trade:* A more granular version of the Forecast report, breaking down financial performance for each discipline (Piping, Duct, etc.) within a project.",
             roles: ['taskmaster']
         }
     ]
@@ -254,7 +254,13 @@ export const tutorialContent = {
         {
             key: "workloader",
             title: "Welcome to the Workloader",
-            content: "The Workloader provides a **timeline view of all project assignments**. It's the best way to visualize your team's workload over time. This console is directly populated by assignments created in the Team Console.",
+            content: "The Workloader provides a **timeline view of all project assignments** and is the default view when you log in. It's the best way to visualize your team's workload over time. This console is directly populated by assignments created in the Team Console.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "themeToggle",
+            title: "Changing the Theme",
+            content: "You can change the application's visual theme using the **'Light', 'Grey', and 'Dark' buttons** located in the top control bar of the Workloader. Your preference will be applied across the entire application.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -271,6 +277,7 @@ export const tutorialContent = {
         },
         {
             key: "searchTimeline",
+            title: "Searching the Timeline",
             content: "**Use the search bar to filter the timeline**. It will search by project name/ID when grouped by project, or by employee name when grouped by employee.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
@@ -530,7 +537,13 @@ export const tutorialContent = {
         {
             key: "weeklyForecast",
             title: "Weekly Hour Forecast",
-            content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you **input the *demand*—the number of hours you *forecast* each trade will need for this project each week**. This data powers the **Gantt Console** and the **Forecast Console**, providing crucial insights into future workload. Weeks in this view start on Monday.",
+            content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you input the *demand*—the number of hours you forecast will be needed. You can **add multiple rows for the same trade** (e.g., 'Piping') but with **different descriptions** (e.g., 'Process', 'Mechanical') for more granular planning. This data powers the **Gantt Console** and the **Forecast Console**.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "addForecastRow",
+            title: "Adding a Forecast Row",
+            content: "Click the **'+ Add Forecast Row'** button at the bottom of the timeline. Select a trade from the dropdown and optionally add a specific description. This allows you to create multiple, distinct forecast lines for the same trade.",
             roles: ['taskmaster']
         },
         {

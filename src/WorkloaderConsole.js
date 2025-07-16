@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, useContext } from 'react';
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
-import { NavigationContext } from './App'; // Import the NavigationContext
+import { NavigationContext, TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // Note: The Tooltip component would also be moved to its own file in a full refactor.
 const Tooltip = ({ text, children }) => {
@@ -394,6 +394,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     };
 
     return (
+        <TutorialHighlight tutorialKey="workloader">
         <div className="p-4 space-y-4 h-full flex flex-col">
              <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
                  <div className="flex items-center gap-2">
@@ -403,41 +404,51 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                      <span className={`font-semibold text-sm ml-4 ${currentTheme.textColor}`}>{getWeekDisplay(weekDates[0])}</span>
                  </div>
                  <div className="flex items-center gap-4 flex-grow">
-                    <input
-                        type="text"
-                        placeholder={`Search by ${groupBy}...`}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full max-w-xs`}
-                    />
-                    <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Group by:</span>
-                        <button onClick={() => handleGroupByChange('project')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'project' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project</button>
-                        <button onClick={() => handleGroupByChange('employee')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'employee' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Employee</button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
-                        {groupBy === 'project' ? (
-                            <>
-                                <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
-                                <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                            </>
-                        ) : (
-                             <>
-                                <button onClick={() => setSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                                <button onClick={() => setSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                            </>
-                        )}
-                    </div>
-                    <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                        {areAllExpanded ? 'Collapse All' : 'Expand All'}
-                    </button>
-                    <div className="flex items-center gap-2 ml-auto">
-                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Theme:</span>
-                        <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Light</button>
-                        <button onClick={() => setTheme('grey')} className={`px-3 py-1 text-sm rounded-md ${theme === 'grey' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Grey</button>
-                        <button onClick={() => setTheme('dark')} className={`px-3 py-1 text-sm rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Dark</button>
-                    </div>
+                    <TutorialHighlight tutorialKey="searchTimeline">
+                        <input
+                            type="text"
+                            placeholder={`Search by ${groupBy}...`}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className={`p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} w-full max-w-xs`}
+                        />
+                    </TutorialHighlight>
+                    <TutorialHighlight tutorialKey="groupAndSort">
+                        <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Group by:</span>
+                            <button onClick={() => handleGroupByChange('project')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'project' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project</button>
+                            <button onClick={() => handleGroupByChange('employee')} className={`px-3 py-1 text-sm rounded-md ${groupBy === 'employee' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Employee</button>
+                        </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight tutorialKey="groupAndSort">
+                        <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                            {groupBy === 'project' ? (
+                                <>
+                                    <button onClick={() => setSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Alphabetical</button>
+                                    <button onClick={() => setSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={() => setSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                                    <button onClick={() => setSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
+                                </>
+                            )}
+                        </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight tutorialKey="expandAndCollapse">
+                        <button onClick={handleToggleAll} className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                            {areAllExpanded ? 'Collapse All' : 'Expand All'}
+                        </button>
+                    </TutorialHighlight>
+                    <TutorialHighlight tutorialKey="themeToggle">
+                        <div className="flex items-center gap-2 ml-auto">
+                            <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Theme:</span>
+                            <button onClick={() => setTheme('light')} className={`px-3 py-1 text-sm rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Light</button>
+                            <button onClick={() => setTheme('grey')} className={`px-3 py-1 text-sm rounded-md ${theme === 'grey' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Grey</button>
+                            <button onClick={() => setTheme('dark')} className={`px-3 py-1 text-sm rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Dark</button>
+                        </div>
+                    </TutorialHighlight>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
                      {Object.entries(legendColorMapping).map(([trade, color]) => (
@@ -449,6 +460,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                  </div>
              </div>
 
+            <TutorialHighlight tutorialKey="dynamicTimeline">
             <div className={`overflow-auto border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow hide-scrollbar-on-hover`}>
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
@@ -471,12 +483,13 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                         </tr>
                     </thead>
                     {groupBy === 'project' ? (
-                        projectGroupedData.map(project => {
+                        projectGroupedData.map((project, projectIndex) => {
                             const isExpanded = expandedIds.has(project.id);
                             return (
                                 <tbody key={project.id}>
                                     <tr>
                                         <th colSpan={3 + displayableWeekDates.length} className={`p-1 text-left font-bold ${currentTheme.altRowBg} ${currentTheme.textColor} border ${currentTheme.borderColor} cursor-pointer`} onClick={() => toggleExpansion(project.id)}>
+                                            <TutorialHighlight tutorialKey={projectIndex === 0 ? "expandAndCollapse" : ""}>
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -485,17 +498,20 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                     {project.name} ({project.projectId})
                                                 </div>
                                                 {isTaskmaster && (
+                                                    <TutorialHighlight tutorialKey="goToProjectDetails">
                                                     <button
                                                         onClick={(e) => handleGoToProjectDetails(e, project.id, project.name)}
                                                         className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
                                                     >
                                                         Project Details
                                                     </button>
+                                                    </TutorialHighlight>
                                                 )}
                                             </div>
+                                            </TutorialHighlight>
                                         </th>
                                     </tr>
-                                    {isExpanded && project.assignments.map(assignment => {
+                                    {isExpanded && project.assignments.map((assignment, assignmentIndex) => {
                                         const { bg: bgColor, text: textColor } = tradeColorMapping[assignment.trade] || {bg: 'bg-gray-200', text: 'text-black'};
                                         const isRowVisibleInCurrentView = displayableWeekDates.some(weekStart => {
                                             const weekEnd = new Date(weekStart);
@@ -532,11 +548,13 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                             onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
                                                             onClick={(e) => handleCellClick(e, assignment, weekIndex)}
                                                         >
+                                                        <TutorialHighlight tutorialKey={projectIndex === 0 && assignmentIndex === 0 && weekIndex === 0 ? "editAssignments" : ""}>
                                                             {(isAssigned || isFillHighlighted) && (
                                                             <Tooltip text={tooltipText}>
                                                                 <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
                                                                     <span>{assignment.allocation}%</span>
                                                                     {isTaskmaster && isAssigned && (
+                                                                        <TutorialHighlight tutorialKey="dragFillAssignment">
                                                                         <div
                                                                             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                             onMouseDown={(e) => {
@@ -546,10 +564,12 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                         >
                                                                             <div className="h-full w-1 bg-white/50 rounded"></div>
                                                                         </div>
+                                                                        </TutorialHighlight>
                                                                     )}
                                                                 </div>
                                                             </Tooltip>
                                                             )}
+                                                        </TutorialHighlight>
                                                         </td>
                                                     )
                                                 })}
@@ -560,7 +580,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                             )
                         })
                     ) : (
-                        employeeGroupedData.map(employee => {
+                        employeeGroupedData.map((employee, employeeIndex) => {
                             const isExpanded = expandedIds.has(employee.id);
                             return (
                             <tbody key={employee.id}>
@@ -574,12 +594,14 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                 {employee.firstName} {employee.lastName}
                                             </div>
                                             {isTaskmaster && (
+                                                <TutorialHighlight tutorialKey="goToEmployeeAssignments">
                                                 <button
                                                     onClick={(e) => handleGoToEmployeeAssignments(e, employee.id)}
                                                     className={`ml-4 px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors flex-shrink-0`}
                                                 >
                                                     Projects Assignment
                                                 </button>
+                                                </TutorialHighlight>
                                             )}
                                         </div>
                                     </th>
@@ -650,6 +672,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     )}
                 </table>
             </div>
+            </TutorialHighlight>
             {editingCell && (
                 <div ref={popupRef}>
                     <AssignmentEditPopup
@@ -664,6 +687,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                 </div>
             )}
         </div>
+        </TutorialHighlight>
     );
 };
 

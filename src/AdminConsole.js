@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
@@ -374,7 +374,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             unsubscribeConfig();
             unsubscribeHours();
         };
-    }, [project.id, db, appId]);
+    }, [project.id, db, appId, pendingChanges]);
 
     useEffect(() => {
         if (Object.keys(debouncedChanges).length === 0) return;
@@ -597,6 +597,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     </div>
                 </div>
                 <div className="overflow-x-auto hide-scrollbar-on-hover">
+                    <TutorialHighlight tutorialKey="weeklyForecastTips">
                     <table className="min-w-full text-sm text-center border-collapse">
                         <thead className="sticky top-0 z-10">
                             <tr>
@@ -660,6 +661,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                 </tr>
                             ))}
                             {isAdding && (
+                                <TutorialHighlight tutorialKey="addForecastRow">
                                 <tr>
                                     <td className={`p-2 border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
                                         <div className="flex flex-col gap-2">
@@ -682,9 +684,11 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                     </td>
                                     <td colSpan={weekDates.length}></td>
                                 </tr>
+                                </TutorialHighlight>
                             )}
                         </tbody>
                     </table>
+                    </TutorialHighlight>
                 </div>
                 {!isAdding && <button onClick={() => setIsAdding(true)} className="text-sm text-blue-500 hover:underline mt-2">+ Add Forecast Row</button>}
             </div>
@@ -958,15 +962,13 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                     <h2 className="text-2xl font-bold text-blue-500 hover:underline">&larr; Back to All Projects</h2>
                                     <p className="text-lg font-semibold">{projects.find(p => p.id === expandedProjectId)?.name} ({projects.find(p => p.id === expandedProjectId)?.projectId})</p>
                                 </div>
-                                <TutorialHighlight tutorialKey="weeklyForecast">
-                                    <WeeklyTimeline 
-                                        project={projects.find(p => p.id === expandedProjectId)}
-                                        db={db}
-                                        appId={appId}
-                                        currentTheme={currentTheme}
-                                        showToast={showToast}
-                                    />
-                                </TutorialHighlight>
+                                <WeeklyTimeline 
+                                    project={projects.find(p => p.id === expandedProjectId)}
+                                    db={db}
+                                    appId={appId}
+                                    currentTheme={currentTheme}
+                                    showToast={showToast}
+                                />
                             </div>
                         </motion.div>
                     ) : (
@@ -1021,86 +1023,86 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover"> 
                                 <div>
-                                    <TutorialHighlight tutorialKey="addEmployeeFields">
-                                        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
-                                            <button onClick={() => handleToggleCollapse('addEmployee')} className="w-full flex justify-between items-center font-semibold mb-2">
-                                                <h3>Add New Employee</h3>
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addEmployee ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
-                                            {!collapsedSections.addEmployee && (
-                                                <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
-                                                    <div className="space-y-2 mb-4">
-                                                        <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                                            {titleOptions.map(title => (
-                                                                <option key={title} value={title}>{title}</option>
-                                                            ))}
-                                                        </select>
-                                                        <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <input type="number" value={newEmployee.wage} onChange={e => setNewEmployee({...newEmployee, wage: e.target.value})} placeholder="Wage/hr" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <input type="number" value={newEmployee.percentAboveScale} onChange={e => setNewEmployee({...newEmployee, percentAboveScale: e.target.value})} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <TutorialHighlight tutorialKey="manageUnionLocals">
-                                                            <div className="flex items-center gap-2">
-                                                                <select value={newEmployee.unionLocal} onChange={e => setNewEmployee({...newEmployee, unionLocal: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                                                    <option value="">Select Union Local...</option>
-                                                                    {unionLocals.map(local => (
-                                                                        <option key={local.id} value={local.name}>{local.name}</option>
-                                                                    ))}
-                                                                </select>
-                                                                <button type="button" onClick={() => setShowUnionManagement(!showUnionManagement)} className={`text-sm p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex-shrink-0`}>Manage</button>
-                                                            </div>
-                                                        </TutorialHighlight>
-                                                        <AnimatePresence>
-                                                        {showUnionManagement && (
-                                                            <motion.div
-                                                                initial={{ opacity: 0, height: 0 }}
-                                                                animate={{ opacity: 1, height: 'auto' }}
-                                                                exit={{ opacity: 0, height: 0 }}
-                                                                className="mt-2 pt-2 border-t border-dashed border-gray-500/50"
-                                                            >
-                                                                <div className="space-y-2 mb-4 max-h-32 overflow-y-auto">
-                                                                    {unionLocals.map((local, index) => {
-                                                                        const bgColor = index % 2 === 0 ? 'bg-transparent' : 'bg-white/5';
-                                                                        return (
-                                                                            <div key={local.id} className={`flex justify-between items-center p-2 rounded-md ${bgColor}`}>
-                                                                                {editingUnionLocal?.id === local.id ? (
-                                                                                    <input 
-                                                                                        type="text"
-                                                                                        value={editingUnionLocal.name}
-                                                                                        onChange={(e) => setEditingUnionLocal({...editingUnionLocal, name: e.target.value})}
-                                                                                        onBlur={handleUpdateUnionLocal}
-                                                                                        onKeyPress={e => e.key === 'Enter' && handleUpdateUnionLocal()}
-                                                                                        className={`w-full p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                                                                                        autoFocus
-                                                                                    />
-                                                                                ) : (
-                                                                                    <p className="text-sm">{local.name}</p>
-                                                                                )}
-                                                                                <div className="flex gap-2">
-                                                                                    <button onClick={() => setEditingUnionLocal(local)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
-                                                                                    <button onClick={() => handleDeleteUnionLocal(local.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
-                                                                                </div>
+                                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                                        <button onClick={() => handleToggleCollapse('addEmployee')} className="w-full flex justify-between items-center font-semibold mb-2">
+                                            <h3>Add New Employee</h3>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addEmployee ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                        {!collapsedSections.addEmployee && (
+                                            <TutorialHighlight tutorialKey="addEmployeeFields">
+                                            <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
+                                                <div className="space-y-2 mb-4">
+                                                    <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                        {titleOptions.map(title => (
+                                                            <option key={title} value={title}>{title}</option>
+                                                        ))}
+                                                    </select>
+                                                    <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <input type="number" value={newEmployee.wage} onChange={e => setNewEmployee({...newEmployee, wage: e.target.value})} placeholder="Wage/hr" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <input type="number" value={newEmployee.percentAboveScale} onChange={e => setNewEmployee({...newEmployee, percentAboveScale: e.target.value})} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <TutorialHighlight tutorialKey="manageUnionLocals">
+                                                        <div className="flex items-center gap-2">
+                                                            <select value={newEmployee.unionLocal} onChange={e => setNewEmployee({...newEmployee, unionLocal: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                                <option value="">Select Union Local...</option>
+                                                                {unionLocals.map(local => (
+                                                                    <option key={local.id} value={local.name}>{local.name}</option>
+                                                                ))}
+                                                            </select>
+                                                            <button type="button" onClick={() => setShowUnionManagement(!showUnionManagement)} className={`text-sm p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex-shrink-0`}>Manage</button>
+                                                        </div>
+                                                    </TutorialHighlight>
+                                                    <AnimatePresence>
+                                                    {showUnionManagement && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, height: 0 }}
+                                                            animate={{ opacity: 1, height: 'auto' }}
+                                                            exit={{ opacity: 0, height: 0 }}
+                                                            className="mt-2 pt-2 border-t border-dashed border-gray-500/50"
+                                                        >
+                                                            <div className="space-y-2 mb-4 max-h-32 overflow-y-auto">
+                                                                {unionLocals.map((local, index) => {
+                                                                    const bgColor = index % 2 === 0 ? 'bg-transparent' : 'bg-white/5';
+                                                                    return (
+                                                                        <div key={local.id} className={`flex justify-between items-center p-2 rounded-md ${bgColor}`}>
+                                                                            {editingUnionLocal?.id === local.id ? (
+                                                                                <input 
+                                                                                    type="text"
+                                                                                    value={editingUnionLocal.name}
+                                                                                    onChange={(e) => setEditingUnionLocal({...editingUnionLocal, name: e.target.value})}
+                                                                                    onBlur={handleUpdateUnionLocal}
+                                                                                    onKeyPress={e => e.key === 'Enter' && handleUpdateUnionLocal()}
+                                                                                    className={`w-full p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                                                                    autoFocus
+                                                                                />
+                                                                            ) : (
+                                                                                <p className="text-sm">{local.name}</p>
+                                                                            )}
+                                                                            <div className="flex gap-2">
+                                                                                <button onClick={() => setEditingUnionLocal(local)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                                                                                <button onClick={() => handleDeleteUnionLocal(local.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
                                                                             </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                                <div className="flex gap-2">
-                                                                    <input value={newUnionLocalName} onChange={e => setNewUnionLocalName(e.target.value)} placeholder="New Union Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                                                    <button onClick={handleAddUnionLocal} className="bg-blue-500 text-white px-4 rounded-md hover:bg-blue-600 text-sm">Add</button>
-                                                                </div>
-                                                            </motion.div>
-                                                        )}
-                                                        </AnimatePresence>
-                                                    </div>
-                                                    <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <input value={newUnionLocalName} onChange={e => setNewUnionLocalName(e.target.value)} placeholder="New Union Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                                                <button onClick={handleAddUnionLocal} className="bg-blue-500 text-white px-4 rounded-md hover:bg-blue-600 text-sm">Add</button>
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                    </AnimatePresence>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </TutorialHighlight>
+                                                <button onClick={() => handleAdd('employee')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Employee</button>
+                                            </div>
+                                            </TutorialHighlight>
+                                        )}
+                                    </div>
                                     <TutorialHighlight tutorialKey="editEmployeeDetails">
                                         <div className="space-y-2">
                                             {filteredEmployees.map((e, index) => {
@@ -1128,35 +1130,35 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                 </div>
 
                                 <div>
-                                    <TutorialHighlight tutorialKey="addProjectFields">
-                                        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
-                                            <button onClick={() => handleToggleCollapse('addProject')} className="w-full flex justify-between items-center font-semibold mb-2">
-                                                <h3>Add New Project</h3>
-                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addProject ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                            </button>
-                                            {!collapsedSections.addProject && (
-                                                <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
-                                                    <div className="space-y-2 mb-4">
-                                                        <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
-                                                        <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                                            {projectStatuses.map(status => (
-                                                                <option key={status} value={status}>{status}</option>
-                                                            ))}
-                                                        </select>
-                                                        <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                        <div className="flex items-center gap-2"><label className="w-32">Blended Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                        <div className="flex items-center gap-2"><label className="w-32">BIM Blended Rate ($/hr):</label><input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                        <div className="flex items-center gap-2"><label className="w-32">Contingency ($):</label><input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                        <div className="flex items-center gap-2"><label className="w-32">Project Dashboard:</label><input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                    </div>
-                                                    <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
+                                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
+                                        <button onClick={() => handleToggleCollapse('addProject')} className="w-full flex justify-between items-center font-semibold mb-2">
+                                            <h3>Add New Project</h3>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${collapsedSections.addProject ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </button>
+                                        {!collapsedSections.addProject && (
+                                            <TutorialHighlight tutorialKey="addProjectFields">
+                                            <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
+                                                <div className="space-y-2 mb-4">
+                                                    <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
+                                                        {projectStatuses.map(status => (
+                                                            <option key={status} value={status}>{status}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Blended Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">BIM Blended Rate ($/hr):</label><input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Contingency ($):</label><input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Project Dashboard:</label><input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </TutorialHighlight>
+                                                <button onClick={() => handleAdd('project')} className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600" disabled={isEditing}>Add Project</button>
+                                            </div>
+                                            </TutorialHighlight>
+                                        )}
+                                    </div>
                                     <TutorialHighlight tutorialKey="editProjectDetails">
                                         <div className="space-y-2 mb-8">
                                             {filteredProjects.map((p, index) => {
