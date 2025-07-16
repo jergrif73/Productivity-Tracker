@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { TutorialHighlight } from './App';
+import EmployeeSkillMatrix from './EmployeeSkillMatrix'; // Import the new component
 
 const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme }) => {
     const [reportType, setReportType] = useState('');
@@ -43,7 +44,31 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         return map;
     }, [allProjectActivities]);
 
+    const filteredDetailersForMatrix = useMemo(() => {
+        let filtered = [...detailers];
+        if (selectedLevel) {
+            filtered = filtered.filter(d => d.title === selectedLevel);
+        }
+        if (selectedTrade) {
+            filtered = filtered.filter(d => {
+                const primaryTrade = d.disciplineSkillsets && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
+                return primaryTrade === selectedTrade;
+            });
+        }
+        return filtered;
+    }, [detailers, selectedLevel, selectedTrade]);
+
     const handleGenerateReport = () => {
+        // Clear previous table data when generating a new report
+        setReportData(null);
+        setReportHeaders([]);
+
+        // If the report is the skill matrix, we don't generate table data.
+        // The matrix component will handle its own rendering based on filters.
+        if (reportType === 'skill-matrix') {
+            return;
+        }
+
         let data = [];
         let headers = [];
 
@@ -280,6 +305,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     const renderFilters = () => {
         switch (reportType) {
             case 'employee-details':
+            case 'skill-matrix':
                 return (
                     <>
                         <div>
@@ -339,12 +365,32 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     }
 
     return (
-        <div className="p-4 space-y-6">
-            <TutorialHighlight tutorialKey="reporting">
-                <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting Console</h2>
-            </TutorialHighlight>
+        <div className="p-4 h-full flex flex-col gap-4">
+            <style>
+                {`
+                    @media print {
+                        body * {
+                            visibility: hidden;
+                        }
+                        #skill-matrix-printable-area, #skill-matrix-printable-area * {
+                            visibility: visible;
+                        }
+                        #skill-matrix-printable-area {
+                            position: absolute;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                        }
+                    }
+                `}
+            </style>
+            <div className="flex-shrink-0">
+                <TutorialHighlight tutorialKey="reporting">
+                    <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting Console</h2>
+                </TutorialHighlight>
+            </div>
 
-            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4`}>
+            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4 flex-shrink-0`}>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <TutorialHighlight tutorialKey="reportType">
                         <div>
@@ -355,46 +401,62 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                 <option value="detailer-workload">Detailer Workload Summary</option>
                                 <option value="task-status">Task Status Report</option>
                                 <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
-                                <option value="employee-details">Employee Skills & Details</option>
+                                <option value="employee-details">Employee Skills & Details (Table)</option>
+                                <option value="skill-matrix">Employee Skill Matrix (Chart)</option>
                             </select>
                         </div>
                     </TutorialHighlight>
                     
                     {renderFilters()}
 
-                    <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate Report</button>
+                    <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate</button>
                 </div>
             </div>
+            
+            <div className="flex-grow overflow-y-auto hide-scrollbar-on-hover">
+                {reportType === 'skill-matrix' && (
+                    <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold">Employee Skill Matrix</h3>
+                             <div className="flex gap-2">
+                                <button onClick={() => window.print()} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700">Print Matrix</button>
+                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                             </div>
+                        </div>
+                        <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} />
+                    </div>
+                )}
 
-            {reportData && (
-                 <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-semibold">Report Results</h3>
-                        <TutorialHighlight tutorialKey="exportToCSV">
-                            <div className="flex gap-2">
-                                 <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                                 <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
-                            </div>
-                        </TutorialHighlight>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full">
-                            <thead>
-                                <tr className={`${currentTheme.altRowBg}`}>
-                                    {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {reportData.map((row, rowIndex) => (
-                                    <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
-                                        {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
+                {reportData && (
+                     <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold">Report Results</h3>
+                            <TutorialHighlight tutorialKey="exportToCSV">
+                                <div className="flex gap-2">
+                                     <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                                     <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                                </div>
+                            </TutorialHighlight>
+                        </div>
+                        <div className="overflow-auto hide-scrollbar-on-hover max-h-[60vh]">
+                            <table className="min-w-full">
+                                <thead className={`${currentTheme.altRowBg} sticky top-0`}>
+                                    <tr >
+                                        {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                 </div>
-            )}
+                                </thead>
+                                <tbody>
+                                    {reportData.map((row, rowIndex) => (
+                                        <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
+                                            {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                     </div>
+                )}
+            </div>
         </div>
     );
 };

@@ -546,7 +546,6 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             setInitialSelectedProjectInWorkloader,
             initialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInTeamConsole,
-            // FIX: Pass the state setter to WorkloaderConsole
             setInitialSelectedEmployeeInWorkloader,
         };
 
@@ -556,7 +555,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             case 'workloader': return <WorkloaderConsole {...consoleProps} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} />;
             case 'tasks': return <TaskConsole {...consoleProps} />;
             case 'gantt': return <GanttConsole {...consoleProps} />;
-            case 'forecast': return <ForecastConsole {...consoleProps} />;
+            case 'forecast': return <ForecastConsole {...consoleProps} detailers={detailers} />;
             case 'reporting': return <ReportingConsole {...consoleProps} allProjectActivities={allProjectActivities} />;
             case 'admin': return <AdminConsole {...consoleProps} />;
             default: return <div className="text-center p-10">Select a view from the navigation.</div>;
@@ -577,38 +576,36 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 
     return (
         <NavigationContext.Provider value={navigationContextValue}>
-            <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} min-h-screen ${isTutorialActive ? 'tutorial-active' : ''}`}>
+            <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} h-screen w-screen overflow-hidden ${isTutorialActive ? 'tutorial-active' : ''}`}>
                 <style>
                     {`
                     .hide-scrollbar-on-hover::-webkit-scrollbar {
-                        width: 8px;
-                        height: 8px;
-                    }
-                    .hide-scrollbar-on-hover::-webkit-scrollbar-thumb {
-                        background-color: transparent;
-                    }
-                    .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
-                        background-color: rgba(156, 163, 175, 0.5);
-                        border-radius: 4px;
+                        width: 5px;
+                        height: 5px;
                     }
                     .hide-scrollbar-on-hover::-webkit-scrollbar-track {
                         background: transparent;
                     }
-                    .hide-scrollbar-on-hover:hover {
-                        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+                    .hide-scrollbar-on-hover::-webkit-scrollbar-thumb {
+                        background-color: transparent;
+                        border-radius: 10px;
                     }
+                    .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
+                        background-color: rgba(55, 65, 81, 0.8);
+                    }
+                    /* For Firefox */
                     .hide-scrollbar-on-hover {
                         scrollbar-width: thin;
                         scrollbar-color: transparent transparent;
                     }
                     .hide-scrollbar-on-hover:hover {
-                        scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+                        scrollbar-color: rgba(55, 65, 81, 0.8) transparent;
                     }
                     `}
                 </style>
                 <Toaster toasts={toasts} />
                 <TutorialWidget />
-                <div className={`w-full h-screen flex flex-col ${currentTheme.textColor}`}>
+                <div className={`w-full h-full flex flex-col ${currentTheme.textColor}`}>
                     <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Workforce Productivity Tracker</h1>
@@ -643,11 +640,11 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                 </button>
                         </div>
                     </header>
-                    <main className={`flex-grow ${currentTheme.consoleBg} overflow-hidden flex flex-col`}>
+                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0`}>
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={view}
-                                className="h-full flex flex-col"
+                                className="h-full"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -20 }}

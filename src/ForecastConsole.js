@@ -48,7 +48,7 @@ const d3ColorMapping = {
 const tradeStackOrder = ["Plumbing", "Piping", "Duct", "Structural", "GIS/GPS", "BIM", "Coordination"];
 
 
-const ForecastConsole = ({ db, projects, assignments, currentTheme, appId }) => {
+const ForecastConsole = ({ db, projects, assignments, detailers, currentTheme, appId }) => {
     const svgRef = useRef(null);
     const [startDate, setStartDate] = useState(new Date());
     const [weeklyHoursData, setWeeklyHoursData] = useState([]);
@@ -101,8 +101,8 @@ const ForecastConsole = ({ db, projects, assignments, currentTheme, appId }) => 
 
     const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
 
-    const { forecastData, assignedData, stackedChartData } = useMemo(() => {
-        if (!weeklyHoursData.length && !assignments.length) return { forecastData: [], assignedData: [], stackedChartData: [] };
+    const { forecastData, assignedData, stackedChartData, capacityData } = useMemo(() => {
+        if (!weeklyHoursData.length && !assignments.length) return { forecastData: [], assignedData: [], stackedChartData: [], capacityData: [] };
 
         const filteredWeeklyHours = weeklyHoursData.filter(data => activeStatuses.includes(data.projectStatus));
 
@@ -157,9 +157,17 @@ const ForecastConsole = ({ db, projects, assignments, currentTheme, appId }) => 
             values: assignedWeeklyHours.map((hours, i) => ({ date: new Date(weekDates[i]), hours }))
         }];
 
-        return { forecastData, assignedData, stackedChartData };
+        // Calculate workforce capacity
+        const totalDetailers = detailers.length;
+        const weeklyCapacity = totalDetailers * 40;
+        const capacityData = [{
+            trade: 'Capacity',
+            values: weekDates.map(week => ({ date: new Date(week), hours: weeklyCapacity }))
+        }];
 
-    }, [weeklyHoursData, assignments, projects, weekDates, activeStatuses]);
+        return { forecastData, assignedData, stackedChartData, capacityData };
+
+    }, [weeklyHoursData, assignments, projects, weekDates, activeStatuses, detailers]);
 
     useEffect(() => {
         if (loading || !svgRef.current || !currentTheme) return;
@@ -245,7 +253,10 @@ const ForecastConsole = ({ db, projects, assignments, currentTheme, appId }) => 
         } else if (chartView === 'stacked') {
             const stack = d3.stack().keys(tradeStackOrder).order(d3.stackOrderNone).offset(d3.stackOffsetNone);
             const series = stack(stackedChartData);
-            const yMax = d3.max(series, d => d3.max(d, d => d[1]));
+            const yMax = d3.max([
+                d3.max(series, d => d3.max(d, d => d[1])),
+                d3.max(capacityData[0].values, d => d.hours)
+            ]);
 
             const x = d3.scaleBand().domain(weekDates.map(d => new Date(d))).range([0, boundedWidth]).padding(0.1);
             const y = d3.scaleLinear().domain([0, yMax > 0 ? yMax : 100]).range([boundedHeight, 0]);
@@ -290,11 +301,35 @@ const ForecastConsole = ({ db, projects, assignments, currentTheme, appId }) => 
                     tooltip.transition().duration(500).style("opacity", 0);
                     d3.select(this).style('stroke', 'none');
                 });
+            
+            // Add the capacity line
+            const capacityLine = d3.line()
+                .x(d => x(d.date) + x.bandwidth() / 2) // Center the line on the bar
+                .y(d => y(d.hours));
+
+            g.append("path")
+                .datum(capacityData[0].values)
+                .attr("fill", "none")
+                .attr("stroke", "white")
+                .attr("stroke-width", 2)
+                .attr("stroke-dasharray", "3, 3")
+                .attr("d", capacityLine)
+                .on("mouseover", function(event, d) {
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    tooltip.html(`<strong>Workforce Capacity</strong>: ${d[0].hours} hrs/week`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                    d3.select(this).style('stroke-width', '4px');
+                })
+                .on("mouseout", function() {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                    d3.select(this).style('stroke-width', '2px');
+                });
         }
 
         return () => { tooltip.remove() };
 
-    }, [forecastData, assignedData, stackedChartData, chartView, boundedHeight, boundedWidth, margin.left, margin.top, weekDates, currentTheme, loading]);
+    }, [forecastData, assignedData, stackedChartData, capacityData, chartView, boundedHeight, boundedWidth, margin.left, margin.top, weekDates, currentTheme, loading]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -356,6 +391,12 @@ const ForecastConsole = ({ db, projects, assignments, currentTheme, appId }) => 
                     <div className="flex items-center gap-2">
                         <div className="w-4 h-4 border-2 border-dashed border-white"></div>
                         <span className={currentTheme.textColor}>Assigned Hours (Supply)</span>
+                    </div>
+                )}
+                {chartView === 'stacked' && (
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-0.5 border-t-2 border-dashed border-white"></div>
+                        <span className={currentTheme.textColor}>Workforce Capacity</span>
                     </div>
                 )}
             </div>
