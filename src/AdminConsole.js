@@ -312,15 +312,14 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [newDescription, setNewDescription] = useState('');
     const [dragState, setDragState] = useState(null);
     const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+    const [draggedRowId, setDraggedRowId] = useState(null); // State for drag-and-drop reordering
     
-    // **FIX**: Separate state for data from Firestore and local user changes
     const [firestoreHours, setFirestoreHours] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const debouncedChanges = useDebounce(pendingChanges, 1000);
 
-    // **FIX**: `displayHours` is now a memoized value that merges Firestore data and local changes
     const displayHours = useMemo(() => {
-        const merged = JSON.parse(JSON.stringify(firestoreHours)); // Deep copy to prevent mutation
+        const merged = JSON.parse(JSON.stringify(firestoreHours)); 
         for (const rowId in pendingChanges) {
             if (!merged[rowId]) merged[rowId] = {};
             for (const week in pendingChanges[rowId]) {
@@ -350,7 +349,6 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
     const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
     
-    // **FIX**: This useEffect now only fetches data and does not depend on `pendingChanges`
     useEffect(() => {
         setLoading(true);
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
@@ -370,7 +368,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     hoursData[doc.id] = doc.data();
                 }
             });
-            setFirestoreHours(hoursData); // Only update the raw Firestore data state
+            setFirestoreHours(hoursData); 
             setLoading(false);
         });
 
@@ -401,7 +399,6 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         });
     }, [debouncedChanges, appId, db, project.id]);
 
-    // **FIX**: This handler now only updates the `pendingChanges` state.
     const handleHoursChange = (rowId, week, hours) => {
         const numericValue = hours === '' ? '' : Number(hours);
         
@@ -417,7 +414,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         const updatedRows = timelineRows.map(row => 
             row.id === rowId ? { ...row, description: newDescription } : row
         );
-        setTimelineRows(updatedRows); // Optimistic UI update
+        setTimelineRows(updatedRows); 
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
         await setDoc(configRef, { rows: updatedRows }, { merge: true });
     };
@@ -546,7 +543,6 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
         try {
             await batch.commit();
-            // Also clear local state
             setTimelineRows([]);
             setFirestoreHours({});
             setPendingChanges({});
@@ -557,6 +553,51 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         }
         setIsClearConfirmOpen(false);
     };
+
+    // --- Drag and Drop Row Reordering Handlers ---
+    const handleDragStart = (e, rowId) => {
+        setDraggedRowId(rowId);
+        e.dataTransfer.setData('text/plain', rowId);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+    
+    const handleDragOver = (e) => {
+        e.preventDefault(); // This is necessary to allow dropping
+    };
+    
+    const handleDragEnd = () => {
+        setDraggedRowId(null);
+    };
+    
+    const handleDrop = async (e, dropTargetRowId) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData('text/plain');
+        
+        if (draggedId === dropTargetRowId) {
+            setDraggedRowId(null);
+            return;
+        }
+    
+        const reorderedRows = [...timelineRows];
+        const draggedItem = reorderedRows.find(row => row.id === draggedId);
+        const targetIndex = reorderedRows.findIndex(row => row.id === dropTargetRowId);
+        const draggedIndex = reorderedRows.findIndex(row => row.id === draggedId);
+    
+        if (!draggedItem || targetIndex === -1 || draggedIndex === -1) return;
+    
+        // Remove from old position and insert at new position
+        reorderedRows.splice(draggedIndex, 1);
+        reorderedRows.splice(targetIndex, 0, draggedItem);
+        
+        // Update state for optimistic UI update
+        setTimelineRows(reorderedRows);
+        setDraggedRowId(null);
+    
+        // Update Firestore with the new order
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+        await setDoc(configRef, { rows: reorderedRows }, { merge: true });
+    };
+
 
     return (
         <TutorialHighlight tutorialKey="weeklyForecast">
@@ -595,9 +636,22 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                         </thead>
                         <tbody>
                             {timelineRows.map(row => (
-                                <tr key={row.id}>
+                                <tr 
+                                    key={row.id}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, row.id)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, row.id)}
+                                    onDragEnd={handleDragEnd}
+                                    className={`transition-opacity ${draggedRowId === row.id ? 'opacity-40' : 'opacity-100'}`}
+                                >
                                     <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.altRowBg} sticky left-0 z-10`}>
                                         <div className="flex items-center gap-1">
+                                            <div className="cursor-move p-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                                </svg>
+                                            </div>
                                             <button onClick={() => handleDeleteRow(row.id)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                                             <div className="flex-grow">
                                                 <p className="font-semibold text-left">{row.trade}</p>

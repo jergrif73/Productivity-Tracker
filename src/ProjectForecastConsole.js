@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
 /**
  * ProjectForecastConsole.js (Global View)
@@ -46,7 +47,7 @@ const statusDescriptions = {
 };
 
 // Defines the order for stacking in the stacked bar chart.
-const tradeStackOrder = ["Structural", "Piping", "Plumbing", "Duct", "GIS/GPS", "BIM", "Coordination"];
+const tradeStackOrder = ["BIM", "Plumbing", "Piping", "Duct", "Structural", "GIS/GPS", "Coordination"];
 
 
 // --- Main Component ---
@@ -60,7 +61,7 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
     const [chartView, setChartView] = useState('line'); // 'line' or 'stacked'
 
     const weekCount = 78; // Changed from 52 to 78 to show 18 months
-    const dimensions = { width: 1600, height: 500, margin: { top: 20, right: 30, bottom: 40, left: 60 } };
+    const dimensions = { width: 1600, height: 500, margin: { top: 40, right: 30, bottom: 40, left: 60 } };
     const { width, height, margin } = dimensions;
     const boundedWidth = width - margin.left - margin.right;
     const boundedHeight = height - margin.top - margin.bottom;
@@ -275,7 +276,24 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
 
             const x = d3.scaleBand().domain(weekDates.map(d => new Date(d))).range([0, boundedWidth]).padding(0.2);
             const y = d3.scaleLinear().domain([0, yMax > 0 ? yMax : 100]).range([boundedHeight, 0]).nice();
-            const color = d3.scaleOrdinal().domain(tradeStackOrder).range(tradeStackOrder.map(t => d3ColorMapping[t] || '#ccc'));
+            
+            // Define gradients and filters in the SVG defs
+            const defs = g.append("defs");
+            Object.entries(d3ColorMapping).forEach(([trade, color]) => {
+                const gradient = defs.append("linearGradient")
+                    .attr("id", `gradient-${trade.replace(/[^a-zA-Z0-9]/g, '-')}`)
+                    .attr("x1", "0%").attr("y1", "0%").attr("x2", "0%").attr("y2", "100%");
+                gradient.append("stop").attr("offset", "0%").attr("stop-color", d3.color(color).brighter(0.6));
+                gradient.append("stop").attr("offset", "100%").attr("stop-color", color);
+            });
+            const filter = defs.append("filter").attr("id", "brightness");
+            filter.append("feComponentTransfer")
+              .append("feFuncR").attr("type", "linear").attr("slope", "1.4");
+            filter.append("feComponentTransfer")
+              .append("feFuncG").attr("type", "linear").attr("slope", "1.4");
+            filter.append("feComponentTransfer")
+              .append("feFuncB").attr("type", "linear").attr("slope", "1.4");
+
 
             const xAxis = g.append("g").attr("transform", `translate(0,${boundedHeight})`).call(d3.axisBottom(x).tickValues(x.domain().filter((d,i) => !(i%4))).tickFormat(d3.timeFormat("%b %d")));
             xAxis.selectAll("text").style("fill", currentTheme.textColor);
@@ -289,37 +307,52 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
             g.append("text").attr("fill", currentTheme.textColor).attr("transform", "rotate(-90)").attr("y", -margin.left + 20).attr("x", -(boundedHeight / 2)).attr("text-anchor", "middle").text("Total Weekly Hours");
 
             drawReferenceLines(y, fortyHourTicks);
+            
+            const totals = stackedChartData.map(d => d3.sum(tradeStackOrder, key => d[key]));
 
             g.selectAll(".serie")
                 .data(series)
                 .enter().append("g")
                 .attr("class", "serie")
-                .attr("fill", d => color(d.key))
+                .attr("fill", d => `url(#gradient-${d.key.replace(/[^a-zA-Z0-9]/g, '-')})`)
                 .selectAll("rect")
                 .data(d => d)
                 .enter().append("rect")
                 .attr("x", d => x(d.data.date))
-                .attr("y", boundedHeight)
-                .attr("height", 0)
+                .attr("y", d => y(d[1]))
+                .attr("height", d => y(d[0]) - y(d[1]))
                 .attr("width", x.bandwidth())
+                .attr("rx", (d, i) => (d[1] === totals[i] && d[1] - d[0] > 0) ? 4 : 0)
+                .attr("ry", (d, i) => (d[1] === totals[i] && d[1] - d[0] > 0) ? 4 : 0)
                 .on("mouseover", function(event, d) {
                     const serie = d3.select(this.parentNode).datum();
                     const trade = serie.key;
                     const hours = d.data[trade];
-                    tooltip.transition().duration(200).style("opacity", .9);
-                    tooltip.html(`<strong>${trade}</strong>: ${hours.toFixed(1)} hrs`)
-                        .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
-                    d3.select(this).style('stroke', 'black').style('stroke-width', 2);
+                    if (hours > 0) {
+                        tooltip.transition().duration(200).style("opacity", .9);
+                        tooltip.html(`<strong>${trade}</strong>: ${hours.toFixed(1)} hrs`)
+                            .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
+                        d3.select(this).attr('filter', 'url(#brightness)');
+                    }
                 })
                 .on("mouseout", function() {
                     tooltip.transition().duration(500).style("opacity", 0);
-                    d3.select(this).style('stroke', 'none');
-                })
-                .transition()
-                .duration(500)
-                .delay((d, i) => i * 10)
-                .attr("y", d => y(d[1]))
-                .attr("height", d => y(d[0]) - y(d[1]));
+                    d3.select(this).attr('filter', null);
+                });
+
+            g.append("g")
+                .attr("class", "total-labels")
+                .selectAll("text")
+                .data(stackedChartData)
+                .enter()
+                .append("text")
+                .text((d, i) => totals[i] > 0 ? totals[i].toFixed(0) : '')
+                .attr("x", d => x(d.date) + x.bandwidth() / 2)
+                .attr("y", (d, i) => y(totals[i]) - 5)
+                .attr("text-anchor", "middle")
+                .style("font-size", "10px")
+                .style("font-weight", "bold")
+                .style("fill", currentTheme.textColor);
         }
         
         return () => {
@@ -349,43 +382,55 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
     };
 
     return (
-        <div className="p-4 space-y-4 h-full flex flex-col">
-            <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
-                <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Filter by Status:</span>
-                    {projectStatuses.map(status => (
-                        <Tooltip key={status} text={statusDescriptions[status]}>
-                            <button 
-                                onClick={() => handleStatusToggle(status)}
-                                className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                            >
-                                {status}
-                            </button>
-                        </Tooltip>
-                    ))}
+        <TutorialHighlight tutorialKey="project-forecast">
+            <div className="p-4 space-y-4 h-full flex flex-col">
+                <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
+                    <TutorialHighlight tutorialKey="statusFilter">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">Filter by Status:</span>
+                            {projectStatuses.map(status => (
+                                <Tooltip key={status} text={statusDescriptions[status]}>
+                                    <button 
+                                        onClick={() => handleStatusToggle(status)}
+                                        className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                    >
+                                        {status}
+                                    </button>
+                                </Tooltip>
+                            ))}
+                        </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight tutorialKey="viewToggle">
+                        <div className={`flex items-center gap-1 p-1 rounded-lg ${currentTheme.altRowBg}`}>
+                            <button onClick={() => setChartView('line')} className={`px-3 py-1 text-sm rounded-md ${chartView === 'line' ? `${currentTheme.cardBg} shadow` : ''}`}>Line View</button>
+                            <button onClick={() => setChartView('stacked')} className={`px-3 py-1 text-sm rounded-md ${chartView === 'stacked' ? `${currentTheme.cardBg} shadow` : ''}`}>Stacked View</button>
+                        </div>
+                    </TutorialHighlight>
+                    <TutorialHighlight tutorialKey="dateNavigation">
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => handleDateNav(-28)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<< 4w'}</button>
+                            <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
+                            <button onClick={() => handleDateNav(28)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
+                        </div>
+                    </TutorialHighlight>
                 </div>
-                 <div className={`flex items-center gap-1 p-1 rounded-lg ${currentTheme.altRowBg}`}>
-                    <button onClick={() => setChartView('line')} className={`px-3 py-1 text-sm rounded-md ${chartView === 'line' ? `${currentTheme.cardBg} shadow` : ''}`}>Line View</button>
-                    <button onClick={() => setChartView('stacked')} className={`px-3 py-1 text-sm rounded-md ${chartView === 'stacked' ? `${currentTheme.cardBg} shadow` : ''}`}>Stacked View</button>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => handleDateNav(-28)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<< 4w'}</button>
-                    <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
-                    <button onClick={() => handleDateNav(28)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
-                </div>
-            </div>
-            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm overflow-x-auto flex-grow`}>
-                <svg ref={svgRef} width={width} height={height}></svg>
-            </div>
-             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs pt-4 flex-shrink-0">
-                {Object.keys(d3ColorMapping).filter(trade => trade !== 'Default').map(trade => (
-                    <div key={trade} className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade]}}></div>
-                        <span className={currentTheme.textColor}>{trade}</span>
+                <TutorialHighlight tutorialKey="chartArea">
+                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm overflow-x-auto flex-grow`}>
+                        <svg ref={svgRef} width={width} height={height}></svg>
                     </div>
-                ))}
+                </TutorialHighlight>
+                <TutorialHighlight tutorialKey="legend">
+                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs pt-4 flex-shrink-0">
+                        {Object.keys(d3ColorMapping).filter(trade => trade !== 'Default').map(trade => (
+                            <div key={trade} className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade]}}></div>
+                                <span className={currentTheme.textColor}>{trade}</span>
+                            </div>
+                        ))}
+                    </div>
+                </TutorialHighlight>
             </div>
-        </div>
+        </TutorialHighlight>
     );
 };
 
