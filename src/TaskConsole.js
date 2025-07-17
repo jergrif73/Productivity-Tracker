@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Note: Modal, ConfirmationModal, and Tooltip would also be in their own files.
@@ -383,9 +383,15 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
     const handleToggleSubTask = (subTaskId) => {
         const updatedSubTasks = taskData.subTasks.map(st => st.id === subTaskId ? { ...st, isCompleted: !st.isCompleted } : st);
         const completedCount = updatedSubTasks.filter(st => st.isCompleted).length;
-        let newStatus = taskStatusOptions[0];
-        if (completedCount > 0) {
-            newStatus = completedCount === updatedSubTasks.length ? taskStatusOptions[2] : taskStatusOptions[1];
+        let newStatus = taskStatusOptions[0]; // Default to Not Started
+        if (updatedSubTasks.length > 0) { // Only change if there are subtasks
+            if (completedCount === updatedSubTasks.length) {
+                newStatus = taskStatusOptions[2]; // Completed
+            } else if (completedCount > 0) {
+                newStatus = taskStatusOptions[1]; // In Progress
+            } else {
+                newStatus = taskStatusOptions[0]; // Not Started
+            }
         }
         setTaskData(prev => ({ ...prev, subTasks: updatedSubTasks, status: newStatus }));
     };
@@ -684,11 +690,13 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                 )}
 
                 <div className="flex justify-end gap-4 pt-4">
+                    {/* Removed Restore button */}
                     {!isNewTask && (
                        <Tooltip text={hasSubtasks ? "Delete all sub-tasks first" : ""}>
                             <div className="mr-auto">
+                                {/* Changed onDelete to trigger hard delete directly */}
                                 <button
-                                    onClick={onDelete}
+                                    onClick={() => onDelete(taskData.id)} 
                                     disabled={hasSubtasks}
                                     className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                                 >
@@ -768,8 +776,31 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
     const [editingTask, setEditingTask] = useState(null);
     const [editingLaneId, setEditingLaneId] = useState(null);
     const [editingLaneName, setEditingLaneName] = useState('');
-    const [taskToDelete, setTaskToDelete] = useState(null);
-    const [confirmAction, setConfirmAction] = useState(null);
+    const [confirmAction, setConfirmAction] = useState(null); // Used for lane deletion confirmation
+    const [confirmHardDeleteTasks, setConfirmHardDeleteTasks] = useState(false); // New state for hard delete all 'Deleted' tasks confirmation
+
+    // Effect to remove the 'isArchiveLane' property from any lane named "Archive"
+    useEffect(() => {
+        const removeIsArchiveLaneProperty = async () => {
+            if (!db || taskLanes.length === 0) return;
+
+            const archiveLane = taskLanes.find(lane => lane.name === "Archive");
+
+            if (archiveLane && archiveLane.isArchiveLane) {
+                const laneRef = doc(db, `artifacts/${appId}/public/data/taskLanes`, archiveLane.id);
+                try {
+                    await updateDoc(laneRef, { isArchiveLane: false });
+                    showToast("Removed 'isArchiveLane' property from Archive lane.", "info");
+                } catch (error) {
+                    console.error("Error updating archive lane:", error);
+                    showToast("Failed to update 'Archive' lane.", "error");
+                }
+            }
+        };
+
+        removeIsArchiveLaneProperty();
+    }, [db, appId, taskLanes, showToast]);
+
 
     const handleOpenModal = (task = null) => {
         setEditingTask(task);
@@ -781,34 +812,73 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
         setEditingTask(null);
     };
     
-    const handleSoftDeleteTask = async (taskId) => {
+    // New function for permanent task deletion
+    const handleDeleteTask = async (taskId) => {
         if (!taskId) return;
         const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
-        await updateDoc(taskRef, { status: 'Deleted' });
-        showToast("Task deleted successfully!");
-        handleCloseModal(); 
-        setTaskToDelete(null); 
+        try {
+            await deleteDoc(taskRef);
+            showToast("Task permanently deleted.", "success");
+            handleCloseModal(); // Close modal after deletion
+        } catch (error) {
+            console.error("Error permanently deleting task:", error);
+            showToast("Failed to permanently delete task.", "error");
+        }
     };
+
+    // Function to permanently delete all tasks with 'Deleted' status
+    const handleHardDeleteAllDeletedTasks = async () => {
+        try {
+            const tasksRef = collection(db, `artifacts/${appId}/public/data/tasks`);
+            const q = query(tasksRef, where("status", "==", "Deleted"));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                showToast("No 'Deleted' tasks found to permanently remove.", "info");
+                return;
+            }
+
+            const batch = db.batch(); // Use batch writes for multiple deletions
+            querySnapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+
+            await batch.commit();
+            showToast("All 'Deleted' tasks have been permanently removed.", "success");
+        } catch (error) {
+            console.error("Error hard deleting tasks:", error);
+            showToast("Failed to permanently delete tasks.", "error");
+        } finally {
+            setConfirmHardDeleteTasks(false); // Close confirmation modal
+        }
+    };
+
 
     const handleSaveTask = async (taskData) => {
         const isNew = !taskData.id;
-       
+        let finalTaskData = { ...taskData };
+
+        // No special lane assignment based on status anymore, tasks stay in their lane
+        // unless explicitly dragged or created in a specific lane.
+        // The 'Archive' lane is now just a regular lane.
+
         try {
             if (isNew) {
+                // For new tasks, ensure it goes to 'New Requests' lane initially
                 const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
                 if (!newRequestsLane) {
-                    showToast("Error: 'New Requests' lane not found.", 'error');
+                    showToast("Error: 'New Requests' lane not found. Cannot create task.", 'error');
                     return;
                 }
-                const { id, ...data } = taskData;
-                data.laneId = newRequestsLane.id;
+                finalTaskData.laneId = newRequestsLane.id; // New tasks always start here
+                const { id, ...data } = finalTaskData;
                 await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
-                showToast("Task created!");
+                showToast("Task created!", "success");
             } else {
-                const { id, ...data } = taskData;
+                const { id, ...data } = finalTaskData;
                 const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, id);
                 await updateDoc(taskRef, data);
-                showToast("Task updated successfully!");
+                showToast("Task updated successfully!", "success");
             }
             handleCloseModal();
         } catch (error) {
@@ -827,8 +897,32 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
 
     const handleDrop = async (e, targetLaneId) => {
         const taskId = e.dataTransfer.getData("taskId");
+        const taskToMove = tasks.find(t => t.id === taskId);
+        const targetLane = taskLanes.find(lane => lane.id === targetLaneId);
+
+        if (!taskToMove || !targetLane) return;
+
+        // Update task's laneId directly based on drop target
         const taskRef = doc(db, `artifacts/${appId}/public/data/tasks`, taskId);
         await updateDoc(taskRef, { laneId: targetLaneId });
+
+        // Optionally, update status based on target lane name if desired
+        // For example, if dropping into 'Completed' lane, set status to 'Completed'
+        let newStatus = taskToMove.status;
+        if (targetLane.name === 'Completed') {
+            newStatus = 'Completed';
+        } else if (targetLane.name === 'In Progress') {
+            newStatus = 'In Progress';
+        } else if (targetLane.name === 'New Requests') {
+            newStatus = 'Not Started';
+        } else if (targetLane.name === 'Archive' && newStatus !== 'Deleted') {
+            // If dropping into Archive, and not already 'Deleted', set to 'Completed'
+            newStatus = 'Completed';
+        }
+        // Only update if status actually changes to avoid unnecessary writes
+        if (newStatus !== taskToMove.status) {
+            await updateDoc(taskRef, { status: newStatus });
+        }
     };
 
     const handleAddLane = async () => {
@@ -839,7 +933,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                 order: taskLanes.length,
             };
             await addDoc(collection(db, `artifacts/${appId}/public/data/taskLanes`), newLane);
-            showToast(`Lane '${newLaneName}' added.`);
+            showToast(`Lane '${newLaneName}' added.`, "success");
         }
     };
     
@@ -852,20 +946,21 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
         await updateDoc(laneRef, { name: editingLaneName });
         setEditingLaneId(null);
         setEditingLaneName('');
+        showToast("Lane renamed successfully!", "success");
     };
     
     const confirmDeleteLane = (lane) => {
-        const tasksInLane = tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted');
+        const tasksInLane = tasks.filter(t => t.laneId === lane.id); // Check for any tasks in the lane
         if (tasksInLane.length > 0) {
-            showToast("Cannot delete a lane that contains tasks.", "error");
+            showToast("Cannot delete a lane that contains tasks. Please move them first.", "error");
             return;
         }
         setConfirmAction({
             title: "Delete Lane",
-            message: `Are you sure you want to delete the lane "${lane.name}"? This action cannot be undone.`,
+            message: `Are you sure you want to permanently delete the lane "${lane.name}"? This action cannot be undone.`,
             action: async () => {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/taskLanes`, lane.id));
-                showToast("Lane deleted.");
+                showToast("Lane deleted.", "success");
             }
         });
     };
@@ -883,6 +978,17 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                 currentTheme={currentTheme}
             >
                 {confirmAction?.message}
+            </ConfirmationModal>
+
+            {/* Hard Delete All 'Deleted' Tasks Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={confirmHardDeleteTasks}
+                onClose={() => setConfirmHardDeleteTasks(false)}
+                onConfirm={handleHardDeleteAllDeletedTasks}
+                title="Confirm Permanent Deletion"
+                currentTheme={currentTheme}
+            >
+                Are you sure you want to permanently delete ALL tasks with 'Deleted' status? This action cannot be undone.
             </ConfirmationModal>
 
              <div className="flex-grow overflow-x-auto hide-scrollbar-on-hover">
@@ -909,15 +1015,26 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                                ) : (
                                    <h2 className="font-semibold cursor-pointer" onClick={() => { setEditingLaneId(lane.id); setEditingLaneName(lane.name); }}>{lane.name}</h2>
                                )}
-                                <button onClick={() => confirmDeleteLane(lane)} className={`absolute right-0 ${currentTheme.subtleText} hover:text-red-500 disabled:opacity-20`} disabled={tasks.some(t => t.laneId === lane.id && t.status !== 'Deleted')}>&times;</button>
+                                {/* Delete button for lanes: disabled if lane contains any tasks */}
+                                <button onClick={() => confirmDeleteLane(lane)} className={`absolute right-0 ${currentTheme.subtleText} hover:text-red-500 ${tasks.some(t => t.laneId === lane.id) ? 'opacity-20 cursor-not-allowed' : ''}`} disabled={tasks.some(t => t.laneId === lane.id)}>&times;</button>
                             </div>
 
                              {lane.name === "New Requests" && (
                                  <button onClick={() => handleOpenModal(null)} className={`w-full text-left p-2 mb-3 ${currentTheme.cardBg} ${currentTheme.textColor} rounded-md shadow-sm hover:bg-opacity-80`}>+ Add Task</button>
                              )}
 
+                            {/* Button to trigger hard delete of all 'Deleted' tasks, placed in Archive lane if it exists */}
+                            {lane.name === "Archive" && (
+                                <button 
+                                    onClick={() => setConfirmHardDeleteTasks(true)} 
+                                    className="w-full text-left p-2 mb-3 bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700"
+                                >
+                                    Permanently Delete All "Deleted" Tasks
+                                </button>
+                            )}
+
                              <motion.div layout transition={{ type: 'spring', stiffness: 400, damping: 25 }} className="flex-grow overflow-y-auto pr-2 hide-scrollbar-on-hover">
-                                 {tasks.filter(t => t.laneId === lane.id && t.status !== 'Deleted').map(task => (
+                                 {tasks.filter(t => t.laneId === lane.id).map(task => ( // Display all tasks in their lane
                                      <TaskCard
                                          key={task.id}
                                          task={task}
@@ -945,24 +1062,15 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                             projects={projects}
                             onClose={handleCloseModal}
                             onSave={handleSaveTask}
-                            onDelete={() => setTaskToDelete(editingTask)}
+                            // Pass the new hard delete function
+                            onDelete={handleDeleteTask} 
                             currentTheme={currentTheme}
                             appId={appId}
                         />
                     </Modal>
                 )}
             </AnimatePresence>
-             {taskToDelete && (
-                <ConfirmationModal
-                    isOpen={!!taskToDelete}
-                    onClose={() => setTaskToDelete(null)}
-                    onConfirm={() => handleSoftDeleteTask(taskToDelete.id)}
-                    title="Confirm Task Deletion"
-                    currentTheme={currentTheme}
-                >
-                    Are you sure you want to delete the task "{taskToDelete.taskName}"? This will hide it from all active views.
-                </ConfirmationModal>
-             )}
+            {/* Removed the separate taskToDelete confirmation modal, as hard delete is now direct */}
         </div>
     );
 };

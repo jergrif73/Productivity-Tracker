@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -10,10 +10,11 @@ import ProjectConsole from './ProjectConsole';
 import WorkloaderConsole from './WorkloaderConsole';
 import TaskConsole from './TaskConsole';
 import GanttConsole from './GanttConsole';
-import ProjectForecastConsole from './ProjectForecastConsole'; // Import the new console
+import ProjectForecastConsole from './ProjectForecastConsole';
 import SkillsConsole from './SkillsConsole';
 import ReportingConsole from './ReportingConsole';
 import AdminConsole from './AdminConsole';
+import MyDashboard from './MyDashboard'; // Import the new dashboard
 import { tutorialContent } from './tutorial-steps';
 
 // --- Firebase Configuration ---
@@ -42,7 +43,7 @@ const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'defaul
 const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
 
 // --- Contexts ---
-const AuthContext = createContext({ accessLevel: 'default', setAccessLevel: () => {} });
+const AuthContext = createContext({ accessLevel: 'default', setAccessLevel: () => {}, currentUser: null });
 export const TutorialContext = createContext();
 export const NavigationContext = createContext({
     navigateToWorkloaderForEmployee: () => {},
@@ -272,11 +273,11 @@ const LoginInline = ({ onLogin, error }) => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [localError, setLocalError] = useState('');
-
+    
     const handleSubmit = (e) => {
         e.preventDefault();
-        if(password !== confirmPassword) {
-            setLocalError('Passwords do not match.');
+        if (password !== confirmPassword) {
+            setLocalError("Passwords do not match.");
             return;
         }
         setLocalError('');
@@ -301,7 +302,7 @@ const LoginInline = ({ onLogin, error }) => {
                 className="w-full px-4 py-2 border rounded-md text-sm text-gray-800 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 required
             />
-             <input
+            <input
                 type="password"
                 placeholder="Confirm Password"
                 value={confirmPassword}
@@ -362,8 +363,8 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
 };
 
 // --- Main Application Component ---
-const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout }) => {
-    const [view, setView] = useState('workloader');
+const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout, currentUser }) => {
+    const [view, setView] = useState('dashboard');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
     const [detailers, setDetailers] = useState([]);
@@ -372,13 +373,11 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [tasks, setTasks] = useState([]);
     const [taskLanes, setTaskLanes] = useState([]);
     const [allProjectActivities, setAllProjectActivities] = useState([]);
-    // **REMOVED**: The old `rawForecastData` state is no longer needed.
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
 
-    // State for managing cross-component navigation and initial selections
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
     const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState('');
@@ -490,15 +489,12 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         };
     }, [isAuthReady]);
 
-    // **REMOVED**: The old `useEffect` for fetching `rawForecastData` has been removed
-    // as this logic is now handled within the `ProjectForecastConsole` itself.
-
-
     const handleNavClick = (viewId) => {
         setView(viewId);
     };
 
     const navButtons = [
+        { id: 'dashboard', label: 'Dashboard', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> },
         { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
         { id: 'detailers', label: 'Team', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
         { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
@@ -510,9 +506,9 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     ];
 
     const navConfig = {
-        taskmaster: ['workloader', 'detailers', 'projects', 'tasks', 'gantt', 'project-forecast', 'reporting', 'admin'],
-        tcl: ['workloader', 'projects', 'tasks', 'gantt'],
-        viewer: ['workloader', 'tasks', 'gantt'],
+        taskmaster: ['dashboard', 'workloader', 'detailers', 'projects', 'tasks', 'gantt', 'project-forecast', 'reporting', 'admin'],
+        tcl: ['dashboard', 'workloader', 'projects', 'tasks', 'gantt'],
+        viewer: ['dashboard', 'workloader', 'tasks', 'gantt'],
         default: []
     };
 
@@ -551,10 +547,10 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             initialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInWorkloader,
-            // **REMOVED**: rawForecastData is no longer passed as a prop
         };
 
         switch (currentView) {
+            case 'dashboard': return <MyDashboard {...consoleProps} currentUser={currentUser} navigateToView={navigationContextValue.navigateToView} />;
             case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} />;
             case 'projects': return <ProjectConsole {...consoleProps} />;
             case 'workloader': return <WorkloaderConsole {...consoleProps} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} />;
@@ -620,7 +616,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                         <TutorialHighlight tutorialKey={button.id} key={button.id}>
                                             <button
                                                 onClick={() => handleNavClick(button.id)}
-                                                className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md transition-colors w-32 ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
+                                                className={`flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md transition-colors w-36 ${view === button.id ? currentTheme.navBtnActive : currentTheme.navBtn}`}
                                             >
                                                 {button.icon}
                                                 {button.label}
@@ -641,7 +637,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                     onClick={handleLogout}
                                     className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-red-600 transition-colors"
                                 >
-                                    Logout ({accessLevel})
+                                    Logout ({currentUser?.firstName || accessLevel})
                                 </button>
                         </div>
                     </header>
@@ -677,21 +673,51 @@ const App = () => {
     const [accessLevel, setAccessLevel] = useState('default');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [loginError, setLoginError] = useState('');
+    const [currentUser, setCurrentUser] = useState(null);
+    const [allDetailers, setAllDetailers] = useState([]);
+
+    useEffect(() => {
+        if (!db) return;
+        const unsub = onSnapshot(collection(db, `artifacts/${appId}/public/data/detailers`), (snapshot) => {
+            setAllDetailers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsub();
+    }, []);
 
     const handleLoginAttempt = (username, password) => {
+        const user = allDetailers.find(d => d.firstName === username);
+
         if (username === 'Taskmaster' && password === 'Taskmaster1234') {
             setAccessLevel('taskmaster');
             setIsLoggedIn(true);
             setLoginError('');
+            setCurrentUser({ id: 'taskmaster_user', firstName: 'Taskmaster' });
         } else if (username === 'TCL' && password === 'TCL1234') {
             setAccessLevel('tcl');
             setIsLoggedIn(true);
             setLoginError('');
+            setCurrentUser({ id: 'tcl_user', firstName: 'TCL' });
         } else if (username === 'Viewer' && password === 'Viewer8765') {
             setAccessLevel('viewer');
             setIsLoggedIn(true);
             setLoginError('');
-        } else {
+            setCurrentUser({ id: 'viewer_user', firstName: 'Viewer' });
+        } else if (user) {
+            if (password === 'TCL1234') {
+                setAccessLevel('tcl');
+                setIsLoggedIn(true);
+                setLoginError('');
+                setCurrentUser(user);
+            } else if (password === 'Viewer8765') {
+                setAccessLevel('viewer');
+                setIsLoggedIn(true);
+                setLoginError('');
+                setCurrentUser(user);
+            } else {
+                 setLoginError('Invalid password for this user.');
+            }
+        }
+        else {
             setLoginError('Invalid username or password.');
         }
     };
@@ -699,9 +725,10 @@ const App = () => {
     const handleLogout = () => {
         setAccessLevel('default');
         setIsLoggedIn(false);
+        setCurrentUser(null);
     };
 
-    const authContextValue = useMemo(() => ({ accessLevel, setAccessLevel }), [accessLevel]);
+    const authContextValue = useMemo(() => ({ accessLevel, setAccessLevel, currentUser }), [accessLevel, currentUser]);
 
     return (
         <AuthContext.Provider value={authContextValue}>
@@ -712,6 +739,7 @@ const App = () => {
                     loginError={loginError}
                     handleLoginAttempt={handleLoginAttempt}
                     handleLogout={handleLogout}
+                    currentUser={currentUser}
                 />
             </TutorialProvider>
         </AuthContext.Provider>

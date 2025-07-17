@@ -252,10 +252,16 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-          key: "softDeleteTask",
-          title: "Soft Deleting Tasks",
-          content: "When you 'Delete Task' from the detail modal, the task's status changes to 'Deleted'. This hides it from active views but retains its data for historical records and reporting.",
+          key: "hardDeleteTask", // Updated key from softDeleteTask
+          title: "Permanently Deleting Tasks", // Updated title
+          content: "When you 'Delete Task' from the detail modal, the task is permanently removed from the database. There is no 'soft delete' option.", // Updated content
           roles: ['taskmaster']
+        },
+        {
+            key: "hardDeleteAllDeletedTasks", // New key
+            title: "Permanently Delete All 'Deleted' Tasks", // New title
+            content: "In the 'Archive' lane, you'll find a button to permanently remove all tasks that currently have the 'Deleted' status. This action is irreversible.", // New content
+            roles: ['taskmaster']
         }
     ]
   },
@@ -462,6 +468,56 @@ export const tutorialContent = {
           title: "Weekly Hour Forecast Tips",
           content: "You can quickly fill multiple cells by typing a value and then using the small blue square handle to drag and fill across weeks. You can also paste copied data from spreadsheets and reorder rows via drag-and-drop.",
           roles: ['taskmaster']
+        }
+    ]
+  },
+  // =================================================================
+  // == My Dashboard Console
+  // =================================================================
+  dashboard: {
+    title: "My Dashboard Tutorial",
+    steps: [
+        {
+            key: "dashboard",
+            title: "Welcome to My Dashboard",
+            content: "This is your personalized overview, providing a quick glance at your workload, projects, and tasks. Taskmasters, TCLs, and Viewers can select any employee to view their dashboard.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "employeeSelection",
+            title: "Employee Selection",
+            content: "If you have the appropriate access level (Taskmaster, TCL, Viewer), you can select any employee from this dropdown to view their specific dashboard.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "weekAtAGlance",
+            title: "Week At a Glance",
+            content: "This section shows your current and next week's project allocation percentages, helping you quickly understand your workload.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "topSkills",
+            title: "Top Skills (Taskmaster Only)",
+            content: "As a Taskmaster, this section displays the top skills for the selected employee, based on their skill assessments.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "activeProjects",
+            title: "Active Projects",
+            content: "View a summary of your active project assignments. Click on a project card to navigate to the Workloader Console, filtered for this employee.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "myTasksDashboard",
+            title: "My Tasks",
+            content: "See your upcoming tasks due this week and other open tasks. Click on any task card to go to the Tasks Console.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "goToTimeSheets", // New key for the Time Sheets button
+            title: "Go to Time Sheets", // New title
+            content: "Click this button to copy the network path for Field Time Sheets to your clipboard. You can then paste it into your file explorer to access the folder.", // New content
+            roles: ['taskmaster', 'tcl', 'viewer'] // Assuming all roles can access this link
         }
     ]
   },

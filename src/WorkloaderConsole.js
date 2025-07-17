@@ -476,7 +476,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                 weekEnd.setDate(weekStart.getDate() + 6);
                                 const isCurrentWeek = new Date() >= weekStart && new Date() <= weekEnd;
                                 return (
-                                <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border ${currentTheme.borderColor} ${currentTheme.textColor} ${isCurrentWeek ? 'bg-blue-200 text-black' : ''}`}>
+                                <th key={date.toISOString()} className={`p-1 font-semibold w-5 min-w-[20px] text-center border ${currentTheme.borderColor} ${currentTheme.textColor}`} style={isCurrentWeek ? { backgroundColor: '#5CB85C', color: 'white' } : {}}>
                                     {`${date.getMonth() + 1}/${date.getDate()}`}
                                 </th>
                             )})}
