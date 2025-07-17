@@ -445,7 +445,7 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdatePerce
                                                     />
                                                     <motion.svg
                                                         animate={{ rotate: collapsedSections[tradeSectionId] ? 0 : 180 }}
-                                                        xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                     </motion.svg>
                                                 </div>
@@ -997,7 +997,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 
     const handleGoToProjectWorkloader = (e) => {
         e.stopPropagation();
-        if (accessLevel === 'taskmaster') {
+        // Allow Taskmaster AND TCL to navigate to Project Workloader
+        if (accessLevel === 'taskmaster' || accessLevel === 'tcl') {
             setInitialSelectedProjectInWorkloader(projectId);
             navigateToView('workloader');
         }
@@ -1039,38 +1040,42 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 </div>
             </TutorialHighlight>
 
-            {accessLevel === 'taskmaster' && (
+            {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                 <>
-                    <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
+                    {accessLevel === 'taskmaster' && ( // Financial summary only for taskmaster
+                        <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
+                    )}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <TutorialHighlight tutorialKey="financialForecast">
-                            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                                <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
-                                    <h3 className="text-lg font-semibold">Financial Forecast</h3>
-                                    <motion.svg
-                                        animate={{ rotate: collapsedSections.financialForecast ? 0 : 180 }}
-                                        xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </motion.svg>
-                                </button>
-                                <AnimatePresence>
-                                {!collapsedSections.financialForecast && (
-                                    <motion.div
-                                        key="financial-forecast-content"
-                                        variants={animationVariants}
-                                        initial="hidden"
-                                        animate="visible"
-                                        exit="exit"
-                                        className="overflow-hidden"
-                                    >
-                                        <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                            <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
-                                        </div>
-                                    </motion.div>
-                                )}
-                                </AnimatePresence>
-                            </div>
-                        </TutorialHighlight>
+                        {accessLevel === 'taskmaster' && ( // Financial forecast only for taskmaster
+                            <TutorialHighlight tutorialKey="financialForecast">
+                                <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+                                    <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
+                                        <h3 className="text-lg font-semibold">Financial Forecast</h3>
+                                        <motion.svg
+                                            animate={{ rotate: collapsedSections.financialForecast ? 0 : 180 }}
+                                            xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </motion.svg>
+                                    </button>
+                                    <AnimatePresence>
+                                    {!collapsedSections.financialForecast && (
+                                        <motion.div
+                                            key="financial-forecast-content"
+                                            variants={animationVariants}
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="exit"
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="pt-2 mt-2 border-t border-gray-500/20">
+                                                <FinancialForecastChart project={project} weeklyHours={weeklyHours} activityTotals={activityTotals} currentBudget={currentBudget} currentTheme={currentTheme} />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                    </AnimatePresence>
+                                </div>
+                            </TutorialHighlight>
+                        )}
                         <TutorialHighlight tutorialKey="budgetImpactLog">
                             <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                                 <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
@@ -1110,7 +1115,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 </>
             )}
 
-            {(project.dashboardUrl || accessLevel === 'taskmaster') && (
+            {(project.dashboardUrl || accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                 <TutorialHighlight tutorialKey="projectDashboardLink">
                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>
                         <h3 className="text-lg font-semibold mb-2">Project Links</h3>
@@ -1128,7 +1133,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                     </svg>
                                 </a>
                             )}
-                            {accessLevel === 'taskmaster' && (
+                            {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && ( /* Allow TCL to see this button */
                                 <button
                                     onClick={handleGoToProjectWorkloader}
                                     className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
@@ -1241,7 +1246,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <div className="flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
-                                <button onClick={handleToggleAllActivityBreakdown} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                                <button onClick={() => handleToggleAllActivityBreakdown} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
                                     {isAnyActivityBreakdownCollapsed ? 'Expand All' : 'Collapse All'}
                                 </button>
                             </div>

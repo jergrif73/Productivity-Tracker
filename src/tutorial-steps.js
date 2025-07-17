@@ -155,9 +155,9 @@ export const tutorialContent = {
       },
       {
         key: "budgetImpactLog",
-        title: "Budget Impact Log (Taskmaster)",
+        title: "Budget Impact Log", // Updated title
         content: "Use this section to log events that impact the project's budget, such as change orders. Each entry adjusts the 'Current Budget' in the Financial Summary.",
-        roles: ['taskmaster']
+        roles: ['taskmaster', 'tcl'] // Added 'tcl' role
       },
       {
         key: "mainsManagement",
