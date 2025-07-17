@@ -102,9 +102,21 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
     )
 }
 
-const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project }) => {
-    const tradeOptions = ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"];
-    const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', trade: tradeOptions[0], hours: 0, rateType: 'Blend Rate' });
+const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, activities }) => {
+    // Removed static tradeOptions
+    
+    const tradeActivityOptions = useMemo(() => {
+        const options = new Set(); 
+        if (activities) {
+            Object.values(activities).flat().forEach(activity => {
+                options.add(activity.description); // Add all unique activity descriptions
+            });
+        }
+        return Array.from(options).sort();
+    }, [activities]);
+
+
+    const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Blend Rate' });
 
     const blendedRate = project.blendedRate || 0;
     const bimBlendedRate = project.bimBlendedRate || 0;
@@ -112,13 +124,13 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project }) =>
     const calculatedAmount = (Number(newImpact.hours) || 0) * rateToUse;
 
     const handleAdd = () => {
-        if (newImpact.description && newImpact.hours > 0 && newImpact.trade) {
+        if (newImpact.description && newImpact.hours > 0 && newImpact.tradeOrActivity) {
             onAdd({ 
                 ...newImpact, 
                 id: `impact_${Date.now()}`,
                 amount: calculatedAmount 
             });
-            setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', trade: tradeOptions[0], hours: 0, rateType: 'Blend Rate' });
+            setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Blend Rate' });
         }
     };
 
@@ -133,7 +145,7 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project }) =>
                     <tr>
                         <th className="p-2 text-left font-semibold w-[10%]">Date</th>
                         <th className="p-2 text-left font-semibold w-[35%]">Description</th>
-                        <th className="p-2 text-left font-semibold w-[15%]">Trade</th>
+                        <th className="p-2 text-left font-semibold w-[15%]">Activity</th> {/* Changed header to Activity */}
                         <th className="p-2 text-left font-semibold w-[15%]">Hours</th>
                         <th className="p-2 text-left font-semibold w-[15%]">Rate Type</th>
                         <th className="p-2 text-left font-semibold w-[10%]">Impact ($)</th>
@@ -145,7 +157,7 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project }) =>
                         <tr key={impact.id} className="border-b border-gray-500/20">
                             <td className="p-2">{new Date(impact.date + 'T00:00:00').toLocaleDateString()}</td>
                             <td className="p-2 truncate">{impact.description}</td>
-                            <td className="p-2">{impact.trade}</td>
+                            <td className="p-2">{impact.tradeOrActivity}</td> {/* Display new field */}
                             <td className="p-2">{impact.hours}</td>
                             <td className="p-2">{impact.rateType}</td>
                             <td className={`p-2 ${impact.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(impact.amount)}</td>
@@ -160,8 +172,9 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project }) =>
                         <td className="p-1"><input type="date" value={newImpact.date} onChange={e => handleInputChange('date', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
                         <td className="p-1"><input type="text" placeholder="Description" value={newImpact.description} onChange={e => handleInputChange('description', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
                         <td className="p-1">
-                            <select value={newImpact.trade} onChange={e => handleInputChange('trade', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                {tradeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            <select value={newImpact.tradeOrActivity} onChange={e => handleInputChange('tradeOrActivity', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">Select Activity...</option> {/* Changed placeholder */}
+                                {tradeActivityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </td>
                         <td className="p-1"><input type="number" placeholder="Hours" value={newImpact.hours} onChange={e => handleInputChange('hours', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
@@ -1079,7 +1092,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                         className="overflow-hidden"
                                     >
                                         <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                            <BudgetImpactLog impacts={projectData?.budgetImpacts || []} onAdd={handleAddImpact} onDelete={handleDeleteImpact} currentTheme={currentTheme} project={project} />
+                                            <BudgetImpactLog 
+                                                impacts={projectData?.budgetImpacts || []} 
+                                                onAdd={handleAddImpact} 
+                                                onDelete={handleDeleteImpact} 
+                                                currentTheme={currentTheme} 
+                                                project={project} 
+                                                activities={projectData.activities} // Pass activities here
+                                            />
                                         </div>
                                     </motion.div>
                                 )}
