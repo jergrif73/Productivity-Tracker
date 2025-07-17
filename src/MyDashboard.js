@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useContext, useEffect } from 'react'; // Removed useCallback
 import { NavigationContext, TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // Re-import Tooltip if it's not globally available or passed down
@@ -22,21 +22,20 @@ const Tooltip = ({ text, children }) => {
 const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, currentTheme, navigateToView, accessLevel, showToast }) => {
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
 
-    // Using useCallback to memoize the function, preventing it from being recreated on every render.
-    // It correctly sets the initial state to null for generic roles, prompting a selection.
-    const getInitialEmployeeId = useCallback(() => {
-        if (currentUser && !['taskmaster_user', 'tcl_user', 'viewer_user'].includes(currentUser.id)) {
-            return currentUser.id;
-        }
-        return null;
-    }, [currentUser]);
-
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState(getInitialEmployeeId());
+    // Initialize selectedEmployeeId to null always, so the dashboard starts empty
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     
-    // This effect correctly resets the view when the user logs in or out.
+    // This effect ensures the dropdown reflects the current user if they are a specific detailer,
+    // but the dashboard itself will start empty until explicitly selected.
     useEffect(() => {
-        setSelectedEmployeeId(getInitialEmployeeId());
-    }, [currentUser, getInitialEmployeeId]);
+        if (currentUser && !['taskmaster_user', 'tcl_user', 'viewer_user'].includes(currentUser.id)) {
+            // Optionally, you could set a default here if you want a specific user pre-selected,
+            // but for an empty dashboard on load, we keep it null.
+            // setSelectedEmployeeId(currentUser.id); 
+        } else {
+            setSelectedEmployeeId(null); // Ensure it's null for generic roles or on logout
+        }
+    }, [currentUser]);
 
 
     const selectedEmployee = useMemo(() => {
@@ -210,9 +209,29 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                     </div>
                 </div>
 
+                {/* Conditionally render content based on selectedEmployee */}
                 {!selectedEmployee ? (
-                    <div className={`p-10 text-center ${currentTheme.cardBg} rounded-lg`}>
-                        <p className={currentTheme.subtleText}>Please select an employee to view their dashboard.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-1 space-y-6">
+                            <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-48 flex items-center justify-center`}>
+                                <p className={currentTheme.subtleText}>Select an employee to view their workload.</p>
+                            </div>
+                            {accessLevel === 'taskmaster' && (
+                                <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-48 flex items-center justify-center`}>
+                                    <p className={currentTheme.subtleText}>Select an employee to view their skills.</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="md:col-span-1 space-y-6">
+                            <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-full flex items-center justify-center`}>
+                                <p className={currentTheme.subtleText}>Select an employee to view their active projects.</p>
+                            </div>
+                        </div>
+                        <div className="md:col-span-1 space-y-6">
+                            <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-full flex items-center justify-center`}>
+                                <p className={currentTheme.subtleText}>Select an employee to view their tasks.</p>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
