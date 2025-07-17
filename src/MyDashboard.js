@@ -3,7 +3,6 @@ import { NavigationContext, TutorialHighlight } from './App'; // Import Tutorial
 
 // Re-import Tooltip if it's not globally available or passed down
 // Assuming Tooltip is either a global component or passed via props/context.
-// If not, you might need to define it here or import it from a common utility file.
 // For now, I'll assume it's available via App.js context or a similar mechanism.
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
@@ -44,19 +43,33 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
         return detailers.find(d => d.id === selectedEmployeeId);
     }, [selectedEmployeeId, detailers]);
 
-    const { myAssignments, topSkills } = useMemo(() => {
-        if (!selectedEmployee) return { myAssignments: [], topSkills: [] };
+    const { myAssignments, topDisciplineSkills, topGeneralSkills } = useMemo(() => {
+        if (!selectedEmployee) return { myAssignments: [], topDisciplineSkills: [], topGeneralSkills: [] };
         
         const assignmentsForEmployee = assignments.filter(a => a.detailerId === selectedEmployee.id);
         
-        let skills = [];
-        if (accessLevel === 'taskmaster' && selectedEmployee.disciplineSkillsets && Array.isArray(selectedEmployee.disciplineSkillsets)) {
-            skills = [...selectedEmployee.disciplineSkillsets]
-                .sort((a, b) => (b.score || 0) - (a.score || 0))
-                .slice(0, 5);
+        let disciplineSkills = [];
+        let generalSkills = [];
+
+        if (accessLevel === 'taskmaster') {
+            // Process discipline skills
+            if (selectedEmployee.disciplineSkillsets && Array.isArray(selectedEmployee.disciplineSkillsets)) {
+                disciplineSkills = [...selectedEmployee.disciplineSkillsets]
+                    .sort((a, b) => (b.score || 0) - (a.score || 0))
+                    .slice(0, 3); // Top 3 discipline skills
+            }
+            // Process general skills (Skill Assessment)
+            if (selectedEmployee.skills) {
+                Object.entries(selectedEmployee.skills).forEach(([skillName, score]) => {
+                    generalSkills.push({ name: skillName, score: score });
+                });
+                generalSkills = generalSkills
+                    .sort((a, b) => (b.score || 0) - (a.score || 0))
+                    .slice(0, 3); // Top 3 general skills
+            }
         }
 
-        return { myAssignments: assignmentsForEmployee, topSkills: skills };
+        return { myAssignments: assignmentsForEmployee, topDisciplineSkills: disciplineSkills, topGeneralSkills: generalSkills };
     }, [selectedEmployee, assignments, accessLevel]);
 
     const { upcomingTasks, otherTasks, allOpenTasks } = useMemo(() => {
@@ -113,7 +126,17 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
     const myActiveProjects = useMemo(() => {
         if (!selectedEmployee) return [];
         const projectMap = new Map();
-        myAssignments.forEach(ass => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize today's date to start of day
+
+        // Filter assignments to include only those active from today onwards
+        const relevantAssignments = myAssignments.filter(ass => {
+            const assignEnd = new Date(ass.endDate);
+            assignEnd.setHours(23, 59, 59, 999); // Normalize end date to end of day
+            return assignEnd >= today;
+        });
+
+        relevantAssignments.forEach(ass => {
             const project = projects.find(p => p.id === ass.projectId && !p.archived);
             if (project && !projectMap.has(project.id)) {
                 projectMap.set(project.id, {
@@ -214,14 +237,40 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                 <TutorialHighlight tutorialKey="topSkills">
                                     <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor}`}>
                                         <h2 className="text-xl font-semibold mb-4">Top Skills</h2>
-                                        <div className="space-y-3">
-                                            {topSkills.length > 0 ? topSkills.map(skill => (
-                                                <div key={skill.name} className="flex justify-between items-center">
-                                                    <span className="font-medium">{skill.name}</span>
-                                                    <span className={`font-bold px-2 py-1 text-xs rounded-full ${currentTheme.altRowBg}`}>{skill.score}/10</span>
+                                        
+                                        {/* Display Top Discipline Skills */}
+                                        {topDisciplineSkills.length > 0 && (
+                                            <div className="mb-4">
+                                                <h3 className="font-semibold text-sm mb-2">Top Discipline Skills</h3>
+                                                <div className="space-y-3">
+                                                    {topDisciplineSkills.map(skill => (
+                                                        <div key={skill.name} className="flex justify-between items-center">
+                                                            <span className="font-medium">{skill.name}</span>
+                                                            <span className={`font-bold px-2 py-1 text-xs rounded-full ${currentTheme.altRowBg}`}>{skill.score}/10</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            )) : <p className={currentTheme.subtleText}>No rated skills.</p>}
-                                        </div>
+                                            </div>
+                                        )}
+
+                                        {/* Display Top General Skills */}
+                                        {topGeneralSkills.length > 0 && (
+                                            <div>
+                                                <h3 className="font-semibold text-sm mb-2">Top General Skills</h3>
+                                                <div className="space-y-3">
+                                                    {topGeneralSkills.map(skill => (
+                                                        <div key={skill.name} className="flex justify-between items-center">
+                                                            <span className="font-medium">{skill.name}</span>
+                                                            <span className={`font-bold px-2 py-1 text-xs rounded-full ${currentTheme.altRowBg}`}>{skill.score}/10</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {topDisciplineSkills.length === 0 && topGeneralSkills.length === 0 && (
+                                            <p className={currentTheme.subtleText}>No rated skills.</p>
+                                        )}
                                     </div>
                                 </TutorialHighlight>
                             )}
