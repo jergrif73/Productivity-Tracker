@@ -254,7 +254,7 @@ const teamProfiles = {
 };
 
 
-const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme, geminiApiKey }) => {
+const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme }) => {
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -279,11 +279,6 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         project: true,
         dateRange: true,
     });
-
-    const [aiSummary, setAiSummary] = useState('');
-    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-    const [aiPrompt, setAiPrompt] = useState('');
-    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
     const toggleFilterCollapse = (filterName) => {
         setCollapsedFilters(prev => ({ ...prev, [filterName]: !prev[filterName] }));
@@ -352,8 +347,6 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         setReportData(null);
         setReportHeaders([]);
         setChartData(null);
-        setAiSummary('');
-        setAiPrompt('');
         setSortConfig({ key: null, direction: 'ascending' });
 
         const sDate = startDate ? new Date(startDate) : null;
@@ -726,78 +719,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         setReportHeaders(headers);
     };
 
-    const handleGenerateAiSummary = async () => {
-        if (!reportData || reportData.length === 0) {
-            alert("Please generate a report with data first.");
-            return;
-        }
-    
-        setIsGeneratingSummary(true);
-        setAiSummary('');
-    
-        const csvString = [
-            reportHeaders.join(','),
-            ...reportData.map(row => row.join(','))
-        ].join('\n');
-    
-        const prompt = `You are a helpful business analyst. Based on the following data from the '${reportType}' report, please provide an analysis. ${aiPrompt ? `The user has a specific question: '${aiPrompt}'. Please address this in your analysis.` : 'Provide a general executive summary of the key takeaways.'}\n\nDATA:\n${csvString}`;
-        
-        try {
-            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-            const payload = { contents: chatHistory };
-            
-            const apiKey = geminiApiKey; 
-    
-            if (!apiKey) { 
-                setAiSummary("API Key is not configured. Please ensure REACT_APP_GEMINI_API_KEY is set in your .env file and you have restarted the server.");
-                setIsGeneratingSummary(false);
-                return;
-            }
-    
-            // FIX: Use the correct model name 'gemini-2.0-flash'
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            
-            if (result.error) {
-                console.error("Gemini API Error:", result.error);
-                setAiSummary(`API Error: ${result.error.message}. Status: ${result.error.code}. Please check the console for the full error object.`);
-                return; 
-            }
-    
-            if (result.candidates && result.candidates.length > 0) {
-                const candidate = result.candidates[0];
-                if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-                    const text = candidate.content.parts[0].text;
-                    setAiSummary(text);
-                } else if (candidate.finishReason === "SAFETY") {
-                    setAiSummary("Could not generate summary. The response was blocked due to safety concerns. Try rephrasing your question or adjusting the report data.");
-                } else {
-                    setAiSummary(`Could not generate summary. The model returned an empty response. Finish Reason: ${candidate.finishReason || 'Unknown'}`);
-                }
-            } else {
-                 setAiSummary("Could not generate summary. The model returned no valid candidates in the response. The request may have been blocked or the model could not generate a response.");
-            }
-    
-        } catch (error) {
-            console.error("Error calling Gemini API:", error);
-            setAiSummary("An error occurred while generating the AI summary. Please check the console for details.");
-        } finally {
-            setIsGeneratingSummary(false);
-        }
-    };
-
     const handleClearReport = () => {
         setReportData(null);
         setChartData(null);
         setReportHeaders([]);
-        setAiSummary('');
-        setAiPrompt('');
         setSelectedLevels([]);
         setSelectedTrade('');
         setSelectedProjectId('');
@@ -1095,7 +1020,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     
                     {/* Right Display Area */}
                     <div className="flex-grow flex flex-col min-h-0">
-                        <div className="flex-grow overflow-y-auto hide-scrollbar-on-hover space-y-4">
+                        <div className="flex-grow overflow-auto hide-scrollbar-on-hover space-y-4">
                             <TutorialHighlight tutorialKey="projectHealthDashboard">
                                 {chartData && reportType === 'project-health' && (
                                     <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
@@ -1188,49 +1113,8 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                 </div>
                             )}
                         </div>
-                        
-                        {reportData && (
-                             <div className={`flex-shrink-0 mt-auto p-4 ${currentTheme.cardBg} border-t ${currentTheme.borderColor} bg-opacity-90 backdrop-blur-sm`}>
-                                <button
-                                    onClick={() => setIsAiModalOpen(true)}
-                                    disabled={!reportData}
-                                    className="w-full bg-purple-600 text-white p-2 rounded-md hover:bg-purple-700 disabled:bg-gray-400"
-                                >
-                                    Get AI-Powered Insights
-                                </button>
-                            </div>
-                        )}
                     </div>
                 </div>
-
-                <AnimatePresence>
-                    {isAiModalOpen && (
-                        <Modal onClose={() => setIsAiModalOpen(false)} currentTheme={currentTheme}>
-                             <div className="space-y-4">
-                                <h3 className="text-xl font-semibold">AI-Powered Insights</h3>
-                                <textarea
-                                    value={aiPrompt}
-                                    onChange={(e) => setAiPrompt(e.target.value)}
-                                    placeholder="Ask a question about this data, like 'Who is the best fit for this job?' or 'What are the key takeaways?'"
-                                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} mb-2`}
-                                    rows="6"
-                                />
-                                <button
-                                    onClick={handleGenerateAiSummary}
-                                    disabled={isGeneratingSummary}
-                                    className="w-full bg-purple-600 text-white p-2 rounded-md hover:bg-purple-700 disabled:bg-gray-400"
-                                >
-                                    {isGeneratingSummary ? 'Generating...' : 'Generate AI Summary'}
-                                </button>
-                                {aiSummary && (
-                                    <div className="mt-4 p-4 bg-black/20 rounded-md">
-                                        <p className="whitespace-pre-wrap">{aiSummary}</p>
-                                    </div>
-                                )}
-                            </div>
-                        </Modal>
-                    )}
-                </AnimatePresence>
             </div>
         </TutorialHighlight>
     );
