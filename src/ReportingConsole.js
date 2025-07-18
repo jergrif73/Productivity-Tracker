@@ -6,6 +6,53 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Helper Components ---
 
+const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
+    const theme = currentTheme || { cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600' };
+
+    const backdropVariants = {
+        visible: { opacity: 1, transition: { duration: 0.3 } },
+        hidden: { opacity: 0, transition: { duration: 0.3 } },
+    };
+
+    const modalVariants = {
+        hidden: { opacity: 0, y: "-20px", scale: 0.95 },
+        visible: { 
+            opacity: 1, 
+            y: "0", 
+            scale: 1,
+            transition: { type: "spring", stiffness: 400, damping: 25, mass: 0.5 }
+        },
+        exit: { 
+            opacity: 0, 
+            y: "20px",
+            scale: 0.95,
+            transition: { duration: 0.2 }
+        }
+    };
+
+    return (
+        <motion.div
+            className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center"
+            variants={backdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            onClick={onClose}
+        >
+            <motion.div
+                variants={modalVariants}
+                className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex justify-end">
+                    <button onClick={onClose} className={`text-2xl font-bold ${theme.subtleText} hover:${theme.textColor}`}>&times;</button>
+                </div>
+                {children}
+            </motion.div>
+        </motion.div>
+    );
+};
+
 const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) => {
     const animationVariants = {
         open: { opacity: 1, height: 'auto', marginTop: '1rem' },
@@ -132,9 +179,9 @@ const EmployeeWorkloadChart = ({ data, currentTheme }) => {
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
-        const width = 1200; // Increased width
-        const height = 700; // Increased height
-        const margin = 40;
+        const width = 1560; // Increased width by 30%
+        const height = 910; // Increased height proportionally
+        const margin = 80; // Increased margin for more label space
         const radius = Math.min(width, height) / 2 - margin;
 
         const chart = svg.append("g")
@@ -194,7 +241,7 @@ const EmployeeWorkloadChart = ({ data, currentTheme }) => {
 
     }, [data, currentTheme]);
 
-    return <svg ref={svgRef} width="1200" height="700"></svg>;
+    return <svg ref={svgRef} width="1560" height="910"></svg>;
 };
 
 // Define predefined team profiles
@@ -207,7 +254,7 @@ const teamProfiles = {
 };
 
 
-const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme }) => {
+const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme, geminiApiKey }) => {
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -221,6 +268,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     const [reportData, setReportData] = useState(null);
     const [reportHeaders, setReportHeaders] = useState([]);
     const [chartData, setChartData] = useState(null);
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
     
     const [collapsedFilters, setCollapsedFilters] = useState({
         level: true,
@@ -231,6 +279,11 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         project: true,
         dateRange: true,
     });
+
+    const [aiSummary, setAiSummary] = useState('');
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
     const toggleFilterCollapse = (filterName) => {
         setCollapsedFilters(prev => ({ ...prev, [filterName]: !prev[filterName] }));
@@ -299,6 +352,9 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         setReportData(null);
         setReportHeaders([]);
         setChartData(null);
+        setAiSummary('');
+        setAiPrompt('');
+        setSortConfig({ key: null, direction: 'ascending' });
 
         const sDate = startDate ? new Date(startDate) : null;
         const eDate = endDate ? new Date(endDate) : null;
@@ -570,17 +626,38 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                 break;
             
             case 'employee-details':
+                const abbreviateTitle = (title) => {
+                    const abbreviations = {
+                        "Detailer I": "DI",
+                        "Detailer II": "DII",
+                        "Detailer III": "DIII",
+                        "Project Constructability Lead": "PCL",
+                        "Project Constructability Lead, Sr.": "PCL Sr.",
+                        "Trade Constructability Lead": "TCL",
+                        "Constructability Manager": "CM",
+                        "BIM Specialist": "BIM",
+                        "Programmatic Detailer": "PD"
+                    };
+                    return abbreviations[title] || title || 'N/A';
+                };
+
                 const baseHeaders = [
                     "First Name", "Last Name", "Title", "Employee ID",
                     "Wage/hr", "% Above Scale", "Union Local"
                 ];
                 const generalSkillHeaders = [];
-                for (let i = 1; i <= 5; i++) {
-                    generalSkillHeaders.push(`General Skill ${i}`, `Skill ${i} Score`);
-                }
+                const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
+                
+                // FIX: Make general skill score headers unique
+                skillCategories.forEach(skill => {
+                    const shortName = skill.split(" ")[0];
+                    generalSkillHeaders.push(shortName, `${shortName} Score`);
+                });
+
                 const disciplineSkillHeaders = [];
+                // FIX: Make discipline skill score headers unique
                 for (let i = 1; i <= 7; i++) {
-                    disciplineSkillHeaders.push(`Discipline ${i}`, `Discipline ${i} Score`);
+                    disciplineSkillHeaders.push(`Disc. ${i}`, `Disc. ${i} Score`);
                 }
                 headers = [...baseHeaders, ...generalSkillHeaders, ...disciplineSkillHeaders];
 
@@ -598,22 +675,30 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                 }
 
                 data = filteredDetailers.map(d => {
+                    const unionNumber = (d.unionLocal || '').match(/\d+/g)?.join('') || 'N/A';
+                    const abbreviatedTitle = abbreviateTitle(d.title);
                     const baseData = [
                         d.firstName,
                         d.lastName,
-                        d.title || 'N/A',
+                        abbreviatedTitle,
                         d.employeeId || 'N/A',
                         d.wage || 0,
                         d.percentAboveScale || 0,
-                        d.unionLocal || 'N/A',
+                        unionNumber,
                     ];
 
                     const generalSkillsData = [];
                     const generalSkills = d.skills ? Object.entries(d.skills) : [];
+                    
+                    const orderedGeneralSkills = skillCategories.map(cat => {
+                        const found = generalSkills.find(gs => gs[0] === cat);
+                        return found ? [cat, found[1]] : [cat, 0];
+                    });
+
                     for (let i = 0; i < 5; i++) {
-                        if (i < generalSkills.length) {
-                            generalSkillsData.push(generalSkills[i][0]);
-                            generalSkillsData.push(generalSkills[i][1]);
+                        if (i < orderedGeneralSkills.length) {
+                            generalSkillsData.push(orderedGeneralSkills[i][0].split(" ")[0]);
+                            generalSkillsData.push(orderedGeneralSkills[i][1]);
                         } else {
                             generalSkillsData.push('', '');
                         }
@@ -621,7 +706,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
 
                     const disciplineSkillsData = [];
                     const disciplineSkills = d.disciplineSkillsets || [];
-                    for (let i = 1; i <= 7; i++) {
+                    for (let i = 0; i < 7; i++) {
                         if (i < disciplineSkills.length) {
                             disciplineSkillsData.push(disciplineSkills[i].name);
                             disciplineSkillsData.push(disciplineSkills[i].score);
@@ -641,10 +726,78 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         setReportHeaders(headers);
     };
 
+    const handleGenerateAiSummary = async () => {
+        if (!reportData || reportData.length === 0) {
+            alert("Please generate a report with data first.");
+            return;
+        }
+    
+        setIsGeneratingSummary(true);
+        setAiSummary('');
+    
+        const csvString = [
+            reportHeaders.join(','),
+            ...reportData.map(row => row.join(','))
+        ].join('\n');
+    
+        const prompt = `You are a helpful business analyst. Based on the following data from the '${reportType}' report, please provide an analysis. ${aiPrompt ? `The user has a specific question: '${aiPrompt}'. Please address this in your analysis.` : 'Provide a general executive summary of the key takeaways.'}\n\nDATA:\n${csvString}`;
+        
+        try {
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = { contents: chatHistory };
+            
+            const apiKey = geminiApiKey; 
+    
+            if (!apiKey) { 
+                setAiSummary("API Key is not configured. Please ensure REACT_APP_GEMINI_API_KEY is set in your .env file and you have restarted the server.");
+                setIsGeneratingSummary(false);
+                return;
+            }
+    
+            // FIX: Use the correct model name 'gemini-2.0-flash'
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            
+            if (result.error) {
+                console.error("Gemini API Error:", result.error);
+                setAiSummary(`API Error: ${result.error.message}. Status: ${result.error.code}. Please check the console for the full error object.`);
+                return; 
+            }
+    
+            if (result.candidates && result.candidates.length > 0) {
+                const candidate = result.candidates[0];
+                if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+                    const text = candidate.content.parts[0].text;
+                    setAiSummary(text);
+                } else if (candidate.finishReason === "SAFETY") {
+                    setAiSummary("Could not generate summary. The response was blocked due to safety concerns. Try rephrasing your question or adjusting the report data.");
+                } else {
+                    setAiSummary(`Could not generate summary. The model returned an empty response. Finish Reason: ${candidate.finishReason || 'Unknown'}`);
+                }
+            } else {
+                 setAiSummary("Could not generate summary. The model returned no valid candidates in the response. The request may have been blocked or the model could not generate a response.");
+            }
+    
+        } catch (error) {
+            console.error("Error calling Gemini API:", error);
+            setAiSummary("An error occurred while generating the AI summary. Please check the console for details.");
+        } finally {
+            setIsGeneratingSummary(false);
+        }
+    };
+
     const handleClearReport = () => {
         setReportData(null);
         setChartData(null);
         setReportHeaders([]);
+        setAiSummary('');
+        setAiPrompt('');
         setSelectedLevels([]);
         setSelectedTrade('');
         setSelectedProjectId('');
@@ -711,6 +864,48 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         link.click();
         document.body.removeChild(link);
     };
+
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedReportData = useMemo(() => {
+        if (!reportData || !sortConfig.key) {
+            return reportData;
+        }
+
+        const headerIndex = reportHeaders.indexOf(sortConfig.key);
+        if (headerIndex === -1) {
+            return reportData;
+        }
+
+        const sortedData = [...reportData].sort((a, b) => {
+            const aValue = a[headerIndex];
+            const bValue = b[headerIndex];
+
+            const isNumeric = !isNaN(parseFloat(aValue)) && isFinite(aValue) && !isNaN(parseFloat(bValue)) && isFinite(bValue);
+
+            if (isNumeric) {
+                if (parseFloat(aValue) < parseFloat(bValue)) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (parseFloat(aValue) > parseFloat(bValue)) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            } else {
+                return String(aValue).localeCompare(String(bValue), undefined, {
+                    numeric: true,
+                    sensitivity: 'base'
+                }) * (sortConfig.direction === 'ascending' ? 1 : -1);
+            }
+        });
+        return sortedData;
+    }, [reportData, sortConfig, reportHeaders]);
 
     const renderFilters = () => {
         const levelFilterUI = (
@@ -867,7 +1062,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting & Dashboards</h2>
                 </div>
 
-                <div className="flex-grow flex gap-4 overflow-hidden">
+                <div className="flex-grow flex gap-4 min-h-0">
                     {/* Left Controls Column */}
                     <div className={`w-full md:w-1/4 lg:w-1/5 flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex flex-col`}>
                         <div className="space-y-2 overflow-y-auto hide-scrollbar-on-hover pr-2 flex-grow">
@@ -899,77 +1094,92 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     </div>
                     
                     {/* Right Display Area */}
-                    <div className="flex-grow overflow-y-auto hide-scrollbar-on-hover">
-                        <TutorialHighlight tutorialKey="projectHealthDashboard">
-                            {chartData && reportType === 'project-health' && (
-                                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-xl font-semibold">Project Health Dashboard</h3>
-                                        <div className="flex gap-2">
-                                            <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                    <div className="flex-grow flex flex-col min-h-0">
+                        <div className="flex-grow overflow-y-auto hide-scrollbar-on-hover space-y-4">
+                            <TutorialHighlight tutorialKey="projectHealthDashboard">
+                                {chartData && reportType === 'project-health' && (
+                                    <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-xl font-semibold">Project Health Dashboard</h3>
+                                            <div className="flex gap-2">
+                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-center items-center">
+                                            {renderChart()}
                                         </div>
                                     </div>
-                                    <div className="flex justify-center items-center">
-                                        {renderChart()}
-                                    </div>
-                                </div>
-                            )}
-                        </TutorialHighlight>
-                        
-                        <TutorialHighlight tutorialKey="employeeWorkloadDistro">
-                            {chartData && reportType === 'employee-workload-dist' && (
-                                 <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-xl font-semibold">Employee Workload Distribution</h3>
-                                         <div className="flex gap-2">
-                                            <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
-                                         </div>
-                                    </div>
-                                    <div className="flex justify-center items-center">
-                                        {renderChart()}
-                                    </div>
-                                </div>
-                            )}
-                        </TutorialHighlight>
-
-                        <TutorialHighlight tutorialKey="skillMatrixReport">
-                            {reportType === 'skill-matrix' && (
-                                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-xl font-semibold">Employee Skill Matrix</h3>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => window.print()} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700">Print Matrix</button>
-                                            <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                )}
+                            </TutorialHighlight>
+                            
+                            <TutorialHighlight tutorialKey="employeeWorkloadDistro">
+                                {chartData && reportType === 'employee-workload-dist' && (
+                                     <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-xl font-semibold">Employee Workload Distribution</h3>
+                                             <div className="flex gap-2">
+                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                             </div>
+                                        </div>
+                                        <div className="flex justify-center items-center">
+                                            {renderChart()}
                                         </div>
                                     </div>
-                                    <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} />
-                                </div>
-                            )}
-                        </TutorialHighlight>
+                                )}
+                            </TutorialHighlight>
 
-                        <TutorialHighlight tutorialKey="forecastVsActualReport">
-                            {reportData && reportType === 'forecast-vs-actual' && (
+                            <TutorialHighlight tutorialKey="skillMatrixReport">
+                                {reportType === 'skill-matrix' && (
+                                    <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-xl font-semibold">Employee Skill Matrix</h3>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => window.print()} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700">Print Matrix</button>
+                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                            </div>
+                                        </div>
+                                        <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} />
+                                    </div>
+                                )}
+                            </TutorialHighlight>
+
+                            {reportData && (
                                 <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
                                     <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-xl font-semibold">Report Results: Forecast vs. Actuals</h3>
+                                        <h3 className="text-xl font-semibold">Report Results</h3>
                                         <TutorialHighlight tutorialKey="exportToCSV">
                                             <div className="flex gap-2">
-                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                                                <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                                                    <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                                                    <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
                                             </div>
                                         </TutorialHighlight>
                                     </div>
-                                    <div className="overflow-auto hide-scrollbar-on-hover max-h-[60vh]">
-                                        <table className="min-w-full">
+                                    <div className="overflow-auto hide-scrollbar-on-hover max-h-[55vh]">
+                                        <table className="min-w-full border-collapse">
                                             <thead className={`${currentTheme.altRowBg} sticky top-0`}>
-                                                <tr >
-                                                    {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
+                                                <tr>
+                                                    {reportHeaders.map((header, index) => (
+                                                        <th 
+                                                            key={`${header}-${index}`} 
+                                                            className={`p-2 text-left font-semibold border ${currentTheme.borderColor} cursor-pointer`}
+                                                            onClick={() => requestSort(header)}
+                                                        >
+                                                            {header}
+                                                            {sortConfig.key === header && (
+                                                                <span>{sortConfig.direction === 'ascending' ? ' ▲' : ' ▼'}</span>
+                                                            )}
+                                                        </th>
+                                                    ))}
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {reportData.map((row, rowIndex) => (
-                                                    <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
-                                                        {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
+                                                {sortedReportData.map((row, rowIndex) => (
+                                                    <tr key={`report-row-${rowIndex}-${row[0]}`} className={`border-b ${currentTheme.borderColor}`}>
+                                                        {row.map((cell, cellIndex) => (
+                                                            <td key={`cell-${rowIndex}-${cellIndex}`} className={`p-2 border ${currentTheme.borderColor}`}>
+                                                                {cell}
+                                                            </td>
+                                                        ))}
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -977,39 +1187,50 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                     </div>
                                 </div>
                             )}
-                        </TutorialHighlight>
-
-                        {reportData && reportType !== 'forecast-vs-actual' && (
-                            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-xl font-semibold">Report Results</h3>
-                                    <TutorialHighlight tutorialKey="exportToCSV">
-                                        <div className="flex gap-2">
-                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                                                <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
-                                        </div>
-                                    </TutorialHighlight>
-                                </div>
-                                <div className="overflow-auto hide-scrollbar-on-hover max-h-[60vh]">
-                                    <table className="min-w-full">
-                                        <thead className={`${currentTheme.altRowBg} sticky top-0`}>
-                                            <tr >
-                                                {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {reportData.map((row, rowIndex) => (
-                                                <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
-                                                    {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                        </div>
+                        
+                        {reportData && (
+                             <div className={`flex-shrink-0 mt-auto p-4 ${currentTheme.cardBg} border-t ${currentTheme.borderColor} bg-opacity-90 backdrop-blur-sm`}>
+                                <button
+                                    onClick={() => setIsAiModalOpen(true)}
+                                    disabled={!reportData}
+                                    className="w-full bg-purple-600 text-white p-2 rounded-md hover:bg-purple-700 disabled:bg-gray-400"
+                                >
+                                    Get AI-Powered Insights
+                                </button>
                             </div>
                         )}
                     </div>
                 </div>
+
+                <AnimatePresence>
+                    {isAiModalOpen && (
+                        <Modal onClose={() => setIsAiModalOpen(false)} currentTheme={currentTheme}>
+                             <div className="space-y-4">
+                                <h3 className="text-xl font-semibold">AI-Powered Insights</h3>
+                                <textarea
+                                    value={aiPrompt}
+                                    onChange={(e) => setAiPrompt(e.target.value)}
+                                    placeholder="Ask a question about this data, like 'Who is the best fit for this job?' or 'What are the key takeaways?'"
+                                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} mb-2`}
+                                    rows="6"
+                                />
+                                <button
+                                    onClick={handleGenerateAiSummary}
+                                    disabled={isGeneratingSummary}
+                                    className="w-full bg-purple-600 text-white p-2 rounded-md hover:bg-purple-700 disabled:bg-gray-400"
+                                >
+                                    {isGeneratingSummary ? 'Generating...' : 'Generate AI Summary'}
+                                </button>
+                                {aiSummary && (
+                                    <div className="mt-4 p-4 bg-black/20 rounded-md">
+                                        <p className="whitespace-pre-wrap">{aiSummary}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </Modal>
+                    )}
+                </AnimatePresence>
             </div>
         </TutorialHighlight>
     );

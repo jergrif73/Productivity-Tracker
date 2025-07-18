@@ -28,6 +28,21 @@ const firebaseConfig = {
   measurementId: "G-LGTREWPTGJ"
 };
 
+// --- Gemini API Configuration ---
+// =================================================================================================
+// =================================== IMPORTANT: ACTION REQUIRED ===================================
+//
+// To use the AI-Powered Insights feature, you need a Google Generative AI API key.
+//
+// 1. Get your free API key from Google AI Studio: https://makersuite.google.com/app/apikey
+// 2. Paste ONLY the key (the long string of characters) into the empty quotes below.
+//
+// =================================================================================================
+const geminiApiKey = "AIzaSyDmexw9LMkigqgE4jO4fdg5IHauFaigRFI"; // <--- PASTE YOUR GEMINI API KEY HERE
+// =================================================================================================
+// =================================================================================================
+
+
 // --- Firebase Initialization ---
 let db, auth;
 try {
@@ -363,7 +378,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
 };
 
 // --- Main Application Component ---
-const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout, currentUser }) => {
+const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, handleLogout, currentUser, geminiApiKey }) => {
     const [view, setView] = useState('dashboard');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userId, setUserId] = useState(null);
@@ -547,6 +562,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             initialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInTeamConsole,
             setInitialSelectedEmployeeInWorkloader,
+            geminiApiKey,
         };
 
         switch (currentView) {
@@ -684,6 +700,24 @@ const App = () => {
         return () => unsub();
     }, []);
 
+    useEffect(() => {
+        if (!geminiApiKey && !window.__app_id) {
+            console.warn(`
+      =================================================================
+      AI-POWERED INSIGHTS - API KEY MISSING
+      -----------------------------------------------------------------
+      The 'geminiApiKey' in App.js is empty. The AI features in the
+      Reporting Console will not work without it.
+
+      To fix this:
+      1. Get your free API key from Google AI Studio:
+         https://makersuite.google.com/app/apikey
+      2. Paste the key into the 'geminiApiKey' constant in App.js.
+      =================================================================
+      `);
+        }
+    }, []);
+
     const handleLoginAttempt = (username, password) => {
         const user = allDetailers.find(d => d.firstName === username);
 
@@ -740,6 +774,7 @@ const App = () => {
                     handleLoginAttempt={handleLoginAttempt}
                     handleLogout={handleLogout}
                     currentUser={currentUser}
+                    geminiApiKey={geminiApiKey}
                 />
             </TutorialProvider>
         </AuthContext.Provider>
