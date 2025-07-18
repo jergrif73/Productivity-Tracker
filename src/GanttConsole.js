@@ -34,10 +34,11 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
 
     const projectData = useMemo(() => {
         const dataByProject = activeAssignments.reduce((acc, assignment) => {
-            if (!acc[assignment.projectId]) {
-                acc[assignment.projectId] = [];
+            const projId = assignment.projectId;
+            if (!acc[projId]) {
+                acc[projId] = [];
             }
-            acc[assignment.projectId].push(assignment);
+            acc[projId].push(assignment);
             return acc;
         }, {});
 
@@ -240,21 +241,24 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                     <button onClick={() => setGanttView('totals')} className={`px-3 py-1 text-sm rounded-md ${ganttView === 'totals' ? `${currentTheme.cardBg} shadow` : ''}`}>Totals</button>
                 </div>
             </div>
-            {/* Added hide-scrollbar-on-hover class to the scrollable div */}
-            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-auto hide-scrollbar-on-hover`}>
-                <div className="p-4">
-                    <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg>
-                </div>
-                {ganttView === 'projects' && (
-                     <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-2 px-4 border-t pb-8" style={{minHeight: '8rem', width: `${width}px`}}>
-                        {projectData.map(p => (
-                            <div key={p.projectId} className="flex flex-col items-center">
-                                <div className="w-1/4 h-4" style={{backgroundColor: color(p.projectId), minWidth: '20px'}}></div>
-                                <span className={`transform -rotate-90 whitespace-nowrap mt-4 ${currentTheme.textColor}`}>{p.projectNumber}</span>
-                            </div>
-                        ))}
+            {/* Applied the fix here: wrap SVG and legend in a single div with fixed width,
+                and apply overflow-x-auto to the outer container. */}
+            <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-x-auto hide-scrollbar-on-hover`}>
+                <div style={{ width: `${width}px` }}> {/* This inner div now controls the overall scrollable width */}
+                    <div className="p-4">
+                        <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg>
                     </div>
-                )}
+                    {ganttView === 'projects' && (
+                        <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-2 px-4 border-t pb-8" style={{ minHeight: '8rem' }}>
+                            {projectData.map(p => (
+                                <div key={p.projectId} className="flex flex-col items-center">
+                                    <div className="w-1/4 h-4" style={{ backgroundColor: color(p.projectId), minWidth: '20px' }}></div>
+                                    <span className={`transform -rotate-90 whitespace-nowrap mt-4 ${currentTheme.textColor}`}>{p.projectNumber}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

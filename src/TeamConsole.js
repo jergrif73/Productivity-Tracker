@@ -24,7 +24,8 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
     const sortedProjects = useMemo(() => {
-        return [...projects].sort((a, b) => a.name.localeCompare(b.name));
+        // Filter out archived projects from the dropdown list
+        return [...projects].filter(p => !p.archived).sort((a, b) => a.name.localeCompare(b.name));
     }, [projects]);
 
     const handleSave = async () => {
@@ -140,6 +141,8 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
 
 const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel }) => {
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
+    // State to manage which assignment is expanded
+    const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
 
     const handleGoToEmployeeWorkloader = (e, employeeId) => {
         e.stopPropagation();
@@ -147,6 +150,26 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
             navigateToWorkloaderForEmployee(employeeId);
         }
     };
+
+    const toggleAssignmentExpansion = (assignmentId) => {
+        setExpandedAssignmentId(prevId => (prevId === assignmentId ? null : assignmentId));
+    };
+
+    const animationVariants = {
+        hidden: { opacity: 0, height: 0 },
+        visible: { opacity: 1, height: 'auto', transition: { duration: 0.3, ease: "easeInOut" } },
+        exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
+    };
+
+    // Filter assignments to only show those linked to non-archived projects
+    const filteredAssignments = useMemo(() => {
+        return assignments.filter(asn => {
+            const project = projects.find(p => p.id === asn.projectId);
+            // Only include assignments if the project exists and is not archived
+            return project && !project.archived;
+        });
+    }, [assignments, projects]);
+
 
     return (
         <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
@@ -162,19 +185,61 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
                 )}
             </div>
             <div className="space-y-3 overflow-y-auto flex-grow hide-scrollbar-on-hover pr-2">
-                {assignments.length > 0 ? (
-                    assignments.map(asn => (
-                        <InlineAssignmentEditor
-                            key={asn.id}
-                            db={db}
-                            assignment={asn}
-                            projects={projects}
-                            detailerDisciplines={Array.isArray(employee.disciplineSkillsets) ? employee.disciplineSkillsets.map(s => s.name) : Object.keys(employee.disciplineSkillsets || {})}
-                            onUpdate={handleUpdateAssignment}
-                            onDelete={() => setAssignmentToDelete(asn)}
-                            currentTheme={currentTheme}
-                        />
-                    ))
+                {filteredAssignments.length > 0 ? (
+                    filteredAssignments.map(asn => {
+                        const isExpanded = expandedAssignmentId === asn.id;
+                        return (
+                            <motion.div
+                                key={asn.id}
+                                layout
+                                initial={false} // Disable initial animation for layout
+                                animate={{ backgroundColor: isExpanded ? currentTheme.altRowBg : currentTheme.cardBg }}
+                                transition={{ duration: 0.2, ease: "easeInOut" }}
+                                className={`p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer`}
+                            >
+                                <motion.div layout="position" className="flex justify-between items-center" onClick={() => toggleAssignmentExpansion(asn.id)}>
+                                    <div>
+                                        {/* Display project name and number, with fallback for missing data and no fixed parentheses */}
+                                        <p className="font-semibold">
+                                            {asn.projectName || 'No Project Selected'}
+                                            {asn.projectNumber ? ` (${asn.projectNumber})` : ''}
+                                        </p>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>Trade: {asn.trade} | Allocation: {asn.allocation}%</p>
+                                        <p className={`text-xs ${currentTheme.subtleText}`}>{asn.startDate} to {asn.endDate}</p>
+                                    </div>
+                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                        </svg>
+                                    </motion.div>
+                                </motion.div>
+
+                                <AnimatePresence>
+                                    {isExpanded && (
+                                        <motion.div
+                                            key={`detail-${asn.id}`}
+                                            variants={animationVariants}
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="exit"
+                                            className="overflow-hidden mt-3"
+                                            onClick={e => e.stopPropagation()} // Prevent closing when clicking inside editor
+                                        >
+                                            <InlineAssignmentEditor
+                                                db={db}
+                                                assignment={asn}
+                                                projects={projects}
+                                                detailerDisciplines={Array.isArray(employee.disciplineSkillsets) ? employee.disciplineSkillsets.map(s => s.name) : Object.keys(employee.disciplineSkillsets || {})}
+                                                onUpdate={handleUpdateAssignment}
+                                                onDelete={() => { setAssignmentToDelete(asn); setExpandedAssignmentId(null); }} // Collapse after delete confirmation
+                                                currentTheme={currentTheme}
+                                            />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </motion.div>
+                        );
+                    })
                 ) : (
                     <p className={currentTheme.subtleText}>No assignments for this employee.</p>
                 )}
@@ -195,7 +260,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [searchTerm, setSearchTerm] = useState('');
     const [allTrades, setAllTrades] = useState([]);
     const [activeTrades, setActiveTrades] = useState([]);
-    const { navigateToView } = useContext(NavigationContext);
+    // eslint-disable-next-line no-unused-vars
+    const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
 
 
     useEffect(() => {
@@ -310,7 +376,18 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const groupedEmployees = useMemo(() => {
         const processed = detailers
             .map(employee => {
-                const employeeAssignments = assignments.filter(a => a.detailerId === employee.id);
+                const employeeAssignments = assignments
+                    .filter(a => a.detailerId === employee.id)
+                    .map(a => {
+                        // Enrich assignment with projectName and projectNumber from the projects list
+                        const project = projects.find(p => p.id === a.projectId);
+                        return {
+                            ...a,
+                            projectName: project ? project.name : '',
+                            projectNumber: project ? project.projectId : ''
+                        };
+                    });
+
                 let currentWeekAllocation = 0;
                 const today = new Date();
                 const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
@@ -351,17 +428,28 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             acc[mainTrade].push(employee);
             return acc;
         }, {});
-    }, [detailers, assignments, searchTerm, activeTrades]);
+    }, [detailers, assignments, searchTerm, activeTrades, projects]); // Added projects to dependency array
 
     const selectedEmployee = useMemo(() => {
         if (!selectedEmployeeId) return null;
         const employeeData = detailers.find(e => e.id === selectedEmployeeId);
         if (!employeeData) return null;
 
-        const employeeAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
+        // Ensure assignments for the selected employee are also enriched here
+        const employeeAssignments = assignments
+            .filter(a => a.detailerId === selectedEmployeeId)
+            .map(a => {
+                const project = projects.find(p => p.id === a.projectId);
+                return {
+                    ...a,
+                    projectName: project ? project.name : '',
+                    projectNumber: project ? project.projectId : ''
+                };
+            });
+
         return {...employeeData, assignments: employeeAssignments};
 
-    }, [selectedEmployeeId, detailers, assignments]);
+    }, [selectedEmployeeId, detailers, assignments, projects]); // Added projects to dependency array
 
     return (
         <div className="p-4 h-full flex flex-col">

@@ -415,20 +415,28 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                     </TutorialHighlight>
                 </div>
                 <TutorialHighlight tutorialKey="chartArea">
-                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm overflow-x-auto flex-grow`}>
-                        <svg ref={svgRef} width={width} height={height}></svg>
-                    </div>
-                </TutorialHighlight>
-                <TutorialHighlight tutorialKey="legend">
-                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs pt-4 flex-shrink-0">
-                        {Object.keys(d3ColorMapping).filter(trade => trade !== 'Default').map(trade => (
-                            <div key={trade} className="flex items-center gap-2">
-                                <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade]}}></div>
-                                <span className={currentTheme.textColor}>{trade}</span>
+                    {/* Applied the fix here: wrap SVG and legend in a single div with fixed width,
+                        and apply overflow-x-auto to the outer container. */}
+                    <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-x-auto hide-scrollbar-on-hover`}>
+                        <div style={{ width: `${width}px` }}> {/* This inner div now controls the overall scrollable width */}
+                            <div className="p-4">
+                                <svg ref={svgRef} width={width} height={boundedHeight}></svg>
                             </div>
-                        ))}
+                            <TutorialHighlight tutorialKey="legend">
+                                {/* Moved legend inside the scrollable container */}
+                                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs pt-4 flex-shrink-0">
+                                    {Object.keys(d3ColorMapping).filter(trade => trade !== 'Default').map(trade => (
+                                        <div key={trade} className="flex items-center gap-2">
+                                            <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade]}}></div>
+                                            <span className={currentTheme.textColor}>{trade}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </TutorialHighlight>
+                        </div>
                     </div>
                 </TutorialHighlight>
+                {/* Removed the separate legend div as it's now inside the scrollable chart area */}
             </div>
         </TutorialHighlight>
     );
