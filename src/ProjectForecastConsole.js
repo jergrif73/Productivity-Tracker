@@ -383,7 +383,8 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
 
     return (
         <TutorialHighlight tutorialKey="project-forecast">
-            <div className="p-4 space-y-4 h-full flex flex-col">
+            {/* Added overflow-y-hidden to the main container */}
+            <div className="p-4 space-y-4 h-full flex flex-col overflow-y-hidden">
                 <div className={`flex flex-col sm:flex-row justify-between items-center p-2 ${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
                     <TutorialHighlight tutorialKey="statusFilter">
                         <div className="flex items-center gap-2">
@@ -420,7 +421,7 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-x-auto hide-scrollbar-on-hover`}>
                         <div style={{ width: `${width}px` }}> {/* This inner div now controls the overall scrollable width */}
                             <div className="p-4">
-                                <svg ref={svgRef} width={width} height={boundedHeight}></svg>
+                                <svg ref={svgRef} width={width} height={height}></svg> {/* Changed height to full height */}
                             </div>
                             <TutorialHighlight tutorialKey="legend">
                                 {/* Moved legend inside the scrollable container */}

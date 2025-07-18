@@ -199,7 +199,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
     };
 
     return (
-        <div className="p-4 space-y-4 w-full h-full flex flex-col">
+        <div className="p-4 space-y-4 w-full h-full flex flex-col overflow-y-hidden"> {/* Added overflow-y-hidden */}
             {/* Custom CSS for scrollbar */}
             <style>
                 {`
@@ -246,7 +246,7 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
             <div className={`${currentTheme.cardBg} rounded-lg border ${currentTheme.borderColor} shadow-sm flex-grow overflow-x-auto hide-scrollbar-on-hover`}>
                 <div style={{ width: `${width}px` }}> {/* This inner div now controls the overall scrollable width */}
                     <div className="p-4">
-                        <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg>
+                        <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg> {/* Changed height to full height */}
                     </div>
                     {ganttView === 'projects' && (
                         <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-2 px-4 border-t pb-8" style={{ minHeight: '8rem' }}>

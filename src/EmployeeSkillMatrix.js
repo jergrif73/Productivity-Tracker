@@ -48,9 +48,12 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme }) => {
     }, [detailers]);
 
     useEffect(() => {
-        if (!data.length || !svgRef.current) return;
+        if (!data.length || !svgRef.current || !currentTheme) return;
 
-        // Increased top margin by 50px (72 + 50 = 122)
+        // FIX: Determine label color based on the current theme's background.
+        // If the theme is dark, use light text. Otherwise, use dark text.
+        const labelColor = currentTheme.mainBg === 'bg-gray-900' ? '#d1d5db' : '#111827';
+
         const margin = { top: 122, right: 50, bottom: 50, left: 160 }; 
         const cellWidth = 36;
         const cellHeight = 36;
@@ -120,9 +123,9 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme }) => {
             .attr("y", -10)
             .attr("x", 0)
             .attr("text-anchor", "start")
-            .style("font-size", "11px") // Reduced font size
+            .style("font-size", "11px")
             .style("font-weight", "600")
-            .style("fill", "white");
+            .style("fill", labelColor); // APPLY FIX
             
         // Y-axis labels (Skills)
         const yAxis = chart.append("g")
@@ -136,16 +139,15 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme }) => {
             .text(d => d)
             .attr("x", -15)
             .attr("text-anchor", "end")
-            .style("font-size", "11px") // Reduced font size
+            .style("font-size", "11px")
             .style("font-weight", "600")
-            .style("fill", "white");
+            .style("fill", labelColor); // APPLY FIX
 
         // Bubbles
         chart.selectAll(".bubble")
             .data(data)
             .enter().append("circle")
             .attr("class", "bubble")
-            // Swap cx and cy
             .attr("cx", d => x(d.employee) + x.bandwidth() / 2)
             .attr("cy", d => y(d.skill) + y.bandwidth() / 2)
             .attr("r", 0) // Start with 0 radius for animation

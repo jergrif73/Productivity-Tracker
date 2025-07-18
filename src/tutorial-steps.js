@@ -362,13 +362,13 @@ export const tutorialContent = {
         {
             key: "reporting",
             title: "Reporting & Dashboards",
-            content: "This console allows you to generate and export custom reports and view high-level dashboards based on the data from across the application.",
+            content: "This console allows you to generate and export custom reports. All controls are located in the left-hand sidebar, and the generated report or chart will appear in the main area on the right.",
             roles: ['taskmaster']
         },
         {
             key: "reportType",
             title: "Select a Report or Dashboard",
-            content: "Choose the type of data you want to analyze. Options are grouped into 'Dashboards & Charts' for visual analysis and 'Tabular Reports' for data export.",
+            content: "Choose the type of data you want to analyze from the 'Report Type' dropdown. Options are grouped into 'Dashboards & Charts' for visual analysis and 'Tabular Reports' for data export.",
             roles: ['taskmaster']
         },
         {
@@ -386,7 +386,7 @@ export const tutorialContent = {
         {
             key: "skillMatrixReport",
             title: "Employee Skill Matrix",
-            content: "This generates a visual heatmap of employee skills. Use the filters to narrow down the employee list by title or primary trade. This chart is excellent for quickly identifying skill gaps or finding the right person for a specific task.",
+            content: "This generates a visual heatmap of employee skills. Use the multi-select checkboxes to filter the employee list by their assigned level (title) or use the dropdown to filter by primary trade. This chart is excellent for quickly identifying skill gaps or finding the right person for a specific task.",
             roles: ['taskmaster']
         },
         {
@@ -398,7 +398,7 @@ export const tutorialContent = {
         {
             key: "exportToCSV",
             title: "Export Report to CSV",
-            content: "After generating any tabular report, click the 'Export to CSV' button to download the data in a spreadsheet format for further analysis or sharing.",
+            content: "After generating any tabular report, click the 'Export to CSV' button, located in the top-right of the results panel, to download the data in a spreadsheet format for further analysis or sharing.",
             roles: ['taskmaster']
         }
     ]

@@ -155,29 +155,56 @@ const EmployeeWorkloadChart = ({ data, currentTheme }) => {
     return <svg ref={svgRef} width="450" height="450"></svg>;
 };
 
+// Define predefined team profiles
+const teamProfiles = {
+    "Select a Profile...": [],
+    "The Masterminds": ["Model Knowledge", "BIM Knowledge", "Coordination", "Structural"],
+    "The Strong Foundation": ["Teamwork Ability", "Leadership Skills", "Piping", "Duct", "Plumbing"],
+    "The Innovators": ["BIM Knowledge", "GIS/GPS"],
+    "The Problem Solvers": ["Leadership Skills", "Mechanical Abilities", "Coordination", "Model Knowledge"]
+};
+
 
 const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme }) => {
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [selectedProjectId, setSelectedProjectId] = useState('');
-    const [selectedLevel, setSelectedLevel] = useState('');
+    const [selectedLevels, setSelectedLevels] = useState([]);
     const [selectedTrade, setSelectedTrade] = useState('');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+    const [selectedSkills, setSelectedSkills] = useState([]);
+    const [selectedProfile, setSelectedProfile] = useState("Select a Profile...");
 
     const [reportData, setReportData] = useState(null);
     const [reportHeaders, setReportHeaders] = useState([]);
     const [chartData, setChartData] = useState(null);
 
     const uniqueTitles = useMemo(() => [...new Set(detailers.map(d => d.title).filter(Boolean))].sort(), [detailers]);
+    
     const uniqueTrades = useMemo(() => {
         const trades = new Set();
         detailers.forEach(d => {
             if (Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0) {
                 trades.add(d.disciplineSkillsets[0].name); 
+            } else if (d.disciplineSkillsets && !Array.isArray(d.disciplineSkillsets) && Object.keys(d.disciplineSkillsets).length > 0) {
+                trades.add(Object.keys(d.disciplineSkillsets)[0]);
             }
         });
         return [...trades].sort();
+    }, [detailers]);
+
+    const allSkillsOptions = useMemo(() => {
+        const skills = new Set();
+        detailers.forEach(d => {
+            if (d.skills) {
+                Object.keys(d.skills).forEach(skillName => skills.add(skillName));
+            }
+            if (Array.isArray(d.disciplineSkillsets)) {
+                d.disciplineSkillsets.forEach(ds => skills.add(ds.name));
+            }
+        });
+        return Array.from(skills).sort();
     }, [detailers]);
 
     const getDaysInRange = (assStart, assEnd, reportStart, reportEnd) => {
@@ -200,15 +227,17 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
 
     const filteredDetailersForMatrix = useMemo(() => {
         let filtered = [...detailers];
-        if (selectedLevel) filtered = filtered.filter(d => d.title === selectedLevel);
+        if (selectedLevels.length > 0) {
+            filtered = filtered.filter(d => selectedLevels.includes(d.title));
+        }
         if (selectedTrade) {
             filtered = filtered.filter(d => {
-                const primaryTrade = d.disciplineSkillsets && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
+                const primaryTrade = d.disciplineSkillsets && Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
                 return primaryTrade === selectedTrade;
             });
         }
         return filtered;
-    }, [detailers, selectedLevel, selectedTrade]);
+    }, [detailers, selectedLevels, selectedTrade]);
 
     const handleGenerateReport = () => {
         setReportData(null);
@@ -241,7 +270,6 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                         return sum + (Number(act.hoursUsed || 0) * rate);
                     }, 0);
 
-                    // Simplified Planned Value calculation
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     if(projectAssignments.length === 0) return null;
 
@@ -276,7 +304,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     const assEndDate = new Date(ass.endDate);
 
                     if (isNaN(assStartDate.getTime()) || isNaN(assEndDate.getTime())) {
-                        return acc; // Skip if dates are invalid
+                        return acc;
                     }
 
                     const diffTime = Math.abs(assEndDate - assStartDate);
@@ -295,10 +323,71 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                 break;
 
             case 'skill-matrix':
-                // This is handled by the EmployeeSkillMatrix component directly
                 return;
 
-            // ... other cases for tabular reports
+            case 'top-employee-skills-by-trade':
+                if (selectedSkills.length === 0) {
+                    alert("Please select at least one skill to compare.");
+                    return;
+                }
+
+                const employeeSkillScores = detailers
+                    .filter(d => {
+                        const primaryTrade = d.disciplineSkillsets && Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
+                        return (selectedLevels.length === 0 || selectedLevels.includes(d.title)) && (!selectedTrade || primaryTrade === selectedTrade);
+                    })
+                    .map(d => {
+                        let totalScoreForSelectedSkills = 0;
+                        const individualSkillScores = {};
+
+                        selectedSkills.forEach(skillName => {
+                            let score = 0;
+                            if (d.skills && d.skills[skillName] !== undefined) {
+                                score = d.skills[skillName];
+                            }
+                            if (Array.isArray(d.disciplineSkillsets)) {
+                                const disciplineSkill = d.disciplineSkillsets.find(ds => ds.name === skillName);
+                                if (disciplineSkill) {
+                                    score = disciplineSkill.score;
+                                }
+                            }
+                            totalScoreForSelectedSkills += score;
+                            individualSkillScores[skillName] = score;
+                        });
+
+                        const mainTrade = d.disciplineSkillsets && Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : 'Uncategorized';
+
+                        return {
+                            id: d.id,
+                            name: `${d.firstName} ${d.lastName}`,
+                            trade: mainTrade,
+                            totalScore: totalScoreForSelectedSkills,
+                            ...individualSkillScores
+                        };
+                    });
+                
+                const topEmployeesByTrade = employeeSkillScores.reduce((acc, emp) => {
+                    if (!acc[emp.trade]) {
+                        acc[emp.trade] = [];
+                    }
+                    acc[emp.trade].push(emp);
+                    return acc;
+                }, {});
+
+                data = [];
+                headers = ["Trade", "Employee Name", "Total Score (Selected Skills)"];
+                selectedSkills.forEach(skill => headers.push(skill));
+
+                Object.keys(topEmployeesByTrade).sort().forEach(trade => {
+                    const sortedEmployees = topEmployeesByTrade[trade].sort((a, b) => b.totalScore - a.totalScore);
+                    sortedEmployees.slice(0, 2).forEach(emp => {
+                        const row = [trade, emp.name, emp.totalScore];
+                        selectedSkills.forEach(skill => row.push(emp[skill]));
+                        data.push(row);
+                    });
+                });
+                break;
+
             case 'project-hours':
                 headers = ["Project Name", "Project ID", "Total Allocated Hours"];
                 const hoursByProject = assignments.reduce((acc, ass) => {
@@ -426,7 +515,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
             
             case 'employee-details':
                 const baseHeaders = [
-                    "First Name", "Last Name", "Title", "Employee ID", "Email",
+                    "First Name", "Last Name", "Title", "Employee ID",
                     "Wage/hr", "% Above Scale", "Union Local"
                 ];
                 const generalSkillHeaders = [];
@@ -441,13 +530,13 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
 
                 let filteredDetailers = [...detailers];
 
-                if (selectedLevel) {
-                    filteredDetailers = filteredDetailers.filter(d => d.title === selectedLevel);
+                if (selectedLevels.length > 0) {
+                    filteredDetailers = filteredDetailers.filter(d => selectedLevels.includes(d.title));
                 }
 
                 if (selectedTrade) {
                     filteredDetailers = filteredDetailers.filter(d => {
-                        const primaryTrade = d.disciplineSkillsets && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
+                        const primaryTrade = d.disciplineSkillsets && Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
                         return primaryTrade === selectedTrade;
                     });
                 }
@@ -458,7 +547,6 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                         d.lastName,
                         d.title || 'N/A',
                         d.employeeId || 'N/A',
-                        d.email || 'N/A',
                         d.wage || 0,
                         d.percentAboveScale || 0,
                         d.unionLocal || 'N/A',
@@ -468,10 +556,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     const generalSkills = d.skills ? Object.entries(d.skills) : [];
                     for (let i = 0; i < 5; i++) {
                         if (i < generalSkills.length) {
-                            generalSkillsData.push(generalSkills[i][0]); // Skill name
-                            generalSkillsData.push(generalSkills[i][1]); // Skill score
+                            generalSkillsData.push(generalSkills[i][0]);
+                            generalSkillsData.push(generalSkills[i][1]);
                         } else {
-                            generalSkillsData.push('', ''); // Pad with empty values
+                            generalSkillsData.push('', '');
                         }
                     }
 
@@ -479,10 +567,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     const disciplineSkills = d.disciplineSkillsets || [];
                     for (let i = 1; i <= 7; i++) {
                         if (i < disciplineSkills.length) {
-                            disciplineSkillsData.push(disciplineSkills[i].name); // Discipline name
-                            disciplineSkillsData.push(disciplineSkills[i].score); // Discipline score
+                            disciplineSkillsData.push(disciplineSkills[i].name);
+                            disciplineSkillsData.push(disciplineSkills[i].score);
                         } else {
-                            disciplineSkillsData.push('', ''); // Pad with empty values
+                            disciplineSkillsData.push('', '');
                         }
                     }
 
@@ -501,12 +589,55 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         setReportData(null);
         setChartData(null);
         setReportHeaders([]);
-        setSelectedLevel('');
+        setSelectedLevels([]);
         setSelectedTrade('');
         setSelectedProjectId('');
         setSelectedEmployeeId('');
         setStartDate('');
         setEndDate('');
+        setSelectedSkills([]);
+        setSelectedProfile("Select a Profile...");
+    };
+
+    const handleSkillCheckboxChange = (skillName) => {
+        setSelectedSkills(prev => {
+            if (prev.includes(skillName)) {
+                return prev.filter(s => s !== skillName);
+            } else {
+                return [...prev, skillName];
+            }
+        });
+        setSelectedProfile("Custom Selection");
+    };
+
+    const handleProfileChange = (e) => {
+        const profileName = e.target.value;
+        setSelectedProfile(profileName);
+        if (teamProfiles[profileName]) {
+            setSelectedSkills(teamProfiles[profileName]);
+        } else {
+            setSelectedSkills([]);
+        }
+    };
+
+    const handleLevelChange = (level) => {
+        setSelectedLevels(prev => {
+            const newLevels = new Set(prev);
+            if (newLevels.has(level)) {
+                newLevels.delete(level);
+            } else {
+                newLevels.add(level);
+            }
+            return Array.from(newLevels);
+        });
+    };
+
+    const handleSelectAllLevels = (e) => {
+        if (e.target.checked) {
+            setSelectedLevels(uniqueTitles);
+        } else {
+            setSelectedLevels([]);
+        }
     };
 
     const exportToCSV = () => {
@@ -526,24 +657,88 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     };
 
     const renderFilters = () => {
+        const levelFilterUI = (
+            <div>
+                <label className="block text-sm font-medium mb-1">Filter by Level</label>
+                <div className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputBorder} max-h-48 overflow-y-auto`}>
+                    <div className="flex items-center mb-1">
+                        <input
+                            type="checkbox"
+                            id="select-all-levels"
+                            checked={selectedLevels.length === uniqueTitles.length && uniqueTitles.length > 0}
+                            onChange={handleSelectAllLevels}
+                            className="mr-2"
+                        />
+                        <label htmlFor="select-all-levels" className={`font-semibold ${currentTheme.textColor}`}>Select All</label>
+                    </div>
+                    {uniqueTitles.map(title => (
+                        <div key={title} className="flex items-center">
+                            <input
+                                type="checkbox"
+                                id={`level-${title}`}
+                                value={title}
+                                checked={selectedLevels.includes(title)}
+                                onChange={() => handleLevelChange(title)}
+                                className="mr-2"
+                            />
+                            <label htmlFor={`level-${title}`} className={`${currentTheme.textColor}`}>{title}</label>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+
         switch (reportType) {
             case 'employee-details':
             case 'skill-matrix':
                 return (
                     <>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Filter by Level</label>
-                            <select value={selectedLevel} onChange={e => setSelectedLevel(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="">All Levels</option>
-                                {uniqueTitles.map(title => <option key={title} value={title}>{title}</option>)}
-                            </select>
-                        </div>
+                        {levelFilterUI}
                         <div>
                             <label className="block text-sm font-medium mb-1">Filter by Trade</label>
                             <select value={selectedTrade} onChange={e => setSelectedTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 <option value="">All Primary Trades</option>
                                 {uniqueTrades.map(trade => <option key={trade} value={trade}>{trade}</option>)}
                             </select>
+                        </div>
+                    </>
+                );
+            case 'top-employee-skills-by-trade':
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Select Profile</label>
+                            <select value={selectedProfile} onChange={handleProfileChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                {Object.keys(teamProfiles).map(profileName => (
+                                    <option key={profileName} value={profileName}>{profileName}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {levelFilterUI}
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Filter by Trade</label>
+                            <select value={selectedTrade} onChange={e => setSelectedTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">All Primary Trades</option>
+                                {uniqueTrades.map(trade => <option key={trade} value={trade}>{trade}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Select Skills</label>
+                            <div className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputBorder} max-h-48 overflow-y-auto`}>
+                                {allSkillsOptions.map(skill => (
+                                    <div key={skill} className="flex items-center mb-1">
+                                        <input
+                                            type="checkbox"
+                                            id={`skill-${skill}`}
+                                            value={skill}
+                                            checked={selectedSkills.includes(skill)}
+                                            onChange={() => handleSkillCheckboxChange(skill)}
+                                            className="mr-2"
+                                        />
+                                        <label htmlFor={`skill-${skill}`} className={`${currentTheme.inputText}`}>{skill}</label>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </>
                 );
@@ -610,110 +805,165 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     };
 
     return (
-        <div className="p-4 h-full flex flex-col gap-4">
-            <style>
-                {`
-                    @media print {
-                        body * { visibility: hidden; }
-                        #skill-matrix-printable-area, #skill-matrix-printable-area * { visibility: visible; }
-                        #skill-matrix-printable-area { position: absolute; left: 0; top: 0; width: 100%; }
-                    }
-                `}
-            </style>
-            <div className="flex-shrink-0">
-                <TutorialHighlight tutorialKey="reporting">
+        <TutorialHighlight tutorialKey="reporting">
+            <div className="p-4 h-full flex flex-col">
+                <style>
+                    {`
+                        @media print {
+                            body * { visibility: hidden; }
+                            #skill-matrix-printable-area, #skill-matrix-printable-area * { visibility: visible; }
+                            #skill-matrix-printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+                        }
+                    `}
+                </style>
+                <div className="flex-shrink-0 mb-4">
                     <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting & Dashboards</h2>
-                </TutorialHighlight>
-            </div>
+                </div>
 
-            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4 flex-shrink-0`}>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <TutorialHighlight tutorialKey="reportType">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Report Type</label>
-                            <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="">Select a report...</option>
-                                <optgroup label="Dashboards & Charts">
-                                    <option value="project-health">Project Health Dashboard</option>
-                                    <option value="employee-workload-dist">Employee Workload Distribution</option>
-                                    <option value="skill-matrix">Employee Skill Matrix</option>
-                                </optgroup>
-                                <optgroup label="Tabular Reports">
-                                    <option value="project-hours">Project Hours Summary</option>
-                                    <option value="detailer-workload">Detailer Workload Summary</option>
-                                    <option value="task-status">Task Status Report</option>
-                                    <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
-                                    <option value="employee-details">Employee Skills & Details</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                    </TutorialHighlight>
+                <div className="flex-grow flex gap-4 overflow-hidden">
+                    {/* Left Controls Column */}
+                    <div className={`w-full md:w-1/4 lg:w-1/5 flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4 overflow-y-auto hide-scrollbar-on-hover`}>
+                        <TutorialHighlight tutorialKey="reportType">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Report Type</label>
+                                <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                    <option value="">Select a report...</option>
+                                    <optgroup label="Dashboards & Charts">
+                                        <option value="project-health">Project Health Dashboard</option>
+                                        <option value="employee-workload-dist">Employee Workload Distribution</option>
+                                        <option value="skill-matrix">Employee Skill Matrix</option>
+                                        <option value="top-employee-skills-by-trade">Top Employee Skills by Trade</option>
+                                    </optgroup>
+                                    <optgroup label="Tabular Reports">
+                                        <option value="project-hours">Project Hours Summary</option>
+                                        <option value="detailer-workload">Detailer Workload Summary</option>
+                                        <option value="task-status">Task Status Report</option>
+                                        <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
+                                        <option value="employee-details">Employee Skills & Details</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                        </TutorialHighlight>
+                        
+                        {renderFilters()}
+
+                        <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate</button>
+                    </div>
                     
-                    {renderFilters()}
+                    {/* Right Display Area */}
+                    <div className="flex-grow overflow-y-auto hide-scrollbar-on-hover">
+                        <TutorialHighlight tutorialKey="projectHealthDashboard">
+                            {chartData && reportType === 'project-health' && (
+                                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xl font-semibold">Project Health Dashboard</h3>
+                                        <div className="flex gap-2">
+                                            <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-center items-center">
+                                        {renderChart()}
+                                    </div>
+                                </div>
+                            )}
+                        </TutorialHighlight>
+                        
+                        <TutorialHighlight tutorialKey="employeeWorkloadDistro">
+                            {chartData && reportType === 'employee-workload-dist' && (
+                                 <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xl font-semibold">Employee Workload Distribution</h3>
+                                         <div className="flex gap-2">
+                                            <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                         </div>
+                                    </div>
+                                    <div className="flex justify-center items-center">
+                                        {renderChart()}
+                                    </div>
+                                </div>
+                            )}
+                        </TutorialHighlight>
 
-                    <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate</button>
+                        <TutorialHighlight tutorialKey="skillMatrixReport">
+                            {reportType === 'skill-matrix' && (
+                                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xl font-semibold">Employee Skill Matrix</h3>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => window.print()} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700">Print Matrix</button>
+                                            <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
+                                        </div>
+                                    </div>
+                                    <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} />
+                                </div>
+                            )}
+                        </TutorialHighlight>
+
+                        <TutorialHighlight tutorialKey="forecastVsActualReport">
+                            {reportData && reportType === 'forecast-vs-actual' && (
+                                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xl font-semibold">Report Results: Forecast vs. Actuals</h3>
+                                        <TutorialHighlight tutorialKey="exportToCSV">
+                                            <div className="flex gap-2">
+                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                                                <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                                            </div>
+                                        </TutorialHighlight>
+                                    </div>
+                                    <div className="overflow-auto hide-scrollbar-on-hover max-h-[60vh]">
+                                        <table className="min-w-full">
+                                            <thead className={`${currentTheme.altRowBg} sticky top-0`}>
+                                                <tr >
+                                                    {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {reportData.map((row, rowIndex) => (
+                                                    <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
+                                                        {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </TutorialHighlight>
+
+                        {reportData && reportType !== 'forecast-vs-actual' && (
+                            <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-semibold">Report Results</h3>
+                                    <TutorialHighlight tutorialKey="exportToCSV">
+                                        <div className="flex gap-2">
+                                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                                                <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
+                                        </div>
+                                    </TutorialHighlight>
+                                </div>
+                                <div className="overflow-auto hide-scrollbar-on-hover max-h-[60vh]">
+                                    <table className="min-w-full">
+                                        <thead className={`${currentTheme.altRowBg} sticky top-0`}>
+                                            <tr >
+                                                {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reportData.map((row, rowIndex) => (
+                                                <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
+                                                    {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            
-            <div className="flex-grow overflow-y-auto hide-scrollbar-on-hover">
-                {chartData && (
-                     <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-semibold">Dashboard</h3>
-                             <div className="flex gap-2">
-                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
-                             </div>
-                        </div>
-                        <div className="flex justify-center items-center">
-                            {renderChart()}
-                        </div>
-                    </div>
-                )}
-
-                {reportType === 'skill-matrix' && (
-                    <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-semibold">Employee Skill Matrix</h3>
-                             <div className="flex gap-2">
-                                <button onClick={() => window.print()} className="bg-teal-600 text-white p-2 rounded-md hover:bg-teal-700">Print Matrix</button>
-                                <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
-                             </div>
-                        </div>
-                        <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} />
-                    </div>
-                )}
-
-                {reportData && (
-                     <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-semibold">Report Results</h3>
-                            <TutorialHighlight tutorialKey="exportToCSV">
-                                <div className="flex gap-2">
-                                     <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                                     <button onClick={exportToCSV} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
-                                </div>
-                            </TutorialHighlight>
-                        </div>
-                        <div className="overflow-auto hide-scrollbar-on-hover max-h-[60vh]">
-                            <table className="min-w-full">
-                                <thead className={`${currentTheme.altRowBg} sticky top-0`}>
-                                    <tr >
-                                        {reportHeaders.map(header => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {reportData.map((row, rowIndex) => (
-                                        <tr key={rowIndex} className={`border-b ${currentTheme.borderColor}`}>
-                                            {row.map((cell, cellIndex) => <td key={cellIndex} className="p-2">{cell}</td>)}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                     </div>
-                )}
-            </div>
-        </div>
+        </TutorialHighlight>
     );
 };
 
