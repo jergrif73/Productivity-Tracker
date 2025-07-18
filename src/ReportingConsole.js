@@ -2,6 +2,48 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TutorialHighlight } from './App';
 import EmployeeSkillMatrix from './EmployeeSkillMatrix'; 
 import * as d3 from 'd3';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- Helper Components ---
+
+const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) => {
+    const animationVariants = {
+        open: { opacity: 1, height: 'auto', marginTop: '1rem' },
+        collapsed: { opacity: 0, height: 0, marginTop: '0rem' }
+    };
+
+    return (
+        <div className="border-b border-gray-500/20 pb-2">
+            <button onClick={onToggle} className="w-full flex justify-between items-center py-2">
+                <h3 className="text-sm font-semibold">{title}</h3>
+                <motion.svg
+                    animate={{ rotate: isCollapsed ? 0 : 180 }}
+                    transition={{ duration: 0.2 }}
+                    xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </motion.svg>
+            </button>
+            <AnimatePresence initial={false}>
+                {!isCollapsed && (
+                    <motion.div
+                        key="content"
+                        initial="collapsed"
+                        animate="open"
+                        exit="collapsed"
+                        variants={animationVariants}
+                        transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+                        className="overflow-hidden"
+                    >
+                        <div className="space-y-4">
+                            {children}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
 
 // --- D3 Chart Components ---
 
@@ -90,8 +132,8 @@ const EmployeeWorkloadChart = ({ data, currentTheme }) => {
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove();
 
-        const width = 450;
-        const height = 450;
+        const width = 1200; // Increased width
+        const height = 700; // Increased height
         const margin = 40;
         const radius = Math.min(width, height) / 2 - margin;
 
@@ -134,7 +176,7 @@ const EmployeeWorkloadChart = ({ data, currentTheme }) => {
             .data(data_ready)
             .join('text')
             .text(d => {
-                const hours = d.data.hours || 0; // FIX: Default to 0 if hours is undefined/NaN
+                const hours = d.data.hours || 0;
                 return `${d.data.projectName} (${hours.toFixed(1)} hrs)`;
             })
             .attr('transform', d => {
@@ -152,7 +194,7 @@ const EmployeeWorkloadChart = ({ data, currentTheme }) => {
 
     }, [data, currentTheme]);
 
-    return <svg ref={svgRef} width="450" height="450"></svg>;
+    return <svg ref={svgRef} width="1200" height="700"></svg>;
 };
 
 // Define predefined team profiles
@@ -179,6 +221,20 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     const [reportData, setReportData] = useState(null);
     const [reportHeaders, setReportHeaders] = useState([]);
     const [chartData, setChartData] = useState(null);
+    
+    const [collapsedFilters, setCollapsedFilters] = useState({
+        level: true,
+        trade: true,
+        profile: true,
+        skills: true,
+        employee: true,
+        project: true,
+        dateRange: true,
+    });
+
+    const toggleFilterCollapse = (filterName) => {
+        setCollapsedFilters(prev => ({ ...prev, [filterName]: !prev[filterName] }));
+    };
 
     const uniqueTitles = useMemo(() => [...new Set(detailers.map(d => d.title).filter(Boolean))].sort(), [detailers]);
     
@@ -658,8 +714,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
 
     const renderFilters = () => {
         const levelFilterUI = (
-            <div>
-                <label className="block text-sm font-medium mb-1">Filter by Level</label>
+            <CollapsibleFilterSection title="Filter by Level" isCollapsed={collapsedFilters.level} onToggle={() => toggleFilterCollapse('level')}>
                 <div className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputBorder} max-h-48 overflow-y-auto`}>
                     <div className="flex items-center mb-1">
                         <input
@@ -685,7 +740,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                         </div>
                     ))}
                 </div>
-            </div>
+            </CollapsibleFilterSection>
         );
 
         switch (reportType) {
@@ -694,36 +749,32 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                 return (
                     <>
                         {levelFilterUI}
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Filter by Trade</label>
+                        <CollapsibleFilterSection title="Filter by Trade" isCollapsed={collapsedFilters.trade} onToggle={() => toggleFilterCollapse('trade')}>
                             <select value={selectedTrade} onChange={e => setSelectedTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 <option value="">All Primary Trades</option>
                                 {uniqueTrades.map(trade => <option key={trade} value={trade}>{trade}</option>)}
                             </select>
-                        </div>
+                        </CollapsibleFilterSection>
                     </>
                 );
             case 'top-employee-skills-by-trade':
                 return (
                     <>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Select Profile</label>
+                        <CollapsibleFilterSection title="Select Profile" isCollapsed={collapsedFilters.profile} onToggle={() => toggleFilterCollapse('profile')}>
                             <select value={selectedProfile} onChange={handleProfileChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 {Object.keys(teamProfiles).map(profileName => (
                                     <option key={profileName} value={profileName}>{profileName}</option>
                                 ))}
                             </select>
-                        </div>
+                        </CollapsibleFilterSection>
                         {levelFilterUI}
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Filter by Trade</label>
+                        <CollapsibleFilterSection title="Filter by Trade" isCollapsed={collapsedFilters.trade} onToggle={() => toggleFilterCollapse('trade')}>
                             <select value={selectedTrade} onChange={e => setSelectedTrade(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 <option value="">All Primary Trades</option>
                                 {uniqueTrades.map(trade => <option key={trade} value={trade}>{trade}</option>)}
                             </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Select Skills</label>
+                        </CollapsibleFilterSection>
+                        <CollapsibleFilterSection title="Select Skills" isCollapsed={collapsedFilters.skills} onToggle={() => toggleFilterCollapse('skills')}>
                             <div className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputBorder} max-h-48 overflow-y-auto`}>
                                 {allSkillsOptions.map(skill => (
                                     <div key={skill} className="flex items-center mb-1">
@@ -739,53 +790,49 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </CollapsibleFilterSection>
                     </>
                 );
             case 'employee-workload-dist':
                 return (
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Select Employee</label>
+                    <CollapsibleFilterSection title="Select Employee" isCollapsed={collapsedFilters.employee} onToggle={() => toggleFilterCollapse('employee')}>
                         <select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                             <option value="">-- Select an Employee --</option>
                             {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                         </select>
-                    </div>
+                    </CollapsibleFilterSection>
                 );
             case 'forecast-vs-actual':
                 return (
                     <>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Project</label>
+                        <CollapsibleFilterSection title="Select Project" isCollapsed={collapsedFilters.project} onToggle={() => toggleFilterCollapse('project')}>
                             <select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                 <option value="">All Projects</option>
                                 {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Start Date</label>
-                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">End Date</label>
-                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                        </div>
+                        </CollapsibleFilterSection>
+                        <CollapsibleFilterSection title="Select Date Range" isCollapsed={collapsedFilters.dateRange} onToggle={() => toggleFilterCollapse('dateRange')}>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium">Start Date</label>
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                                <label className="block text-sm font-medium">End Date</label>
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                            </div>
+                        </CollapsibleFilterSection>
                     </>
                 );
             case 'project-hours':
             case 'detailer-workload':
             case 'task-status':
                 return (
-                    <>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Start Date</label>
-                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    <CollapsibleFilterSection title="Select Date Range" isCollapsed={collapsedFilters.dateRange} onToggle={() => toggleFilterCollapse('dateRange')}>
+                        <div className="space-y-2">
+                           <label className="block text-sm font-medium">Start Date</label>
+                           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                           <label className="block text-sm font-medium">End Date</label>
+                           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">End Date</label>
-                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                        </div>
-                    </>
+                    </CollapsibleFilterSection>
                 );
             default:
                 return null;
@@ -822,32 +869,33 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
 
                 <div className="flex-grow flex gap-4 overflow-hidden">
                     {/* Left Controls Column */}
-                    <div className={`w-full md:w-1/4 lg:w-1/5 flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} space-y-4 overflow-y-auto hide-scrollbar-on-hover`}>
-                        <TutorialHighlight tutorialKey="reportType">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Report Type</label>
-                                <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                    <option value="">Select a report...</option>
-                                    <optgroup label="Dashboards & Charts">
-                                        <option value="project-health">Project Health Dashboard</option>
-                                        <option value="employee-workload-dist">Employee Workload Distribution</option>
-                                        <option value="skill-matrix">Employee Skill Matrix</option>
-                                        <option value="top-employee-skills-by-trade">Top Employee Skills by Trade</option>
-                                    </optgroup>
-                                    <optgroup label="Tabular Reports">
-                                        <option value="project-hours">Project Hours Summary</option>
-                                        <option value="detailer-workload">Detailer Workload Summary</option>
-                                        <option value="task-status">Task Status Report</option>
-                                        <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
-                                        <option value="employee-details">Employee Skills & Details</option>
-                                    </optgroup>
-                                </select>
-                            </div>
-                        </TutorialHighlight>
-                        
-                        {renderFilters()}
-
-                        <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400">Generate</button>
+                    <div className={`w-full md:w-1/4 lg:w-1/5 flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex flex-col`}>
+                        <div className="space-y-2 overflow-y-auto hide-scrollbar-on-hover pr-2 flex-grow">
+                            <TutorialHighlight tutorialKey="reportType">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Report Type</label>
+                                    <select value={reportType} onChange={e => setReportType(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                        <option value="">Select a report...</option>
+                                        <optgroup label="Dashboards & Charts">
+                                            <option value="project-health">Project Health Dashboard</option>
+                                            <option value="employee-workload-dist">Employee Workload Distribution</option>
+                                            <option value="skill-matrix">Employee Skill Matrix</option>
+                                            <option value="top-employee-skills-by-trade">Top Employee Skills by Trade</option>
+                                        </optgroup>
+                                        <optgroup label="Tabular Reports">
+                                            <option value="project-hours">Project Hours Summary</option>
+                                            <option value="detailer-workload">Detailer Workload Summary</option>
+                                            <option value="task-status">Task Status Report</option>
+                                            <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
+                                            <option value="employee-details">Employee Skills & Details</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            </TutorialHighlight>
+                            
+                            {renderFilters()}
+                        </div>
+                        <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 mt-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex-shrink-0">Generate</button>
                     </div>
                     
                     {/* Right Display Area */}
