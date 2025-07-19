@@ -386,19 +386,19 @@ export const tutorialContent = {
         {
             key: "skillMatrixReport",
             title: "Employee Skill Matrix",
-            content: "This generates a visual heatmap of employee skills. Use the multi-select checkboxes to filter the employee list by their assigned level (title) or use the dropdown to filter by primary trade. This chart is excellent for quickly identifying skill gaps or finding the right person for a specific task.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "forecastVsActualReport",
-            title: "Forecast vs. Actuals Summary",
-            content: "This powerful financial report compares the forecasted hours (demand) and assigned hours (supply) against the actual hours burned on a project. The variance column quickly shows if a project is over or under the planned effort.",
+            content: "This generates a visual heatmap of employee skills. Use the filters to narrow the list by level or primary trade. This chart is excellent for quickly identifying skill gaps or finding the right person for a specific task.",
             roles: ['taskmaster']
         },
         {
             key: "exportToCSV",
             title: "Export Report to CSV",
-            content: "After generating any tabular report, click the 'Export to CSV' button, located in the top-right of the results panel, to download the data in a spreadsheet format for further analysis or sharing.",
+            content: "After generating any tabular report, click the 'Export to CSV' button to download the data in a spreadsheet format for further analysis or sharing.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "geminiAiChat",
+            title: "AI-Powered Insights (Taskmaster)",
+            content: "After generating a tabular report, press Ctrl+Shift+Alt+G to open an AI chat window. You can ask specific questions about the report data to get instant analysis and insights.",
             roles: ['taskmaster']
         }
     ]

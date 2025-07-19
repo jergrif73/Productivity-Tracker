@@ -35,11 +35,11 @@ const firebaseConfig = {
 // To use the AI-Powered Insights feature, you need a Google Generative AI API key.
 //
 // 1. Get your free API key from Google AI Studio: https://makersuite.google.com/app/apikey
-// 2. Paste ONLY the key (the long string of characters) into the empty quotes below.
+// 2. Create a file named .env in the root directory (next to src)
+// 3. Add your key to the .env file like this: REACT_APP_GEMINI_API_KEY=YOUR_API_KEY_HERE
 //
 // =================================================================================================
 const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY;
-console.log("Gemini key from env:", geminiApiKey);
 // =================================================================================================
 // =================================================================================================
 

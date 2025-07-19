@@ -89,9 +89,10 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme }) => {
             .domain([0, 10])
             .range([0, Math.min(cellWidth, cellHeight) / 2 - 4]);
             
+        // *** CHANGE: Updated color scale as per user request ***
         const color = d3.scaleLinear()
-            .domain([1, 6, 10])
-            .range(["#FF0000", "#FFFF00", "#004d00"]) // Red, Yellow, Darker Green
+            .domain([0, 4, 6, 8, 10])
+            .range(["#0000FF", "#800080", "#FF0000", "#FFFF00", "#008000"]) // Blue, Purple, Red, Yellow, Green
             .interpolate(d3.interpolateRgb);
 
         // Add cell borders
