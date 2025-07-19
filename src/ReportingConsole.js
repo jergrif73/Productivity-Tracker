@@ -3,9 +3,10 @@ import { TutorialHighlight } from './App';
 import EmployeeSkillMatrix from './EmployeeSkillMatrix'; 
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
+import { collection, onSnapshot } from 'firebase/firestore'; // Import Firestore functions
 
 // --- New Gemini AI Chat Component ---
-const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, currentTheme }) => {
+const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, currentTheme, jobFamilyData }) => { // Added jobFamilyData prop
     const [messages, setMessages] = useState([]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -46,9 +47,14 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
         // If this is the first message, prepend the system context
         if (chatHistoryRef.current.length === 0) {
             const dataSample = reportContext.data.slice(0, 20).map(row => row.join(', ')).join('; ');
+            const jobFamilyContext = JSON.stringify(jobFamilyData); // Stringify job family data
+
             prompt = `
                 CONTEXT: You are an expert analyst for a workforce productivity application. The user has generated a report of type "${reportContext.type}". The columns are: ${reportContext.headers.join(', ')}. Here is a sample of the data (rows separated by ';'):
                 ${dataSample}
+
+                Additionally, here is the job family data, which defines various positions, their responsibilities, and skills:
+                ${jobFamilyContext}
                 
                 Your role is to answer the user's questions based *only* on this data context. Be concise and helpful. If the user asks for information not present in the data, politely state that you cannot answer. Format your responses with Markdown.
                 
@@ -397,6 +403,22 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
     // State for Gemini Interface
     const [isGeminiVisible, setIsGeminiVisible] = useState(false);
     const [reportContext, setReportContext] = useState(null);
+    const [jobFamilyData, setJobFamilyData] = useState({}); // New state for job family data
+
+    // Effect to fetch job family data from Firestore
+    useEffect(() => {
+        if (!db || !appId) return;
+        const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
+
+        const unsubscribe = onSnapshot(jobFamilyRef, (snapshot) => {
+            const data = {};
+            snapshot.docs.forEach(doc => {
+                data[doc.data().title] = { id: doc.id, ...doc.data() };
+            });
+            setJobFamilyData(data);
+        });
+        return () => unsubscribe();
+    }, [db, appId]);
 
 
     const [collapsedFilters, setCollapsedFilters] = useState({
@@ -1048,6 +1070,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     <>
                         <CollapsibleFilterSection title="Select Profile" isCollapsed={collapsedFilters.profile} onToggle={() => toggleFilterCollapse('profile')}>
                             <select value={selectedProfile} onChange={handleProfileChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
+                                <option value="">Select a Profile...</option>
                                 {Object.keys(teamProfiles).map(profileName => (
                                     <option key={profileName} value={profileName}>{profileName}</option>
                                 ))}
@@ -1155,12 +1178,14 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     reportContext={reportContext}
                     geminiApiKey={geminiApiKey}
                     currentTheme={currentTheme}
+                    jobFamilyData={jobFamilyData} /* Passed jobFamilyData */
                 />
                 <div className="flex-shrink-0 mb-4">
                     <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting & Dashboards</h2>
                 </div>
 
-                <div className="flex-grow flex gap-4 min-h-0">
+                {/* This div is now the main scrollable content area */}
+                <div className="flex-grow flex gap-4 min-h-0 h-[calc(100vh-200px)] overflow-y-auto hide-scrollbar-on-hover"> {/* Added fixed height and overflow */}
                     {/* Left Controls Column */}
                     <div className={`w-full md:w-1/4 lg:w-1/5 flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex flex-col`}>
                         <div className="space-y-2 overflow-y-auto hide-scrollbar-on-hover pr-2 flex-grow">
