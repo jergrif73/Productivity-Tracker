@@ -201,7 +201,7 @@ export const tutorialContent = {
   // == Task Console
   // =================================================================
   tasks: {
-    title: "Tasks Console Tutorial",
+    title: "Task Console Tutorial",
     steps: [
         {
             key: "tasks",
@@ -390,6 +390,12 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "manageJobPositions", // New step for managing job family data
+            title: "Manage Job Family Positions",
+            content: "Within the 'Employee Skill Matrix' report, Taskmasters can click 'Manage Positions' to add, edit, or delete job family roles and their associated responsibilities, skills, and experience. This data is used across the application to define roles and expectations.",
+            roles: ['taskmaster']
+        },
+        {
             key: "exportToCSV",
             title: "Export Report to CSV",
             content: "After generating any tabular report, click the 'Export to CSV' button to download the data in a spreadsheet format for further analysis or sharing.",
@@ -407,7 +413,7 @@ export const tutorialContent = {
   // == Admin Console
   // =================================================================
   admin: {
-    title: "Admin Console Tutorial",
+    title: "Manage Console",
     steps: [
         {
             key: "admin",
@@ -500,6 +506,12 @@ export const tutorialContent = {
             title: "Top Skills (Taskmaster Only)",
             content: "As a Taskmaster, this section displays the top skills for the selected employee, based on their skill assessments.",
             roles: ['taskmaster']
+        },
+        {
+            key: "jobFamilyDisplay", // New step for job family display
+            title: "Job Family Details",
+            content: "This section displays the responsibilities, knowledge, skills, and experience associated with the selected employee's assigned job title (e.g., 'Detailer I'). This data is managed via the 'Manage Positions' button in the Employee Skill Matrix report.",
+            roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
             key: "activeProjects",

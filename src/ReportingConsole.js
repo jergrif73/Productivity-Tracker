@@ -378,7 +378,7 @@ const teamProfiles = {
 };
 
 
-const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme, geminiApiKey, accessLevel }) => {
+const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme, geminiApiKey, accessLevel, db, appId }) => {
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -1236,7 +1236,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                                 <button onClick={handleClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear</button>
                                             </div>
                                         </div>
-                                        <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} />
+                                        <EmployeeSkillMatrix detailers={filteredDetailersForMatrix} currentTheme={currentTheme} db={db} appId={appId} accessLevel={accessLevel} />
                                     </div>
                                 )}
                             </TutorialHighlight>
