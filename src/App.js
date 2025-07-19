@@ -38,7 +38,7 @@ const firebaseConfig = {
 // 2. Paste ONLY the key (the long string of characters) into the empty quotes below.
 //
 // =================================================================================================
-const geminiApiKey = "AIzaSyDmexw9LMkigqgE4jO4fdg5IHauFaigRFI"; // <--- PASTE YOUR GEMINI API KEY HERE
+const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY;
 // =================================================================================================
 // =================================================================================================
 

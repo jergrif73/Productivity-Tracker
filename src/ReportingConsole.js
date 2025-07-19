@@ -6,53 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Helper Components ---
 
-const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
-    const theme = currentTheme || { cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600' };
-
-    const backdropVariants = {
-        visible: { opacity: 1, transition: { duration: 0.3 } },
-        hidden: { opacity: 0, transition: { duration: 0.3 } },
-    };
-
-    const modalVariants = {
-        hidden: { opacity: 0, y: "-20px", scale: 0.95 },
-        visible: { 
-            opacity: 1, 
-            y: "0", 
-            scale: 1,
-            transition: { type: "spring", stiffness: 400, damping: 25, mass: 0.5 }
-        },
-        exit: { 
-            opacity: 0, 
-            y: "20px",
-            scale: 0.95,
-            transition: { duration: 0.2 }
-        }
-    };
-
-    return (
-        <motion.div
-            className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center"
-            variants={backdropVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            onClick={onClose}
-        >
-            <motion.div
-                variants={modalVariants}
-                className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="flex justify-end">
-                    <button onClick={onClose} className={`text-2xl font-bold ${theme.subtleText} hover:${theme.textColor}`}>&times;</button>
-                </div>
-                {children}
-            </motion.div>
-        </motion.div>
-    );
-};
-
 const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) => {
     const animationVariants = {
         open: { opacity: 1, height: 'auto', marginTop: '1rem' },
@@ -1019,7 +972,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     </div>
                     
                     {/* Right Display Area */}
-                    <div className="flex-grow flex flex-col min-h-0">
+                    <div className="flex-grow flex flex-col min-h-0 min-w-0">
                         <div className="flex-grow overflow-auto hide-scrollbar-on-hover space-y-4">
                             <TutorialHighlight tutorialKey="projectHealthDashboard">
                                 {chartData && reportType === 'project-health' && (
@@ -1086,12 +1039,23 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                                     {reportHeaders.map((header, index) => (
                                                         <th 
                                                             key={`${header}-${index}`} 
-                                                            className={`p-2 text-left font-semibold border ${currentTheme.borderColor} cursor-pointer`}
+                                                            className={`p-2 font-semibold border ${currentTheme.borderColor} cursor-pointer`}
+                                                            style={reportType === 'employee-details' 
+                                                                ? { 
+                                                                    writingMode: 'vertical-rl', 
+                                                                    textOrientation: 'mixed', 
+                                                                    whiteSpace: 'nowrap', 
+                                                                    textAlign: 'right', // Aligns text to the "top" of the rotated cell
+                                                                    paddingTop: '10px',
+                                                                    paddingBottom: '10px'
+                                                                  } 
+                                                                : { textAlign: 'left' }
+                                                            }
                                                             onClick={() => requestSort(header)}
                                                         >
                                                             {header}
                                                             {sortConfig.key === header && (
-                                                                <span>{sortConfig.direction === 'ascending' ? ' ▲' : ' ▼'}</span>
+                                                                ` ${sortConfig.direction === 'ascending' ? '▲' : '▼'}`
                                                             )}
                                                         </th>
                                                     ))}
@@ -1101,7 +1065,11 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                                 {sortedReportData.map((row, rowIndex) => (
                                                     <tr key={`report-row-${rowIndex}-${row[0]}`} className={`border-b ${currentTheme.borderColor}`}>
                                                         {row.map((cell, cellIndex) => (
-                                                            <td key={`cell-${rowIndex}-${cellIndex}`} className={`p-2 border ${currentTheme.borderColor}`}>
+                                                            <td 
+                                                                key={`cell-${rowIndex}-${cellIndex}`} 
+                                                                className={`p-2 border ${currentTheme.borderColor}`}
+                                                                style={reportType === 'employee-details' ? { textAlign: 'center' } : {}}
+                                                            >
                                                                 {cell}
                                                             </td>
                                                         ))}
