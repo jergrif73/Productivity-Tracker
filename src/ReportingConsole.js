@@ -1211,9 +1211,12 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                                 </div>
                             </TutorialHighlight>
                             
+                            {/* Moved Generate button here */}
+                            <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 mt-4 mb-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex-shrink-0">Generate</button>
+
                             {renderFilters()}
                         </div>
-                        <button onClick={handleGenerateReport} disabled={!reportType} className="w-full bg-blue-600 text-white p-2 mt-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex-shrink-0">Generate</button>
+                        {/* Removed button from here */}
                     </div>
                     
                     {/* Right Display Area */}
