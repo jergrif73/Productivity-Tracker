@@ -1,11 +1,10 @@
 // src/EmployeeSkillMatrix.js
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
-// Removed 'addDoc' as it is not used in this file.
 import { collection, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
-import JobFamilyEditor from './JobFamilyEditor';
-import { jobFamilyData as initialJobFamilyData } from './job-family-data'; // Import initial data for seeding
-import { TutorialHighlight } from './App'; // Import TutorialHighlight
+import JobFamilyEditor from './JobFamilyEditor'; // Standard default import
+import { jobFamilyData as initialJobFamilyData } from './job-family-data';
+import { TutorialHighlight } from './App';
 
 const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }) => {
     const svgRef = useRef(null);
@@ -17,14 +16,12 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
         if (!db || !appId) return;
         const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
 
-        // Function to seed initial data if the collection is empty
         const seedData = async () => {
             const querySnapshot = await getDocs(jobFamilyRef);
             if (querySnapshot.empty) {
                 console.log("Job family data is empty. Seeding initial data...");
                 const batch = writeBatch(db);
                 Object.values(initialJobFamilyData).forEach(job => {
-                    // The 'doc' function is used here to create a new document reference
                     const docRef = doc(jobFamilyRef);
                     batch.set(docRef, job);
                 });
@@ -33,7 +30,7 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
             }
         };
 
-        seedData(); // Check and seed data on component mount
+        seedData();
 
         const unsubscribe = onSnapshot(jobFamilyRef, (snapshot) => {
             const data = {};
@@ -78,7 +75,6 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
                 flatData.push({ employee: employeeName, skill, score });
             });
 
-            // Ensure disciplineMap is defined before use
             const disciplineMap = new Map((detailer.disciplineSkillsets || []).map(ds => [ds.name, ds.score]));
             disciplineSkillOrder.forEach(skill => {
                 const score = disciplineMap.get(skill) || 0;
@@ -226,7 +222,7 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
                     </select>
                 </div>
                 {accessLevel === 'taskmaster' && (
-                    <TutorialHighlight tutorialKey="manageJobPositions"> {/* Added TutorialHighlight */}
+                    <TutorialHighlight tutorialKey="manageJobPositions">
                         <button onClick={() => setIsEditorOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
                             Manage Positions
                         </button>
@@ -248,17 +244,76 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                         <div>
                             <h4 className="font-semibold mb-2 text-base">Primary Responsibilities</h4>
-                            <ul className="list-disc list-inside space-y-1">
-                                {jobToDisplay.primaryResponsibilities.map((item, index) => <li key={index}>{item}</li>)}
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {(jobToDisplay.primaryResponsibilities || []).map((item, index) => (
+                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{item}</span> {/* Text content */}
+                                    </li>
+                                ))}
+                            </ul>
+                            <h4 className="font-semibold mt-4 mb-2 text-base">Independence and Decision-Making</h4>
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {(jobToDisplay.independenceAndDecisionMaking || []).map((item, index) => (
+                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{item}</span> {/* Text content */}
+                                    </li>
+                                ))}
+                            </ul>
+                            <h4 className="font-semibold mt-4 mb-2 text-base">Leadership</h4>
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {(jobToDisplay.leadership || []).map((item, index) => (
+                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{item}</span> {/* Text content */}
+                                    </li>
+                                ))}
                             </ul>
                         </div>
                         <div>
                             <h4 className="font-semibold mb-2 text-base">Knowledge and Skills</h4>
-                            <ul className="list-disc list-inside space-y-1">
-                                {jobToDisplay.knowledgeAndSkills.map((item, index) => <li key={index}>{item}</li>)}
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {(jobToDisplay.knowledgeAndSkills || []).map((item, index) => (
+                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{item}</span> {/* Text content */}
+                                    </li>
+                                ))}
                             </ul>
-                             <h4 className="font-semibold mt-4 mb-2 text-base">Preferred Experience</h4>
-                             <p>{jobToDisplay.experience}</p>
+                            <h4 className="font-semibold mt-4 mb-2 text-base">Education</h4>
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {(jobToDisplay.education || []).map((item, index) => (
+                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{item}</span> {/* Text content */}
+                                    </li>
+                                ))}
+                            </ul>
+                            <h4 className="font-semibold mt-4 mb-2 text-base">Years of Experience Preferred</h4>
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {(jobToDisplay.yearsOfExperiencePreferred || []).map((item, index) => (
+                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{item}</span> {/* Text content */}
+                                    </li>
+                                ))}
+                            </ul>
+                            <h4 className="font-semibold mt-4 mb-2 text-base">Preferred Experience</h4>
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                                {jobToDisplay.experience && (
+                                    <li className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">{jobToDisplay.experience}</span> {/* Text content */}
+                                    </li>
+                                )}
+                                {!jobToDisplay.experience && (
+                                    <li className="flex items-start"> {/* Use flex for consistent alignment */}
+                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
+                                        <span className="flex-grow">N/A</span> {/* Text content */}
+                                    </li>
+                                )}
+                            </ul>
                         </div>
                     </div>
                 </div>

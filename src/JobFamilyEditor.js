@@ -30,21 +30,32 @@ const JobFamilyEditor = ({ db, appId, currentTheme, onClose }) => {
     };
 
     const handleDelete = async (id) => {
-        // A simple confirmation dialog
         if (window.confirm("Are you sure you want to delete this position? This action cannot be undone.")) {
             const docRef = doc(db, `artifacts/${appId}/public/data/jobFamilyData`, id);
             await deleteDoc(docRef);
         }
     };
     
+    const initializeJobData = (job = {}) => ({
+        title: job.title || '',
+        primaryResponsibilities: Array.isArray(job.primaryResponsibilities) ? job.primaryResponsibilities : [''],
+        knowledgeAndSkills: Array.isArray(job.knowledgeAndSkills) ? job.knowledgeAndSkills : [''],
+        independenceAndDecisionMaking: Array.isArray(job.independenceAndDecisionMaking) ? job.independenceAndDecisionMaking : [''],
+        leadership: Array.isArray(job.leadership) ? job.leadership : [''],
+        education: Array.isArray(job.education) ? job.education : [''],
+        yearsOfExperiencePreferred: Array.isArray(job.yearsOfExperiencePreferred) ? job.yearsOfExperiencePreferred : [''],
+        // Removed 'experience' from here as it's being removed from the UI
+        ...job // Spread existing properties to retain 'id' and any other fields
+    });
+
     const handleAddNew = () => {
-        setEditingJob({
-            title: '',
-            primaryResponsibilities: ['New Responsibility'],
-            knowledgeAndSkills: ['New Skill'],
-            experience: ''
-        });
+        setEditingJob(initializeJobData()); // Initialize with empty defaults
         setIsCreating(true);
+    };
+
+    const handleEditExisting = (job) => {
+        setEditingJob(initializeJobData(job)); // Initialize with existing data, ensuring arrays
+        setIsCreating(false);
     };
 
     const handleCancelEdit = () => {
@@ -57,71 +68,78 @@ const JobFamilyEditor = ({ db, appId, currentTheme, onClose }) => {
     };
 
     const handleListChange = (field, index, value) => {
-        const newList = [...editingJob[field]];
+        const newList = [...(editingJob[field] || [])];
         newList[index] = value;
         setEditingJob(prev => ({ ...prev, [field]: newList }));
     };
 
     const handleAddListItem = (field) => {
-        setEditingJob(prev => ({ ...prev, [field]: [...prev[field], 'New Item'] }));
+        setEditingJob(prev => ({ ...prev, [field]: [...(prev[field] || []), ''] }));
     };
     
     const handleRemoveListItem = (field, index) => {
-        const newList = [...editingJob[field]];
+        const newList = [...(editingJob[field] || [])];
         newList.splice(index, 1);
         setEditingJob(prev => ({ ...prev, [field]: newList }));
     };
 
-    const renderEditForm = () => (
-        <div className="p-4 bg-gray-900/50 rounded-lg mt-4 space-y-4 border border-gray-600">
-            <h3 className="text-lg font-bold text-cyan-300">{isCreating ? "Create New Position" : `Editing: ${editingJob.title}`}</h3>
-            <div>
-                <label className="block text-sm font-medium mb-1">Position Title</label>
-                <input 
-                    type="text"
-                    value={editingJob.title}
-                    onChange={(e) => handleFieldChange('title', e.target.value)}
-                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                />
-            </div>
-            
-            <div>
-                <label className="block text-sm font-medium mb-1">Primary Responsibilities</label>
-                {editingJob.primaryResponsibilities.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-1">
-                        <input type="text" value={item} onChange={(e) => handleListChange('primaryResponsibilities', index, e.target.value)} className={`flex-grow p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                        <button onClick={() => handleRemoveListItem('primaryResponsibilities', index)} className="text-red-500 font-bold text-xl">&times;</button>
-                    </div>
-                ))}
-                <button onClick={() => handleAddListItem('primaryResponsibilities')} className="text-blue-400 text-sm mt-1 hover:underline">+ Add Responsibility</button>
-            </div>
+    // Removed the useEffect that initialized properties, as it's now handled by initializeJobData
 
-            <div>
-                <label className="block text-sm font-medium mb-1">Knowledge and Skills</label>
-                {editingJob.knowledgeAndSkills.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-1">
-                        <input type="text" value={item} onChange={(e) => handleListChange('knowledgeAndSkills', index, e.target.value)} className={`flex-grow p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                        <button onClick={() => handleRemoveListItem('knowledgeAndSkills', index)} className="text-red-500 font-bold text-xl">&times;</button>
-                    </div>
-                ))}
-                <button onClick={() => handleAddListItem('knowledgeAndSkills')} className="text-blue-400 text-sm mt-1 hover:underline">+ Add Skill</button>
-            </div>
 
-            <div>
-                <label className="block text-sm font-medium mb-1">Preferred Experience</label>
-                <textarea 
-                    value={editingJob.experience}
-                    onChange={(e) => handleFieldChange('experience', e.target.value)}
-                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-700">
-                <button onClick={handleCancelEdit} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg}`}>Cancel</button>
-                <button onClick={() => handleSave(editingJob)} className="px-4 py-2 rounded-md bg-green-600 text-white">Save Changes</button>
-            </div>
+    const renderListSection = (title, fieldName) => (
+        <div>
+            <label className="block text-sm font-medium mb-1">{title}</label>
+            {(editingJob[fieldName] || []).map((item, index) => (
+                <div key={index} className="flex items-center gap-2 mb-1">
+                    <input type="text" value={item} onChange={(e) => handleListChange(fieldName, index, e.target.value)} className={`flex-grow p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                    <button onClick={() => handleRemoveListItem(fieldName, index)} className="text-red-500 font-bold text-xl">&times;</button>
+                </div>
+            ))}
+            <button onClick={() => handleAddListItem(fieldName)} className="text-blue-400 text-sm mt-1 hover:underline">+ Add Item</button>
         </div>
     );
+
+    const renderEditForm = () => {
+        // Defensive check: ensure editingJob is not null before rendering
+        if (!editingJob) return null; 
+
+        return (
+            <div className="p-4 bg-gray-900/50 rounded-lg mt-4 space-y-4 border border-gray-600">
+                <h3 className="text-lg font-bold text-cyan-300">{isCreating ? "Create New Position" : `Editing: ${editingJob.title}`}</h3>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Position Title</label>
+                    <input 
+                        type="text"
+                        value={editingJob.title}
+                        onChange={(e) => handleFieldChange('title', e.target.value)}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                </div>
+                
+                {renderListSection('Primary Responsibilities', 'primaryResponsibilities')}
+                {renderListSection('Knowledge and Skills', 'knowledgeAndSkills')}
+                {renderListSection('Independence and Decision-Making', 'independenceAndDecisionMaking')}
+                {renderListSection('Leadership', 'leadership')}
+                {renderListSection('Education', 'education')}
+                {renderListSection('Years of Experience Preferred', 'yearsOfExperiencePreferred')}
+
+                {/* Removed the "Preferred Experience" section */}
+                {/* <div>
+                    <label className="block text-sm font-medium mb-1">Preferred Experience</label>
+                    <textarea 
+                        value={editingJob.experience}
+                        onChange={(e) => handleFieldChange('experience', e.target.value)}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                </div> */}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-700">
+                    <button onClick={handleCancelEdit} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg}`}>Cancel</button>
+                    <button onClick={() => handleSave(editingJob)} className="px-4 py-2 rounded-md bg-green-600 text-white">Save Changes</button>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="p-2">
@@ -134,7 +152,7 @@ const JobFamilyEditor = ({ db, appId, currentTheme, onClose }) => {
             </div>
 
             <AnimatePresence>
-                {editingJob && (
+                {editingJob && ( // This condition is crucial
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
@@ -150,7 +168,8 @@ const JobFamilyEditor = ({ db, appId, currentTheme, onClose }) => {
                     <div key={job.id} className={`p-3 rounded-md flex justify-between items-center ${currentTheme.altRowBg}`}>
                         <span className="font-semibold">{job.title}</span>
                         <div className="flex gap-2">
-                            <button onClick={() => { setEditingJob(job); setIsCreating(false); }} className="text-blue-400 text-sm hover:underline">Edit</button>
+                            {/* Changed onClick to use the new handleEditExisting */}
+                            <button onClick={() => { handleEditExisting(job); }} className="text-blue-400 text-sm hover:underline">Edit</button>
                             <button onClick={() => handleDelete(job.id)} className="text-red-400 text-sm hover:underline">Delete</button>
                         </div>
                     </div>

@@ -194,8 +194,8 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
 
     return (
         <TutorialHighlight tutorialKey="dashboard">
-            <div className={`p-6 h-full flex flex-col ${currentTheme.consoleBg}`}> {/* Added flex-col here */}
-                <div className="flex justify-between items-center mb-6 flex-shrink-0"> {/* Added flex-shrink-0 */}
+            <div className={`p-6 h-full flex flex-col ${currentTheme.consoleBg}`}>
+                <div className="flex justify-between items-center mb-6 flex-shrink-0">
                     <h1 className={`text-3xl font-bold ${currentTheme.textColor}`}>
                         {selectedEmployee ? `Dashboard for ${selectedEmployee.firstName} ${selectedEmployee.lastName}` : "My Dashboard"}
                     </h1>
@@ -229,11 +229,9 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                     </div>
                 </div>
 
-                {/* This div is now the main scrollable content area */}
-                <div className="h-[calc(100vh-250px)] overflow-y-auto hide-scrollbar-on-hover"> {/* Added fixed height and removed flex-grow */}
-                    {/* Conditionally render content based on selectedEmployee */}
+                <div className="h-[calc(100vh-250px)] overflow-y-auto hide-scrollbar-on-hover">
                     {!selectedEmployee ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> {/* Removed min-h */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="md:col-span-1 space-y-6">
                                 <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-48 flex items-center justify-center`}>
                                     <p className={currentTheme.subtleText}>Select an employee to view their workload.</p>
@@ -256,8 +254,7 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> {/* Removed min-h */}
-                            {/* Left Column: Workload & Skills */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="md:col-span-1 space-y-6">
                                 <TutorialHighlight tutorialKey="weekAtAGlance">
                                     <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor}`}>
@@ -316,23 +313,83 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                     </TutorialHighlight>
                                 )}
                                 {jobToDisplay && (
-                                    <TutorialHighlight tutorialKey="jobFamilyDisplay"> {/* Added TutorialHighlight */}
+                                    <TutorialHighlight tutorialKey="jobFamilyDisplay">
                                         <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor}`}>
                                             <h2 className="text-xl font-semibold mb-4">Job Family: {jobToDisplay.title}</h2>
                                             <div className="space-y-4 text-sm">
                                                 <div>
                                                     <h3 className="font-semibold mb-2 text-base">Primary Responsibilities</h3>
-                                                    <ul className="list-disc list-inside space-y-1">
-                                                        {jobToDisplay.primaryResponsibilities.map((item, index) => <li key={index}>{item}</li>)}
+                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
+                                                        {(jobToDisplay.primaryResponsibilities || []).map((item, index) => (
+                                                            <li key={index} className="flex items-start">
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span> {/* Increased width of bullet span */}
+                                                                <span className="flex-grow text-left">{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <h3 className="font-semibold mt-4 mb-2 text-base">Independence and Decision-Making</h3>
+                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
+                                                        {(jobToDisplay.independenceAndDecisionMaking || []).map((item, index) => (
+                                                            <li key={index} className="flex items-start">
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="flex-grow text-left">{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <h3 className="font-semibold mt-4 mb-2 text-base">Leadership</h3>
+                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
+                                                        {(jobToDisplay.leadership || []).map((item, index) => (
+                                                            <li key={index} className="flex items-start">
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="flex-grow text-left">{item}</span>
+                                                            </li>
+                                                        ))}
                                                     </ul>
                                                 </div>
                                                 <div>
                                                     <h3 className="font-semibold mb-2 text-base">Knowledge and Skills</h3>
-                                                    <ul className="list-disc list-inside space-y-1">
-                                                        {jobToDisplay.knowledgeAndSkills.map((item, index) => <li key={index}>{item}</li>)}
+                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
+                                                        {(jobToDisplay.knowledgeAndSkills || []).map((item, index) => (
+                                                            <li key={index} className="flex items-start">
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="flex-grow text-left">{item}</span>
+                                                            </li>
+                                                        ))}
                                                     </ul>
-                                                    <h3 className="font-semibold mt-4 mb-2 text-base">Preferred Experience</h3>
-                                                    <p>{jobToDisplay.experience}</p>
+                                                    <h3 className="font-semibold mt-4 mb-2 text-base">Education</h3>
+                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
+                                                        {(jobToDisplay.education || []).map((item, index) => (
+                                                            <li key={index} className="flex items-start">
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="flex-grow text-left">{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <h3 className="font-semibold mt-4 mb-2 text-base">Years of Experience Preferred</h3>
+                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
+                                                        {(jobToDisplay.yearsOfExperiencePreferred || []).map((item, index) => (
+                                                            <li key={index} className="flex items-start">
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="flex-grow text-left">{item}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    {/* Removed Preferred Experience section */}
+                                                    {/* <h3 className="font-semibold mt-4 mb-2 text-base">Preferred Experience</h3>
+                                                    <ul className="space-y-1 list-none">
+                                                        {jobToDisplay.experience && (
+                                                            <li className="flex items-start">
+                                                                <span className="w-4 flex-shrink-0">•</span>
+                                                                <span className="flex-grow">{jobToDisplay.experience}</span>
+                                                            </li>
+                                                        )}
+                                                        {!jobToDisplay.experience && (
+                                                            <li className="flex items-start">
+                                                                <span className="w-4 flex-shrink-0">•</span>
+                                                                <span className="flex-grow">N/A</span>
+                                                            </li>
+                                                        )}
+                                                    </ul> */}
                                                 </div>
                                             </div>
                                         </div>
@@ -340,7 +397,6 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                 )}
                             </div>
 
-                            {/* Middle Column: Projects */}
                             <div className="md:col-span-1 space-y-6">
                                 <TutorialHighlight tutorialKey="activeProjects">
                                     <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-full`}>
@@ -363,7 +419,6 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                 </TutorialHighlight>
                             </div>
 
-                            {/* Right Column: Tasks */}
                             <div className="md:col-span-1 space-y-6">
                                 <TutorialHighlight tutorialKey="myTasksDashboard">
                                     <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-full`}>
