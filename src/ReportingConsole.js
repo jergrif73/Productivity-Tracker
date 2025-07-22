@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { TutorialHighlight } from './App';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { collection, onSnapshot } from 'firebase/firestore';
 
 // Import the new sub-components
@@ -10,7 +10,22 @@ import MovableJobFamilyDisplay from './MovableJobFamilyDisplay';
 import GeminiInsightChat from './GeminiInsightChat';
 import JobFamilyEditor from './JobFamilyEditor'; // Import JobFamilyEditor
 
-const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectActivities, currentTheme, geminiApiKey, accessLevel, db, appId }) => {
+const abbreviateTitle = (title) => {
+    if (!title) return 'N/A';
+    const abbreviations = {
+        "Detailer I": "DI",
+        "Detailer II": "DII",
+        "Detailer III": "DIII",
+        "BIM Specialist": "BIMS",
+        "Project Constructability Lead": "PCL",
+        "Project Constructability Lead, Sr.": "PCL, Sr.",
+        "Trade Constructability Lead": "TCL",
+        "Constructability Manager": "CM",
+    };
+    return abbreviations[title] || title.split(' ').map(w => w[0]).join('');
+};
+
+const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tasks = [], allProjectActivities = [], currentTheme, geminiApiKey, accessLevel, db, appId }) => {
     // State for filters (managed here, passed to ReportFilters)
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -204,6 +219,57 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
             case 'skill-matrix':
                 // Data for skill matrix is handled by the EmployeeSkillMatrix component directly
                 // No tabular data or chartData is set here for this report type
+                break;
+            
+            case 'employee-details':
+                const tradeAbbreviations = {
+                    "Piping": "MP",
+                    "Duct": "MH",
+                    "Plumbing": "PL",
+                    "BIM": "BIM",
+                    "Structural": "Str",
+                    "Coordination": "Coord",
+                    "GIS/GPS": "GIS"
+                };
+
+                const sortedEmployees = [...filteredDetailersForMatrix].sort((a, b) => a.lastName.localeCompare(b.lastName));
+
+                headers = sortedEmployees.map(emp => ({
+                    id: emp.id,
+                    name: `${emp.firstName} ${emp.lastName}`,
+                }));
+
+                const skillRows = ['Title', 'Primary Trade', ...allSkillsOptions];
+
+                data = skillRows.map(skill => {
+                    const rowData = { attribute: skill, values: [] };
+                    sortedEmployees.forEach(emp => {
+                        let value = 0; // Default for scores
+                        if (skill === 'Title') {
+                            value = abbreviateTitle(emp.title);
+                        } else if (skill === 'Primary Trade') {
+                            const primaryTrade = (Array.isArray(emp.disciplineSkillsets) && emp.disciplineSkillsets.length > 0)
+                                ? emp.disciplineSkillsets[0].name
+                                : 'N/A';
+                            value = tradeAbbreviations[primaryTrade] || primaryTrade;
+                        } else {
+                            // Check general skills
+                            if (emp.skills && emp.skills[skill] !== undefined) {
+                                value = emp.skills[skill];
+                            }
+                            // Check discipline skills (overwrites if present)
+                            if (Array.isArray(emp.disciplineSkillsets)) {
+                                const discipline = emp.disciplineSkillsets.find(d => d.name === skill);
+                                if (discipline) {
+                                    value = discipline.score;
+                                }
+                            }
+                        }
+                        rowData.values.push({ employeeId: emp.id, value });
+                    });
+                    return rowData;
+                });
+                isTabularReport = true;
                 break;
 
             case 'top-employee-skills-by-trade':
@@ -410,7 +476,7 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
         } else {
             setReportContext(null);
         }
-    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, selectedSkills, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks]);
+    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, selectedSkills, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks, allSkillsOptions, filteredDetailersForMatrix, selectedProjectId]);
 
     const handleClearReport = useCallback(() => {
         setReportData(null);
@@ -547,10 +613,10 @@ const ReportingConsole = ({ projects, detailers, assignments, tasks, allProjectA
                     )}
                 </AnimatePresence>
 
-                <div className="flex-shrink-0 mb-4 flex justify-between items-center"> {/* Added flex and justify-between */}
+                <div className="flex-shrink-0 mb-4 flex justify-between items-center">
                     <h2 className={`text-2xl font-bold ${currentTheme.textColor}`}>Reporting & Dashboards</h2>
-                    {accessLevel === 'taskmaster' && ( // Only show for taskmaster
-                        <TutorialHighlight tutorialKey="manageJobPositions"> {/* Re-using tutorial key */}
+                    {accessLevel === 'taskmaster' && (
+                        <TutorialHighlight tutorialKey="manageJobPositions">
                             <button
                                 onClick={() => setIsJobFamilyEditorOpen(true)}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"

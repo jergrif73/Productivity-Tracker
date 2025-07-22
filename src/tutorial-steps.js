@@ -252,15 +252,15 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-          key: "hardDeleteTask", // Updated key from softDeleteTask
-          title: "Permanently Deleting Tasks", // Updated title
-          content: "When you 'Delete Task' from the detail modal, the task is permanently removed from the database. There is no 'soft delete' option.", // Updated content
+          key: "hardDeleteTask",
+          title: "Permanently Deleting Tasks",
+          content: "When you 'Delete Task' from the detail modal, the task is permanently removed from the database. This action is irreversible.",
           roles: ['taskmaster']
         },
         {
-            key: "hardDeleteAllDeletedTasks", // New key
-            title: "Permanently Delete All 'Deleted' Tasks", // New title
-            content: "In the 'Archive' lane, you'll find a button to permanently remove all tasks that currently have the 'Deleted' status. This action is irreversible.", // New content
+            key: "hardDeleteAllDeletedTasks",
+            title: "Permanently Delete All 'Deleted' Tasks",
+            content: "In the 'Archive' lane, you'll find a button to permanently remove all tasks that currently have the 'Deleted' status. This action is irreversible.",
             roles: ['taskmaster']
         }
     ]
@@ -366,9 +366,27 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "manageJobPositions", // Updated step for managing job family data
+            title: "Manage Job Family Positions",
+            content: "Click this button in the header to add, edit, or delete job family roles and their associated responsibilities, skills, and experience. This data is used across the application to define roles and expectations.",
+            roles: ['taskmaster']
+        },
+        {
             key: "reportType",
             title: "Select a Report or Dashboard",
             content: "Choose the type of data you want to analyze from the 'Report Type' dropdown. Options are grouped into 'Dashboards & Charts' for visual analysis and 'Tabular Reports' for data export.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "dynamicFilters",
+            title: "Dynamic Report Filters",
+            content: "The filters on the left sidebar are dynamic. As you select a 'Report Type,' the available filters below will change to show only the options relevant to that specific report, ensuring you can always tailor the output to your needs.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "reviewJobFamilyExpectations", // New step for the dropdown
+            title: "Review Job Family Expectations (Popup)",
+            content: "When viewing 'Employee Details' or 'Employee Skill Matrix' reports, use this dropdown to select any job position. Its detailed responsibilities, skills, and experience will appear in a movable, floating window for easy reference.",
             roles: ['taskmaster']
         },
         {
@@ -390,12 +408,6 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "manageJobPositions", // New step for managing job family data
-            title: "Manage Job Family Positions",
-            content: "Within the 'Employee Skill Matrix' report, Taskmasters can click 'Manage Positions' to add, edit, or delete job family roles and their associated responsibilities, skills, and experience. This data is used across the application to define roles and expectations.",
-            roles: ['taskmaster']
-        },
-        {
             key: "exportToCSV",
             title: "Export Report to CSV",
             content: "After generating any tabular report, click the 'Export to CSV' button to download the data in a spreadsheet format for further analysis or sharing.",
@@ -405,6 +417,12 @@ export const tutorialContent = {
             key: "geminiAiChat",
             title: "AI-Powered Insights (Taskmaster)",
             content: "After generating a tabular report, press Ctrl+Shift+Alt+G to open an AI chat window. You can ask specific questions about the report data to get instant analysis and insights.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "clearReport",
+            title: "Clearing a Report",
+            content: "After generating a report, you can use the 'Clear Report' button that appears in the top right of the results panel. This will reset the display and allow you to generate a new report with different filters.",
             roles: ['taskmaster']
         }
     ]
@@ -496,6 +514,12 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
+            key: "reviewJobFamilyExpectations", // New step for the dropdown in MyDashboard
+            title: "Review Job Family Expectations (Popup)",
+            content: "Use this dropdown to select any job position. Its detailed responsibilities, skills, and experience will appear in a movable, floating window for easy reference, starting from the bottom right of your screen.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
             key: "weekAtAGlance",
             title: "Week At a Glance",
             content: "This section shows your current and next week's project allocation percentages, helping you quickly understand your workload.",
@@ -508,9 +532,9 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "jobFamilyDisplay", // New step for job family display
-            title: "Job Family Details",
-            content: "This section displays the responsibilities, knowledge, skills, and experience associated with the selected employee's assigned job title (e.g., 'Detailer I'). This data is managed via the 'Manage Positions' button in the Employee Skill Matrix report.",
+            key: "jobFamilyDisplay",
+            title: "Job Family Details (Embedded)",
+            content: "This section displays the responsibilities, knowledge, skills, and experience associated with the *selected employee's* assigned job title (e.g., 'Detailer I'). For a general review of any position, use the 'Review Job Family Expectations' dropdown.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -520,16 +544,28 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
+            key: "activeProjectsNavigation",
+            title: "Navigate to Project Assignments",
+            content: "The 'Active Projects' section lists all projects you are currently assigned to. Clicking on any project card in this list will take you directly to the Workloader Console, automatically filtered to show your specific assignments for that project.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
             key: "myTasksDashboard",
             title: "My Tasks",
             content: "See your upcoming tasks due this week and other open tasks. Click on any task card to go to the Tasks Console.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-            key: "goToTimeSheets", // New key for the Time Sheets button
-            title: "Go to Time Sheets", // New title
-            content: "Click this button to copy the network path for Field Time Sheets to your clipboard. You can then paste it into your file explorer to access the folder.", // New content
-            roles: ['taskmaster', 'tcl', 'viewer'] // Assuming all roles can access this link
+            key: "myTasksNavigation",
+            title: "Jump to Your Tasks",
+            content: "The 'My Tasks' section shows a summary of your upcoming and open tasks. Clicking on any task card will navigate you directly to the Task Console, where you can view and manage all the details for that task.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "goToTimeSheets",
+            title: "Go to Time Sheets",
+            content: "Click this button to copy the network path for Field Time Sheets to your clipboard. You can then paste it into your file explorer to access the folder.",
+            roles: ['taskmaster', 'tcl', 'viewer']
         }
     ]
   },

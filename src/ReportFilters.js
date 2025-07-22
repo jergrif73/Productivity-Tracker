@@ -137,18 +137,20 @@ const ReportFilters = ({
             case 'skill-matrix':
                 return (
                     <>
-                        <CollapsibleFilterSection title="Review Job Family Expectations" isCollapsed={collapsedFilters.jobFamily} onToggle={() => onToggleFilterCollapse('jobFamily')}>
-                            <select
-                                value={jobFamilyToDisplayInPopup?.title || ""}
-                                onChange={e => onJobFamilySelectForPopup(e.target.value)} // Use the callback from parent
-                                className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                            >
-                                <option value="">Select a Position to View...</option>
-                                {Object.keys(jobFamilyData).sort().map(jobTitle => (
-                                    <option key={jobTitle} value={jobTitle}>{jobTitle}</option>
-                                ))}
-                            </select>
-                        </CollapsibleFilterSection>
+                        <TutorialHighlight tutorialKey="reviewJobFamilyExpectations">
+                            <CollapsibleFilterSection title="Review Job Family Expectations" isCollapsed={collapsedFilters.jobFamily} onToggle={() => onToggleFilterCollapse('jobFamily')}>
+                                <select
+                                    value={jobFamilyToDisplayInPopup?.title || ""}
+                                    onChange={e => onJobFamilySelectForPopup(e.target.value)} // Use the callback from parent
+                                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                >
+                                    <option value="">Select a Position to View...</option>
+                                    {Object.keys(jobFamilyData).sort().map(jobTitle => (
+                                        <option key={jobTitle} value={jobTitle}>{jobTitle}</option>
+                                    ))}
+                                </select>
+                            </CollapsibleFilterSection>
+                        </TutorialHighlight>
                         {levelFilterUI}
                         <CollapsibleFilterSection title="Filter by Trade" isCollapsed={collapsedFilters.trade} onToggle={() => onToggleFilterCollapse('trade')}>
                             <select value={selectedTrade} onChange={e => onFilterChange('selectedTrade', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>

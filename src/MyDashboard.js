@@ -246,19 +246,20 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                 </div>
                             </TutorialHighlight>
                         )}
-                        {/* Replaced button with dropdown for Job Family Display */}
-                        <div className="w-72">
-                            <select
-                                value={jobFamilyToDisplayInPopup?.title || ""} // Bind to the job family currently in the popup
-                                onChange={handleJobFamilyDropdownChange}
-                                className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                            >
-                                <option value="">Review Job Family Expectations...</option>
-                                {Object.keys(jobFamilyData).sort().map(title => (
-                                    <option key={title} value={title}>{title}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <TutorialHighlight tutorialKey="reviewJobFamilyExpectations">
+                            <div className="w-72">
+                                <select
+                                    value={jobFamilyToDisplayInPopup?.title || ""}
+                                    onChange={handleJobFamilyDropdownChange}
+                                    className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                >
+                                    <option value="">Review Job Family Expectations...</option>
+                                    {Object.keys(jobFamilyData).sort().map(title => (
+                                        <option key={title} value={title}>{title}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </TutorialHighlight>
 
                         <TutorialHighlight tutorialKey="goToTimeSheets">
                             <Tooltip text="Click to copy the network path for Field Time Sheets.">
