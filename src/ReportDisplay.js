@@ -119,11 +119,11 @@ const TransposedSkillsReport = ({ headers, data, currentTheme }) => {
 
     return (
         <div className="overflow-auto max-h-[70vh] border border-gray-600 rounded-lg">
-            <table className="text-sm border-collapse">
+            <table className="text-xs border-collapse">
                 <thead className="bg-gray-800 sticky top-0 z-20">
                     <tr>
                         <th 
-                            className="p-2 font-semibold border-b-2 border-r border-gray-600 bg-gray-800 sticky left-0 z-30 align-bottom cursor-pointer"
+                            className="p-1 font-semibold border-b-2 border-r border-gray-600 bg-gray-800 sticky left-0 z-30 align-bottom cursor-pointer"
                             onClick={() => requestSort('attribute')}
                         >
                             Skill{getSortIndicator('attribute')}
@@ -131,7 +131,7 @@ const TransposedSkillsReport = ({ headers, data, currentTheme }) => {
                         {finalHeaders.map(employee => (
                             <th 
                                 key={employee.id} 
-                                className="p-2 font-semibold border-b-2 border-r border-gray-600 text-center h-32 align-bottom cursor-pointer"
+                                className="p-1 font-semibold border-b-2 border-r border-gray-600 text-center h-28 align-bottom cursor-pointer"
                                 onClick={() => requestSort(employee.id)}
                             >
                                <div className="[writing-mode:vertical-rl] transform rotate-180 whitespace-nowrap">
@@ -151,14 +151,14 @@ const TransposedSkillsReport = ({ headers, data, currentTheme }) => {
                         return (
                             <tr key={skillRow.attribute} className={`${rowClass} ${isAltRow ? 'bg-gray-700/50' : ''}`}>
                                 <th 
-                                    className={`p-2 font-semibold border-r border-gray-600 bg-gray-800 sticky left-0 z-10 text-left ${isSortableSkill ? 'cursor-pointer' : ''}`}
+                                    className={`p-1 font-semibold border-r border-gray-600 bg-gray-800 sticky left-0 z-10 text-left ${isSortableSkill ? 'cursor-pointer' : ''}`}
                                     onClick={() => isSortableSkill && requestColumnSort(skillRow.attribute)}
                                 >
                                     {skillRow.attribute}
                                     {getColumnSortIndicator(skillRow.attribute)}
                                 </th>
                                 {skillRow.values.map((cell, cellIndex) => (
-                                    <td key={`${cell.employeeId}-${cellIndex}`} className={`p-2 border-r border-gray-600 text-center ${skillRow.attribute === 'Primary Trade' ? 'font-bold' : ''}`}>
+                                    <td key={`${cell.employeeId}-${cellIndex}`} className={`p-1 border-r border-gray-600 text-center ${skillRow.attribute === 'Primary Trade' ? 'font-bold' : ''}`}>
                                         {cell.value}
                                     </td>
                                 ))}
