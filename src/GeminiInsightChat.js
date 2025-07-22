@@ -41,11 +41,25 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
         let prompt;
         // If this is the first message, prepend the system context
         if (chatHistoryRef.current.length === 0) {
-            const dataSample = reportContext.data.slice(0, 20).map(row => row.join(', ')).join('; ');
-            const jobFamilyContext = JSON.stringify(jobFamilyData); // Stringify job family data
+            let dataSample;
+            if (reportContext.type === 'employee-details' && reportContext.data[0] && typeof reportContext.data[0] === 'object' && !Array.isArray(reportContext.data[0])) {
+                dataSample = reportContext.data.slice(0, 20).map(row => 
+                    `${row.attribute}: ${row.values.map(v => v.value).join(', ')}`
+                ).join('; ');
+            } else {
+                dataSample = reportContext.data.slice(0, 20).map(row => row.join(', ')).join('; ');
+            }
+
+            // *** FIX STARTS HERE ***
+            // The headers for 'employee-details' are objects {id, name}. We need to extract the name.
+            // This now handles both string headers and object headers.
+            const formattedHeaders = reportContext.headers.map(h => (typeof h === 'object' && h.name) ? h.name : h).join(', ');
+            // *** FIX ENDS HERE ***
+
+            const jobFamilyContext = JSON.stringify(jobFamilyData);
 
             prompt = `
-                CONTEXT: You are an expert analyst for a workforce productivity application. The user has generated a report of type "${reportContext.type}". The columns are: ${reportContext.headers.join(', ')}. Here is a sample of the data (rows separated by ';'):
+                CONTEXT: You are an expert analyst for a workforce productivity application. The user has generated a report of type "${reportContext.type}". The columns are: ${formattedHeaders}. Here is a sample of the data (rows separated by ';'):
                 ${dataSample}
 
                 Additionally, here is the job family data, which defines various positions, their responsibilities, and skills:
@@ -59,14 +73,12 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
             prompt = currentInput;
         }
 
-        // Add user message to the history for the API call
         chatHistoryRef.current.push({ role: 'user', parts: [{ text: prompt }] });
         
         try {
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                // The body now only contains the valid chat history
                 body: JSON.stringify({ contents: chatHistoryRef.current })
             });
 
@@ -85,7 +97,6 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
             const newModelMessage = { role: 'model', text: modelResponse };
             setMessages(prev => [...prev, newModelMessage]);
 
-            // Add model response to the history for the next API call
             chatHistoryRef.current.push({ role: 'model', parts: [{ text: modelResponse }] });
 
         } catch (err) {
