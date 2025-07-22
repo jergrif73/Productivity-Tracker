@@ -6,11 +6,11 @@ import JobFamilyEditor from './JobFamilyEditor'; // Standard default import
 import { jobFamilyData as initialJobFamilyData } from './job-family-data';
 import { TutorialHighlight } from './App';
 
-const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }) => {
+const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, hideJobFamilyDisplay = false }) => { // Added hideJobFamilyDisplay prop
     const svgRef = useRef(null);
-    const [selectedJob, setSelectedJob] = useState('');
+    const [selectedJob, setSelectedJob] = useState(''); // This state will no longer directly drive display if hideJobFamilyDisplay is true
     const [jobFamilyData, setJobFamilyData] = useState({});
-    const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [isEditorOpen, setIsEditorOpen] = useState(false); // This state is now only for the internal JobFamilyEditor modal if it's still used here.
 
     useEffect(() => {
         if (!db || !appId) return;
@@ -42,7 +42,8 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
         return () => unsubscribe();
     }, [db, appId]);
 
-    const jobToDisplay = jobFamilyData[selectedJob];
+    // jobToDisplay will only be set if hideJobFamilyDisplay is false (i.e., when this component is the primary displayer)
+    const jobToDisplay = !hideJobFamilyDisplay && jobFamilyData[selectedJob];
 
     const { data, skillNames, employeeNames, employeeTradeMap } = useMemo(() => {
         const generalSkillOrder = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
@@ -206,30 +207,35 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
 
     return (
         <div id="skill-matrix-printable-area">
-            <div className="mb-4 p-4 flex items-end gap-4">
-                <div>
-                    <label htmlFor="job-family-select" className={`block mb-2 text-sm font-medium ${currentTheme.textColor}`}>Review Job Family Expectations:</label>
-                    <select
-                        id="job-family-select"
-                        value={selectedJob}
-                        onChange={(e) => setSelectedJob(e.target.value)}
-                        className={`w-full max-w-xs p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                    >
-                        <option value="">Select a Position...</option>
-                        {Object.keys(jobFamilyData).sort().map(jobTitle => (
-                            <option key={jobTitle} value={jobTitle}>{jobTitle}</option>
-                        ))}
-                    </select>
+            {/* The Job Family Review section is now conditionally rendered based on hideJobFamilyDisplay */}
+            {/* This section is removed as per user request to move "Manage Positions" button */}
+            {/* {!hideJobFamilyDisplay && (
+                <div className="mb-4 p-4 flex items-end gap-4">
+                    <div>
+                        <label htmlFor="job-family-select" className={`block mb-2 text-sm font-medium ${currentTheme.textColor}`}>Review Job Family Expectations:</label>
+                        <select
+                            id="job-family-select"
+                            value={selectedJob}
+                            onChange={(e) => setSelectedJob(e.target.value)}
+                            className={`w-full max-w-xs p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        >
+                            <option value="">Select a Position...</option>
+                            {Object.keys(jobFamilyData).sort().map(jobTitle => (
+                                <option key={jobTitle} value={jobTitle}>{jobTitle}</option>
+                            ))}
+                        </select>
+                    </div>
+                    {accessLevel === 'taskmaster' && (
+                        <TutorialHighlight tutorialKey="manageJobPositions">
+                            <button onClick={() => setIsEditorOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                                Manage Positions
+                            </button>
+                        </TutorialHighlight>
+                    )}
                 </div>
-                {accessLevel === 'taskmaster' && (
-                    <TutorialHighlight tutorialKey="manageJobPositions">
-                        <button onClick={() => setIsEditorOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                            Manage Positions
-                        </button>
-                    </TutorialHighlight>
-                )}
-            </div>
+            )} */}
 
+            {/* The JobFamilyEditor modal is now opened directly from ReportingConsole.js */}
             {isEditorOpen && (
                  <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
                     <div className={`bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}>
@@ -238,13 +244,14 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel }
                  </div>
             )}
 
-            {jobToDisplay && (
+            {/* The direct display of jobToDisplay is also conditionally rendered and now effectively always hidden here */}
+            {jobToDisplay && !hideJobFamilyDisplay && (
                 <div className={`p-4 mb-4 border-t ${currentTheme.borderColor}`}>
                     <h3 className={`text-xl font-bold mb-3 ${currentTheme.textColor}`}>{jobToDisplay.title}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                         <div>
                             <h4 className="font-semibold mb-2 text-base">Primary Responsibilities</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
+                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-0 */}
                                 {(jobToDisplay.primaryResponsibilities || []).map((item, index) => (
                                     <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
                                         <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}

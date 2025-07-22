@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { NavigationContext, TutorialHighlight } from './App';
 import { collection, onSnapshot } from 'firebase/firestore'; // Import Firestore functions
+import MovableJobFamilyDisplay from './MovableJobFamilyDisplay'; // Import MovableJobFamilyDisplay
+import { AnimatePresence } from 'framer-motion'; // Import AnimatePresence
 
 // Re-import Tooltip if it's not globally available or passed down
 const Tooltip = ({ text, children }) => {
@@ -18,19 +20,21 @@ const Tooltip = ({ text, children }) => {
 };
 
 
-const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, currentTheme, navigateToView, accessLevel, showToast, db, appId }) => { // Added db and appId
+const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, currentTheme, navigateToView, accessLevel, showToast, db, appId }) => {
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
 
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     const [jobFamilyData, setJobFamilyData] = useState({}); // State to hold job family data
+    
+    // New states for Movable Job Family Display popup
+    const [isJobFamilyPopupVisible, setIsJobFamilyPopupVisible] = useState(false);
+    const [jobFamilyToDisplayInPopup, setJobFamilyToDisplayInPopup] = useState(null);
 
     // Effect to set the initial selected employee if currentUser is a specific detailer
     useEffect(() => {
         if (currentUser && !['taskmaster_user', 'tcl_user', 'viewer_user'].includes(currentUser.id)) {
-            // If the current user is a specific detailer, pre-select them
             setSelectedEmployeeId(currentUser.id);
         } else {
-            // For generic roles or on logout, ensure it's null
             setSelectedEmployeeId(null);
         }
     }, [currentUser]);
@@ -54,47 +58,50 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
         return detailers.find(d => d.id === selectedEmployeeId);
     }, [selectedEmployeeId, detailers]);
 
-    const { myAssignments, topDisciplineSkills, topGeneralSkills, jobToDisplay } = useMemo(() => {
-        if (!selectedEmployee) return { myAssignments: [], topDisciplineSkills: [], topGeneralSkills: [], jobToDisplay: null };
+    // Separate memo for job family data to display embedded (based on selected employee)
+    const jobFamilyForEmbeddedDisplay = useMemo(() => {
+        if (selectedEmployee && selectedEmployee.title && jobFamilyData[selectedEmployee.title]) {
+            return jobFamilyData[selectedEmployee.title];
+        }
+        return null;
+    }, [selectedEmployee, jobFamilyData]);
 
-        const assignmentsForEmployee = assignments.filter(a => a.detailerId === selectedEmployee.id);
 
+    const { myAssignments, topDisciplineSkills, topGeneralSkills } = useMemo(() => {
         let disciplineSkills = [];
         let generalSkills = [];
+        let assignmentsForEmployee = [];
 
-        if (accessLevel === 'taskmaster') {
-            // Process discipline skills
-            if (selectedEmployee.disciplineSkillsets && Array.isArray(selectedEmployee.disciplineSkillsets)) {
-                disciplineSkills = [...selectedEmployee.disciplineSkillsets]
-                    .sort((a, b) => (b.score || 0) - (a.score || 0))
-                    .slice(0, 3); // Top 3 discipline skills
-            }
-            // Process general skills (Skill Assessment)
-            if (selectedEmployee.skills) {
-                Object.entries(selectedEmployee.skills).forEach(([skillName, score]) => {
-                    generalSkills.push({ name: skillName, score: score });
-                });
-                generalSkills = generalSkills
-                    .sort((a, b) => (b.score || 0) - (a.score || 0))
-                    .slice(0, 3); // Top 3 general skills
+        if (selectedEmployee) {
+            assignmentsForEmployee = assignments.filter(a => a.detailerId === selectedEmployee.id);
+
+            if (accessLevel === 'taskmaster') {
+                if (selectedEmployee.disciplineSkillsets && Array.isArray(selectedEmployee.disciplineSkillsets)) {
+                    disciplineSkills = [...selectedEmployee.disciplineSkillsets]
+                        .sort((a, b) => (b.score || 0) - (a.score || 0))
+                        .slice(0, 3);
+                }
+                if (selectedEmployee.skills) {
+                    Object.entries(selectedEmployee.skills).forEach(([skillName, score]) => {
+                        generalSkills.push({ name: skillName, score: score });
+                    });
+                    generalSkills = generalSkills
+                        .sort((a, b) => (b.score || 0) - (a.score || 0))
+                        .slice(0, 3);
+                }
             }
         }
-
-        // Find job family data based on the selected employee's title
-        const jobFamilyDetails = selectedEmployee.title ? jobFamilyData[selectedEmployee.title] : null;
-
+        
         return {
             myAssignments: assignmentsForEmployee,
             topDisciplineSkills: disciplineSkills,
             topGeneralSkills: generalSkills,
-            jobToDisplay: jobFamilyDetails
         };
-    }, [selectedEmployee, assignments, accessLevel, jobFamilyData]); // Added jobFamilyData to dependencies
+    }, [selectedEmployee, assignments, accessLevel]);
 
     const { upcomingTasks, otherTasks, allOpenTasks } = useMemo(() => {
         if (!selectedEmployee) return { upcomingTasks: [], otherTasks: [], allOpenTasks: [] };
 
-        // Filter tasks that are not 'Completed' or 'Deleted' to show in dashboard
         const myOpenTasks = tasks.filter(t => t.detailerId === selectedEmployee.id && t.status !== 'Completed' && t.status !== 'Deleted');
 
         const sevenDaysFromNow = new Date();
@@ -118,15 +125,14 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
         let next = 0;
 
         const today = new Date();
-        // Declare all date variables upfront to avoid 'no-use-before-define'
         const startOfCurrentWeek = new Date(today.setDate(today.getDate() - today.getDay()));
         startOfCurrentWeek.setHours(0, 0, 0, 0);
         const endOfCurrentWeek = new Date(startOfCurrentWeek);
         endOfCurrentWeek.setDate(startOfCurrentWeek.getDate() + 6);
 
         const startOfNextWeek = new Date(endOfCurrentWeek);
-        startOfNextWeek.setDate(startOfNextWeek.getDate() + 1); // Corrected: use startOfNextWeek itself
-        const endOfNextWeek = new Date(startOfNextWeek); // This was the line causing the warning
+        startOfNextWeek.setDate(startOfNextWeek.getDate() + 1);
+        const endOfNextWeek = new Date(startOfNextWeek);
         endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
 
         myAssignments.forEach(ass => {
@@ -147,12 +153,11 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
         if (!selectedEmployee) return [];
         const projectMap = new Map();
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize today's date to start of day
+        today.setHours(0, 0, 0, 0);
 
-        // Filter assignments to include only those active from today onwards
         const relevantAssignments = myAssignments.filter(ass => {
             const assignEnd = new Date(ass.endDate);
-            assignEnd.setHours(23, 59, 59, 999); // Normalize end date to end of day
+            assignEnd.setHours(23, 59, 59, 999);
             return assignEnd >= today;
         });
 
@@ -192,12 +197,37 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
         }
     };
 
+    // New handler for the job family dropdown change
+    const handleJobFamilyDropdownChange = (e) => {
+        const selectedTitle = e.target.value;
+        if (selectedTitle) {
+            setJobFamilyToDisplayInPopup(jobFamilyData[selectedTitle]);
+            setIsJobFamilyPopupVisible(true);
+        } else {
+            setIsJobFamilyPopupVisible(false);
+            setJobFamilyToDisplayInPopup(null);
+        }
+    };
+
     return (
         <TutorialHighlight tutorialKey="dashboard">
             <div className={`p-6 h-full flex flex-col ${currentTheme.consoleBg}`}>
+                <AnimatePresence>
+                    {isJobFamilyPopupVisible && (
+                        <MovableJobFamilyDisplay
+                            jobToDisplay={jobFamilyToDisplayInPopup}
+                            currentTheme={currentTheme}
+                            onClose={() => {
+                                setIsJobFamilyPopupVisible(false);
+                                setJobFamilyToDisplayInPopup(null);
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
+
                 <div className="flex justify-between items-center mb-6 flex-shrink-0">
                     <h1 className={`text-3xl font-bold ${currentTheme.textColor}`}>
-                        {selectedEmployee ? `Dashboard for ${selectedEmployee.firstName} ${selectedEmployee.lastName}` : "My Dashboard"}
+                        My Dashboard
                     </h1>
                     <div className="flex items-center gap-4">
                         {(accessLevel === 'taskmaster' || accessLevel === 'tcl' || accessLevel === 'viewer') && (
@@ -216,6 +246,20 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                 </div>
                             </TutorialHighlight>
                         )}
+                        {/* Replaced button with dropdown for Job Family Display */}
+                        <div className="w-72">
+                            <select
+                                value={jobFamilyToDisplayInPopup?.title || ""} // Bind to the job family currently in the popup
+                                onChange={handleJobFamilyDropdownChange}
+                                className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            >
+                                <option value="">Review Job Family Expectations...</option>
+                                {Object.keys(jobFamilyData).sort().map(title => (
+                                    <option key={title} value={title}>{title}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         <TutorialHighlight tutorialKey="goToTimeSheets">
                             <Tooltip text="Click to copy the network path for Field Time Sheets.">
                                 <button
@@ -230,7 +274,7 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                 </div>
 
                 <div className="h-[calc(100vh-250px)] overflow-y-auto hide-scrollbar-on-hover">
-                    {!selectedEmployee ? (
+                    {!selectedEmployee ? ( // Only show placeholder if no employee is selected
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="md:col-span-1 space-y-6">
                                 <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor} h-48 flex items-center justify-center`}>
@@ -312,35 +356,36 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                         </div>
                                     </TutorialHighlight>
                                 )}
-                                {jobToDisplay && (
+                                {/* Embedded Job Family Display - now explicitly tied to selected employee */}
+                                {jobFamilyForEmbeddedDisplay && (
                                     <TutorialHighlight tutorialKey="jobFamilyDisplay">
                                         <div className={`${currentTheme.cardBg} p-6 rounded-lg shadow-lg border ${currentTheme.borderColor}`}>
-                                            <h2 className="text-xl font-semibold mb-4">Job Family: {jobToDisplay.title}</h2>
+                                            <h2 className="text-xl font-semibold mb-4">Job Family: {jobFamilyForEmbeddedDisplay.title}</h2>
                                             <div className="space-y-4 text-sm">
                                                 <div>
                                                     <h3 className="font-semibold mb-2 text-base">Primary Responsibilities</h3>
-                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
-                                                        {(jobToDisplay.primaryResponsibilities || []).map((item, index) => (
+                                                    <ul className="space-y-1 list-none pl-0">
+                                                        {(jobFamilyForEmbeddedDisplay.primaryResponsibilities || []).map((item, index) => (
                                                             <li key={index} className="flex items-start">
-                                                                <span className="w-6 flex-shrink-0 text-left">•</span> {/* Increased width of bullet span */}
+                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
                                                                 <span className="flex-grow text-left">{item}</span>
                                                             </li>
                                                         ))}
                                                     </ul>
                                                     <h3 className="font-semibold mt-4 mb-2 text-base">Independence and Decision-Making</h3>
-                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
-                                                        {(jobToDisplay.independenceAndDecisionMaking || []).map((item, index) => (
+                                                    <ul className="space-y-1 list-none pl-0">
+                                                        {(jobFamilyForEmbeddedDisplay.independenceAndDecisionMaking || []).map((item, index) => (
                                                             <li key={index} className="flex items-start">
-                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="w-6 flex-shrink-0">•</span>
                                                                 <span className="flex-grow text-left">{item}</span>
                                                             </li>
                                                         ))}
                                                     </ul>
                                                     <h3 className="font-semibold mt-4 mb-2 text-base">Leadership</h3>
-                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
-                                                        {(jobToDisplay.leadership || []).map((item, index) => (
+                                                    <ul className="space-y-1 list-none pl-0">
+                                                        {(jobFamilyForEmbeddedDisplay.leadership || []).map((item, index) => (
                                                             <li key={index} className="flex items-start">
-                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="w-6 flex-shrink-0">•</span>
                                                                 <span className="flex-grow text-left">{item}</span>
                                                             </li>
                                                         ))}
@@ -348,48 +393,32 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                                 </div>
                                                 <div>
                                                     <h3 className="font-semibold mb-2 text-base">Knowledge and Skills</h3>
-                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
-                                                        {(jobToDisplay.knowledgeAndSkills || []).map((item, index) => (
+                                                    <ul className="space-y-1 list-none pl-0">
+                                                        {(jobFamilyForEmbeddedDisplay.knowledgeAndSkills || []).map((item, index) => (
                                                             <li key={index} className="flex items-start">
-                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="w-6 flex-shrink-0">•</span>
                                                                 <span className="flex-grow text-left">{item}</span>
                                                             </li>
                                                         ))}
                                                     </ul>
                                                     <h3 className="font-semibold mt-4 mb-2 text-base">Education</h3>
-                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
-                                                        {(jobToDisplay.education || []).map((item, index) => (
+                                                    <ul className="space-y-1 list-none pl-0">
+                                                        {(jobFamilyForEmbeddedDisplay.education || []).map((item, index) => (
                                                             <li key={index} className="flex items-start">
-                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="w-6 flex-shrink-0">•</span>
                                                                 <span className="flex-grow text-left">{item}</span>
                                                             </li>
                                                         ))}
                                                     </ul>
                                                     <h3 className="font-semibold mt-4 mb-2 text-base">Years of Experience Preferred</h3>
-                                                    <ul className="space-y-1 list-none pl-0"> {/* Added list-none and pl-0 */}
-                                                        {(jobToDisplay.yearsOfExperiencePreferred || []).map((item, index) => (
+                                                    <ul className="space-y-1 list-none pl-0">
+                                                        {(jobFamilyForEmbeddedDisplay.yearsOfExperiencePreferred || []).map((item, index) => (
                                                             <li key={index} className="flex items-start">
-                                                                <span className="w-6 flex-shrink-0 text-left">•</span>
+                                                                <span className="w-6 flex-shrink-0">•</span>
                                                                 <span className="flex-grow text-left">{item}</span>
                                                             </li>
                                                         ))}
                                                     </ul>
-                                                    {/* Removed Preferred Experience section */}
-                                                    {/* <h3 className="font-semibold mt-4 mb-2 text-base">Preferred Experience</h3>
-                                                    <ul className="space-y-1 list-none">
-                                                        {jobToDisplay.experience && (
-                                                            <li className="flex items-start">
-                                                                <span className="w-4 flex-shrink-0">•</span>
-                                                                <span className="flex-grow">{jobToDisplay.experience}</span>
-                                                            </li>
-                                                        )}
-                                                        {!jobToDisplay.experience && (
-                                                            <li className="flex items-start">
-                                                                <span className="w-4 flex-shrink-0">•</span>
-                                                                <span className="flex-grow">N/A</span>
-                                                            </li>
-                                                        )}
-                                                    </ul> */}
                                                 </div>
                                             </div>
                                         </div>
@@ -457,7 +486,7 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                                                                         </div>
                                                                     </div>
                                                                 );
-                                                            }) : <p className={`${currentTheme.subtleText} text-sm`}>No other open tasks.</p>}
+                                                            }) : <p className={`${currentTheme.subtleText} text-sm`}>You have no open tasks.</p>}
                                                         </div>
                                                     </div>
                                                 </>
