@@ -396,7 +396,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     return (
         <TutorialHighlight tutorialKey="workloader">
         <div className="p-4 space-y-4 h-full flex flex-col">
-             <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4`}>
+             <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
                  <div className="flex items-center gap-2">
                      <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
                      <button onClick={() => setStartDate(new Date())} className={`p-2 px-4 border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
@@ -461,7 +461,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
              </div>
 
             <TutorialHighlight tutorialKey="dynamicTimeline">
-            <div className={`overflow-auto border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow hide-scrollbar-on-hover`}>
+            <div className={`border rounded-lg ${currentTheme.cardBg} ${currentTheme.borderColor} shadow-sm flex-grow overflow-auto hide-scrollbar-on-hover`}>
                 <table className="min-w-full text-sm text-left border-collapse">
                     <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                         <tr>

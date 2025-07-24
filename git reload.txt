@@ -1,5 +1,5 @@
 git add .
-git commit -m "Enhanced Job Families"
+git commit -m "Add favicons to index.html for Netlify website"
 git push origin main
 
 

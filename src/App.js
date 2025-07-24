@@ -29,19 +29,7 @@ const firebaseConfig = {
 };
 
 // --- Gemini API Configuration ---
-// =================================================================================================
-// =================================== IMPORTANT: ACTION REQUIRED ===================================
-//
-// To use the AI-Powered Insights feature, you need a Google Generative AI API key.
-//
-// 1. Get your free API key from Google AI Studio: https://makersuite.google.com/app/apikey
-// 2. Create a file named .env in the root directory (next to src)
-// 3. Add your key to the .env file like this: REACT_APP_GEMINI_API_KEY=YOUR_API_KEY_HERE
-//
-// =================================================================================================
 const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY;
-// =================================================================================================
-// =================================================================================================
 
 
 // --- Firebase Initialization ---
@@ -658,11 +646,10 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                 </button>
                         </div>
                     </header>
-                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0 flex flex-col`}>
+                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0 overflow-y-auto`}>
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={view}
-                                className="flex-1 min-h-0"
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -20 }}
