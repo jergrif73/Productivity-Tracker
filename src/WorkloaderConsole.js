@@ -95,8 +95,8 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const [groupBy, setGroupBy] = useState('project');
     const [sortBy, setSortBy] = useState('projectId');
     const [searchTerm, setSearchTerm] = useState('');
-    const [dragFillStart, setDragFillStart] = useState(null);
-    const [dragFillEnd, setDragFillEnd] = useState(null);
+    // Unified drag state: { type: 'move-start' | 'extend-end' | 'new-assignment', assignment: object, initialWeekIndex: number, currentWeekIndex: number }
+    const [dragState, setDragState] = useState(null); 
     const [editingCell, setEditingCell] = useState(null);
     const popupRef = useRef(null);
     const [expandedIds, setExpandedIds] = useState(new Set());
@@ -205,6 +205,15 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             }
         });
 
+        // Ensure that if there are no assignments, we still show the current week
+        if (activeWeekStrings.size === 0 && weekDates.length > 0) {
+            const today = new Date();
+            const currentWeekStart = new Date(today);
+            currentWeekStart.setDate(today.getDate() - today.getDay());
+            activeWeekStrings.add(currentWeekStart.toISOString().split('T')[0]);
+        }
+
+
         return weekDates.filter(week => activeWeekStrings.has(week.toISOString().split('T')[0]));
 
     }, [weekDates, groupBy, projectGroupedData, employeeGroupedData]);
@@ -225,13 +234,16 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     }
 
     const handleCellClick = (e, assignment, weekIndex) => {
-        if (!isTaskmaster) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        setEditingCell({
-            assignment,
-            position: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX },
-            weekIndex
-        });
+        // Only open the popup if no drag operation is currently active
+        if (!dragState) {
+            if (!isTaskmaster) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            setEditingCell({
+                assignment,
+                position: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX },
+                weekIndex
+            });
+        }
     };
 
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
@@ -296,26 +308,75 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     };
 
     const handleMouseUp = useCallback(async () => {
-        if (!dragFillStart || dragFillEnd === null) return;
+        if (!dragState) return;
 
-        const { assignment } = dragFillStart;
-        const { weekIndex: endIndex } = dragFillEnd;
-
-        const newEndDate = new Date(displayableWeekDates[endIndex]);
-        newEndDate.setDate(newEndDate.getDate() + 6);
-
+        const { type, assignment, initialWeekIndex, currentWeekIndex } = dragState;
         const assignmentRef = doc(db, `artifacts/${appId}/public/data/assignments`, assignment.id);
-        try {
-            await updateDoc(assignmentRef, {
-                endDate: newEndDate.toISOString().split('T')[0]
-            });
-        } catch (e) {
-            console.error("Error updating assignment end date:", e);
+        let updatedStartDate = new Date(assignment.startDate);
+        let updatedEndDate = new Date(assignment.endDate);
+
+        const newWeekDate = displayableWeekDates[currentWeekIndex];
+        if (!newWeekDate) { // Should not happen if currentWeekIndex is valid
+            setDragState(null);
+            return;
         }
 
-        setDragFillStart(null);
-        setDragFillEnd(null);
-    }, [dragFillStart, dragFillEnd, displayableWeekDates, appId, db]);
+        const newWeekStart = new Date(newWeekDate);
+        newWeekStart.setUTCHours(0, 0, 0, 0);
+        const newWeekEnd = new Date(newWeekStart);
+        newWeekEnd.setUTCDate(newWeekEnd.getUTCDate() + 6);
+
+        try {
+            if (type === 'extend-end') {
+                updatedEndDate = newWeekEnd;
+                // Ensure end date doesn't go before start date
+                if (updatedEndDate < updatedStartDate) {
+                    updatedEndDate = updatedStartDate;
+                }
+            } else if (type === 'move-start') {
+                updatedStartDate = newWeekStart;
+                // Ensure start date doesn't go after end date
+                if (updatedStartDate > updatedEndDate) {
+                    updatedStartDate = updatedEndDate;
+                }
+            } else if (type === 'new-assignment') {
+                const finalStartWeekIndex = Math.min(initialWeekIndex, currentWeekIndex);
+                const finalEndWeekIndex = Math.max(initialWeekIndex, currentWeekIndex);
+
+                updatedStartDate = new Date(displayableWeekDates[finalStartWeekIndex]);
+                updatedStartDate.setUTCHours(0, 0, 0, 0);
+                updatedEndDate = new Date(displayableWeekDates[finalEndWeekIndex]);
+                updatedEndDate.setUTCDate(updatedEndDate.getUTCDate() + 6); // End of the selected week for end date
+
+                // If allocation is 0 or missing, set to 100. Otherwise, keep existing.
+                const newAllocation = (Number(assignment.allocation) || 0) === 0 ? 100 : assignment.allocation;
+                // If trade is missing, set to 'Coordination'. Otherwise, keep existing.
+                const newTrade = assignment.trade || 'Coordination';
+
+                await updateDoc(assignmentRef, {
+                    startDate: updatedStartDate.toISOString().split('T')[0],
+                    endDate: updatedEndDate.toISOString().split('T')[0],
+                    allocation: newAllocation,
+                    trade: newTrade,
+                });
+                showToast("Incomplete assignment updated with new dates and defaults.", "success");
+                setDragState(null);
+                return; // Exit early as update is complete
+            }
+
+            // For 'move-start' and 'extend-end'
+            await updateDoc(assignmentRef, {
+                startDate: updatedStartDate.toISOString().split('T')[0],
+                endDate: updatedEndDate.toISOString().split('T')[0],
+            });
+            showToast("Assignment dates updated.", "success");
+        } catch (e) {
+            console.error("Error updating assignment dates:", e);
+            showToast("Error updating assignment dates.", "error");
+        } finally {
+            setDragState(null);
+        }
+    }, [dragState, displayableWeekDates, assignments, db, appId, showToast]);
 
     const toggleExpansion = (id) => {
         setExpandedIds(prev => {
@@ -444,6 +505,12 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
     };
 
+    // Helper to check if a week is within a given date range
+    const isWeekInRange = useCallback((weekStart, rangeStart, rangeEnd) => {
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        return weekStart <= rangeEnd && weekEnd >= rangeStart;
+    }, []);
 
     return (
         <TutorialHighlight tutorialKey="workloader">
@@ -610,26 +677,53 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                 {displayableWeekDates.map((weekStart, weekIndex) => {
                                                     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
                                                     const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
-                                                    let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
+                                                    let isAssigned = isWeekInRange(weekStart, assignStart, assignEnd);
                                                     const tooltipText = isAssigned ? `Trade: ${assignment.trade || 'N/A'}` : '';
 
-                                                    let isFillHighlighted = false;
-                                                    if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
-                                                        const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                        const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                        if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
-                                                    }
+                                                    // Determine if this cell is part of the current drag highlight
+                                                    const isHighlighted = dragState && dragState.assignment.id === assignment.id &&
+                                                        ((dragState.type === 'move-start' && weekIndex >= dragState.currentWeekIndex && isWeekInRange(weekStart, assignStart, assignEnd)) ||
+                                                        (dragState.type === 'extend-end' && weekIndex <= dragState.currentWeekIndex && isWeekInRange(weekStart, assignStart, assignEnd)) ||
+                                                        (dragState.type === 'new-assignment' && weekIndex >= Math.min(dragState.initialWeekIndex, dragState.currentWeekIndex) && weekIndex <= Math.max(dragState.initialWeekIndex, dragState.currentWeekIndex)));
 
                                                     return (
                                                         <td key={weekStart.toISOString()}
-                                                            className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
-                                                            onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
+                                                            className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}
+                                                                ${isHighlighted ? 'bg-blue-400 opacity-70' : ''} 
+                                                            `}
+                                                            onMouseEnter={() => {
+                                                                if (dragState && dragState.assignment.id === assignment.id) {
+                                                                    setDragState(prev => ({ ...prev, currentWeekIndex: weekIndex }));
+                                                                }
+                                                            }}
+                                                            onMouseDown={(e) => { 
+                                                                if (isTaskmaster && isAssignmentIncomplete(assignment)) {
+                                                                    e.preventDefault(); 
+                                                                    setDragState({
+                                                                        type: 'new-assignment',
+                                                                        assignment: assignment,
+                                                                        initialWeekIndex: weekIndex,
+                                                                        currentWeekIndex: weekIndex,
+                                                                    });
+                                                                }
+                                                            }}
                                                             onClick={(e) => handleCellClick(e, assignment, weekIndex)}
                                                         >
                                                         <TutorialHighlight tutorialKey={projectIndex === 0 && assignmentIndex === 0 && weekIndex === 0 ? "editAssignments" : ""}>
-                                                            {(isAssigned || isFillHighlighted) && (
+                                                            {(isAssigned || isHighlighted) && ( 
                                                             <Tooltip text={tooltipText}>
-                                                                <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                <div className={`h-full w-full flex items-center justify-center p-1 ${isHighlighted ? 'bg-purple-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                    {isTaskmaster && isAssigned && (
+                                                                        <div
+                                                                            className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                            onMouseDown={(e) => {
+                                                                                e.preventDefault(); e.stopPropagation();
+                                                                                setDragState({ type: 'move-start', assignment, initialWeekIndex: weekIndex, currentWeekIndex: weekIndex });
+                                                                            }}
+                                                                        >
+                                                                            <div className="h-full w-1 bg-white/50 rounded-l"></div>
+                                                                        </div>
+                                                                    )}
                                                                     <span>{assignment.allocation}%</span>
                                                                     {isTaskmaster && isAssigned && (
                                                                         <TutorialHighlight tutorialKey="dragFillAssignment">
@@ -637,10 +731,10 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                             className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                             onMouseDown={(e) => {
                                                                                 e.preventDefault(); e.stopPropagation();
-                                                                                setDragFillStart({ assignment, weekIndex });
+                                                                                setDragState({ type: 'extend-end', assignment, initialWeekIndex: weekIndex, currentWeekIndex: weekIndex });
                                                                             }}
                                                                         >
-                                                                            <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                            <div className="h-full w-1 bg-white/50 rounded-r"></div>
                                                                         </div>
                                                                         </TutorialHighlight>
                                                                     )}
@@ -720,35 +814,62 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                             {displayableWeekDates.map((weekStart, weekIndex) => {
                                                 const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
                                                 const assignStart = new Date(assignment.startDate); const assignEnd = new Date(assignment.endDate);
-                                                let isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
+                                                let isAssigned = isWeekInRange(weekStart, assignStart, assignEnd);
                                                 const tooltipText = isAssigned ? `Project: ${assignment.projectName}` : '';
 
-                                                let isFillHighlighted = false;
-                                                if (dragFillStart && dragFillStart.assignment.id === assignment.id && dragFillEnd) {
-                                                    const minIndex = Math.min(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                    const maxIndex = Math.max(dragFillStart.weekIndex, dragFillEnd.weekIndex);
-                                                    if (weekIndex >= minIndex && weekIndex <= maxIndex) isFillHighlighted = true;
-                                                }
+                                                // Determine if this cell is part of the current drag highlight
+                                                const isHighlighted = dragState && dragState.assignment.id === assignment.id &&
+                                                    ((dragState.type === 'move-start' && weekIndex >= dragState.currentWeekIndex && isWeekInRange(weekStart, assignStart, assignEnd)) ||
+                                                    (dragState.type === 'extend-end' && weekIndex <= dragState.currentWeekIndex && isWeekInRange(weekStart, assignStart, assignEnd)) ||
+                                                    (dragState.type === 'new-assignment' && weekIndex >= Math.min(dragState.initialWeekIndex, dragState.currentWeekIndex) && weekIndex <= Math.max(dragState.initialWeekIndex, dragState.currentWeekIndex)));
 
                                                 return (
                                                     <td key={weekStart.toISOString()}
-                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
-                                                        onMouseEnter={() => { if (dragFillStart) setDragFillEnd({ weekIndex }); }}
+                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}
+                                                            ${isHighlighted ? 'bg-purple-400 opacity-70' : ''}
+                                                        `}
+                                                        onMouseEnter={() => {
+                                                            if (dragState && dragState.assignment.id === assignment.id) {
+                                                                setDragState(prev => ({ ...prev, currentWeekIndex: weekIndex }));
+                                                            }
+                                                        }}
+                                                        onMouseDown={(e) => { 
+                                                            if (isTaskmaster && isAssignmentIncomplete(assignment)) {
+                                                                e.preventDefault(); 
+                                                                setDragState({
+                                                                    type: 'new-assignment',
+                                                                    assignment: assignment,
+                                                                    initialWeekIndex: weekIndex,
+                                                                    currentWeekIndex: weekIndex,
+                                                                });
+                                                            }
+                                                        }}
                                                         onClick={(e) => handleCellClick(e, assignment, weekIndex)}
                                                     >
-                                                        {(isAssigned || isFillHighlighted) && (
+                                                        {(isAssigned || isHighlighted) && ( 
                                                         <Tooltip text={tooltipText}>
-                                                            <div className={`h-full w-full flex items-center justify-center p-1 ${isFillHighlighted ? 'bg-blue-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                            <div className={`h-full w-full flex items-center justify-center p-1 ${isHighlighted ? 'bg-purple-400 opacity-70' : bgColor} ${textColor} text-xs font-bold rounded relative`}>
+                                                                {isTaskmaster && isAssigned && (
+                                                                    <div
+                                                                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
+                                                                        onMouseDown={(e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
+                                                                            setDragState({ type: 'move-start', assignment, initialWeekIndex: weekIndex, currentWeekIndex: weekIndex });
+                                                                        }}
+                                                                    >
+                                                                        <div className="h-full w-1 bg-white/50 rounded-l"></div>
+                                                                    </div>
+                                                                )}
                                                                 <span>{assignment.allocation}%</span>
                                                                 {isTaskmaster && isAssigned && (
                                                                     <div
                                                                         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize"
                                                                         onMouseDown={(e) => {
                                                                             e.preventDefault(); e.stopPropagation();
-                                                                            setDragFillStart({ assignment, weekIndex });
+                                                                            setDragState({ type: 'extend-end', assignment, initialWeekIndex: weekIndex, currentWeekIndex: weekIndex });
                                                                         }}
                                                                     >
-                                                                        <div className="h-full w-1 bg-white/50 rounded"></div>
+                                                                        <div className="h-full w-1 bg-white/50 rounded-r"></div>
                                                                     </div>
                                                                 )}
                                                             </div>
