@@ -5,6 +5,69 @@ import { NavigationContext } from './App'; // Import the new context
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // --- Helper Components ---
+
+// New Modal for creating a project on the fly
+const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme }) => {
+    const [newProject, setNewProject] = useState({ name: '', projectId: '' });
+    const [error, setError] = useState('');
+
+    const handleAddProject = async () => {
+        if (!newProject.name || !newProject.projectId) {
+            setError('Please fill out both Project Name and Project ID.');
+            return;
+        }
+        setError('');
+        try {
+            const projectsRef = collection(db, `artifacts/${appId}/public/data/projects`);
+            const docRef = await addDoc(projectsRef, {
+                ...newProject,
+                initialBudget: 0,
+                blendedRate: 0,
+                bimBlendedRate: 0,
+                contingency: 0,
+                dashboardUrl: '',
+                status: 'Planning',
+                archived: false
+            });
+            onProjectCreated({ id: docRef.id, ...newProject });
+            onClose();
+        } catch (err) {
+            console.error("Error adding new project:", err);
+            setError("Failed to add new project. Please try again.");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[70] flex justify-center items-center">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
+                <h3 className="text-lg font-bold mb-4">Add New Project</h3>
+                <div className="space-y-4">
+                    <input
+                        type="text"
+                        placeholder="Project Name"
+                        value={newProject.name}
+                        onChange={(e) => setNewProject(p => ({ ...p, name: e.target.value }))}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                    <input
+                        type="text"
+                        placeholder="Project ID"
+                        value={newProject.projectId}
+                        onChange={(e) => setNewProject(p => ({ ...p, projectId: e.target.value }))}
+                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                </div>
+                {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                <div className="flex justify-end gap-4 mt-6">
+                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80`}>Cancel</button>
+                    <button onClick={handleAddProject} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">Create Project</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
     if (!isOpen) return null;
     return (
@@ -21,7 +84,7 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, curren
     );
 };
 
-const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onUpdate, onDelete, currentTheme }) => {
+const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onSave, onDelete, currentTheme, onAddNewProject, accessLevel }) => {
     const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
     const sortedProjects = useMemo(() => {
@@ -34,7 +97,7 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
             ...editableAssignment,
             allocation: Number(editableAssignment.allocation)
         };
-        onUpdate(updatedAssignment);
+        onSave(updatedAssignment);
     };
 
     const handleDateChange = (e) => {
@@ -75,16 +138,28 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                     <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Project</label>
-                    <select
-                        value={editableAssignment.projectId || ''}
-                        onChange={handleProjectChange}
-                        className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                    >
-                        <option value="">Select Project</option>
-                        {sortedProjects.map(p => (
-                            <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
-                        ))}
-                    </select>
+                    <div className="flex items-center gap-2">
+                        <select
+                            value={editableAssignment.projectId || ''}
+                            onChange={handleProjectChange}
+                            className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        >
+                            <option value="">Select Project</option>
+                            {sortedProjects.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
+                            ))}
+                        </select>
+                        {accessLevel === 'taskmaster' && (
+                             <button
+                                onClick={() => onAddNewProject(editableAssignment)}
+                                className={`p-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80 flex-shrink-0`}
+                                type="button"
+                                title="Add New Project"
+                            >
+                                +
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div>
                     <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Trade</label>
@@ -140,10 +215,8 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     );
 };
 
-const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleUpdateAssignment, currentTheme, db, accessLevel, setViewingSkillsFor }) => {
+const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleSaveAssignment, handleDeleteAssignment, currentTheme, db, accessLevel, setViewingSkillsFor, onAddNewProjectForAssignment, expandedAssignmentId, setExpandedAssignmentId }) => {
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
-    // State to manage which assignment is expanded
-    const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
 
     const handleGoToEmployeeWorkloader = (e, employeeId) => {
         e.stopPropagation();
@@ -165,9 +238,15 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
     // Filter assignments to only show those linked to non-archived projects
     const filteredAssignments = useMemo(() => {
         return assignments.filter(asn => {
+            // *** FIX STARTS HERE ***
+            // A temporary assignment has no projectId yet, so we must include it explicitly.
+            if (asn.id.startsWith('temp_')) {
+                return true;
+            }
+            // For existing assignments, check if the project is valid and not archived.
             const project = projects.find(p => p.id === asn.projectId);
-            // Only include assignments if the project exists and is not archived
             return project && !project.archived;
+            // *** FIX ENDS HERE ***
         });
     }, [assignments, projects]);
 
@@ -176,16 +255,21 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
         <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h3 className="text-xl font-bold">{employee.firstName} {employee.lastName}'s Assignments</h3>
-                {accessLevel === 'taskmaster' && (
-                    <TutorialHighlight tutorialKey="goToEmployeeAssignments">
-                        <button
-                            onClick={(e) => handleGoToEmployeeWorkloader(e, employee.id)}
-                            className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors`}
-                        >
-                            Employee Workloader
-                        </button>
-                    </TutorialHighlight>
-                )}
+                <div className="flex items-center gap-2">
+                    {accessLevel === 'taskmaster' && (
+                        <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md">+ Add Assignment</button>
+                    )}
+                    {accessLevel === 'taskmaster' && (
+                        <TutorialHighlight tutorialKey="goToEmployeeAssignments">
+                            <button
+                                onClick={(e) => handleGoToEmployeeWorkloader(e, employee.id)}
+                                className={`px-3 py-1 text-sm rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80 transition-colors`}
+                            >
+                                Employee Workloader
+                            </button>
+                        </TutorialHighlight>
+                    )}
+                </div>
             </div>
             <div className="space-y-3 overflow-y-auto flex-grow hide-scrollbar-on-hover pr-2">
                 {filteredAssignments.length > 0 ? (
@@ -234,9 +318,18 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
                                                     assignment={asn}
                                                     projects={projects}
                                                     detailerDisciplines={Array.isArray(employee.disciplineSkillsets) ? employee.disciplineSkillsets.map(s => s.name) : Object.keys(employee.disciplineSkillsets || {})}
-                                                    onUpdate={handleUpdateAssignment}
-                                                    onDelete={() => { setAssignmentToDelete(asn); setExpandedAssignmentId(null); }} // Collapse after delete confirmation
+                                                    onSave={handleSaveAssignment}
+                                                    onDelete={() => { 
+                                                        if (asn.id.startsWith('temp_')) {
+                                                            handleDeleteAssignment(asn.id);
+                                                        } else {
+                                                            setAssignmentToDelete(asn);
+                                                        }
+                                                        setExpandedAssignmentId(null);
+                                                    }}
                                                     currentTheme={currentTheme}
+                                                    onAddNewProject={onAddNewProjectForAssignment}
+                                                    accessLevel={accessLevel}
                                                 />
                                             </TutorialHighlight>
                                         </motion.div>
@@ -249,9 +342,7 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
                     <p className={currentTheme.subtleText}>No assignments for this employee.</p>
                 )}
             </div>
-            <div className="mt-4 pt-4 border-t flex-shrink-0">
-                <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm text-blue-500 hover:underline">+ Add New Assignment</button>
-            </div>
+            {/* The button has been moved to the header of this panel */}
         </div>
     );
 };
@@ -265,7 +356,10 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [searchTerm, setSearchTerm] = useState('');
     const [allTrades, setAllTrades] = useState([]);
     const [activeTrades, setActiveTrades] = useState([]);
-    // eslint-disable-next-line no-unused-vars
+    const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
+    const [assignmentForNewProject, setAssignmentForNewProject] = useState(null);
+    const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
+    const [tempAssignment, setTempAssignment] = useState(null);
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
 
 
@@ -322,7 +416,14 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     };
 
     const handleSelectEmployee = (employeeId) => {
-        setSelectedEmployeeId(prevId => (prevId === employeeId ? null : employeeId));
+        setSelectedEmployeeId(prevId => {
+            const newId = prevId === employeeId ? null : employeeId;
+            if (prevId !== newId) {
+                setExpandedAssignmentId(null); // Collapse assignments when changing employee
+                setTempAssignment(null); // Clear temp assignment when changing employee
+            }
+            return newId;
+        });
     };
 
     const handleDeleteEmployee = async (id) => {
@@ -342,25 +443,50 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         }
     };
 
-    const handleUpdateAssignment = async (updatedAssignment) => {
+    const handleSaveAssignment = async (assignmentData) => {
         try {
-            await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, updatedAssignment.id), updatedAssignment, { merge: true });
+            if (assignmentData.id.startsWith('temp_')) {
+                // This is a new, temporary assignment. Save it as a new document.
+                const { id, ...dataToSave } = assignmentData;
+                await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), dataToSave);
+                setTempAssignment(null); // Clear the temporary assignment from state
+                setExpandedAssignmentId(null); // Collapse after saving
+            } else {
+                // This is an existing assignment. Update it.
+                await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentData.id), assignmentData, { merge: true });
+                setExpandedAssignmentId(null); // Collapse after saving
+            }
         } catch (error) {
-            console.error("Error updating assignment:", error);
+            console.error("Error saving assignment:", error);
         }
     };
 
     const handleDeleteAssignment = async (assignmentId) => {
-        try {
-            await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId));
-            setAssignmentToDelete(null);
-        } catch (error) {
-            console.error("Error deleting assignment:", error);
+        if (assignmentId.startsWith('temp_')) {
+            // If it's a temporary assignment, just remove it from local state
+            setTempAssignment(null);
+            setExpandedAssignmentId(null);
+        } else {
+            // Otherwise, delete from Firestore
+            try {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId));
+                setAssignmentToDelete(null);
+            } catch (error) {
+                console.error("Error deleting assignment:", error);
+            }
         }
     };
 
-    const handleAddNewAssignment = async (detailerId) => {
+    const handleAddNewAssignment = (detailerId) => {
+        // If there's already an unsaved temp assignment, don't create another
+        if (tempAssignment) {
+            showToast("Please save or delete the current new assignment first.", "error");
+            return;
+        }
+
+        const tempId = `temp_${Date.now()}`;
         const newAssignment = {
+            id: tempId,
             detailerId,
             projectId: '',
             projectName: '',
@@ -371,10 +497,30 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             allocation: 0,
             status: 'active'
         };
-        try {
-            await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), newAssignment);
-        } catch (error) {
-            console.error("Error adding assignment:", error);
+        setTempAssignment(newAssignment);
+        setExpandedAssignmentId(tempId);
+    };
+
+    const handleOpenNewProjectModal = (assignment) => {
+        setAssignmentForNewProject(assignment);
+        setIsNewProjectModalOpen(true);
+    };
+
+    const handleProjectCreated = async (newProject) => {
+        if (assignmentForNewProject) {
+            const updatedAssignment = {
+                ...assignmentForNewProject,
+                projectId: newProject.id,
+                projectName: newProject.name,
+                projectNumber: newProject.projectId
+            };
+            
+            if (assignmentForNewProject.id.startsWith('temp_')) {
+                setTempAssignment(updatedAssignment);
+            } else {
+                await handleSaveAssignment(updatedAssignment);
+            }
+            setAssignmentForNewProject(null);
         }
     };
 
@@ -384,7 +530,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 const employeeAssignments = assignments
                     .filter(a => a.detailerId === employee.id)
                     .map(a => {
-                        // Enrich assignment with projectName and projectNumber from the projects list
                         const project = projects.find(p => p.id === a.projectId);
                         return {
                             ...a,
@@ -433,32 +578,46 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             acc[mainTrade].push(employee);
             return acc;
         }, {});
-    }, [detailers, assignments, searchTerm, activeTrades, projects]); // Added projects to dependency array
+    }, [detailers, assignments, searchTerm, activeTrades, projects]);
 
     const selectedEmployee = useMemo(() => {
         if (!selectedEmployeeId) return null;
         const employeeData = detailers.find(e => e.id === selectedEmployeeId);
         if (!employeeData) return null;
 
-        // Ensure assignments for the selected employee are also enriched here
-        const employeeAssignments = assignments
-            .filter(a => a.detailerId === selectedEmployeeId)
-            .map(a => {
-                const project = projects.find(p => p.id === a.projectId);
-                return {
-                    ...a,
-                    projectName: project ? project.name : '',
-                    projectNumber: project ? project.projectId : ''
-                };
-            });
+        const firestoreAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
+        
+        // Combine firestore assignments with the temporary one if it belongs to the selected employee
+        const allAssignments = [...firestoreAssignments];
+        if (tempAssignment && tempAssignment.detailerId === selectedEmployeeId) {
+            allAssignments.push(tempAssignment);
+        }
 
-        return {...employeeData, assignments: employeeAssignments};
+        const enrichedAssignments = allAssignments.map(a => {
+            const project = projects.find(p => p.id === a.projectId);
+            return {
+                ...a,
+                projectName: project ? project.name : (a.projectName || ''),
+                projectNumber: project ? project.projectId : (a.projectNumber || '')
+            };
+        });
 
-    }, [selectedEmployeeId, detailers, assignments, projects]); // Added projects to dependency array
+        return {...employeeData, assignments: enrichedAssignments};
+
+    }, [selectedEmployeeId, detailers, assignments, projects, tempAssignment]);
 
     return (
         <TutorialHighlight tutorialKey="detailers"> {/* Main highlight for Team Console */}
             <div className="p-4 h-full flex flex-col">
+                {isNewProjectModalOpen && (
+                    <NewProjectModal
+                        db={db}
+                        appId={appId}
+                        onClose={() => setIsNewProjectModalOpen(false)}
+                        onProjectCreated={handleProjectCreated}
+                        currentTheme={currentTheme}
+                    />
+                )}
                 <div className="flex justify-between items-center mb-4 gap-4 flex-shrink-0 flex-wrap">
                     <TutorialHighlight tutorialKey="viewToggle"> {/* Highlight for view toggle */}
                         <div className={`flex items-center gap-1 p-1 rounded-lg ${currentTheme.altRowBg}`}>
@@ -589,11 +748,15 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                         projects={projects}
                                         handleAddNewAssignment={handleAddNewAssignment}
                                         setAssignmentToDelete={setAssignmentToDelete}
-                                        handleUpdateAssignment={handleUpdateAssignment}
+                                        handleSaveAssignment={handleSaveAssignment}
+                                        handleDeleteAssignment={handleDeleteAssignment}
                                         currentTheme={currentTheme}
                                         db={db}
                                         accessLevel={accessLevel}
                                         setViewingSkillsFor={setViewingSkillsFor}
+                                        onAddNewProjectForAssignment={handleOpenNewProjectModal}
+                                        expandedAssignmentId={expandedAssignmentId}
+                                        setExpandedAssignmentId={setExpandedAssignmentId}
                                     />
                                 </motion.div>
                             ) : (

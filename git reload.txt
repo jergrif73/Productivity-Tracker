@@ -1,5 +1,5 @@
 git add .
-git commit -m "Add favicons to index.html for Netlify website"
+git commit -m "Fixed Workloader Scrolling"
 git push origin main
 
 

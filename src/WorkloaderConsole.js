@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, useContext } from 'react';
-import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import { NavigationContext, TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // Note: The Tooltip component would also be moved to its own file in a full refactor.
@@ -16,6 +16,24 @@ const Tooltip = ({ text, children }) => {
         </div>
     );
 };
+
+// Confirmation Modal Component (Re-used from other files for consistency)
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex justify-center items-center">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
+                <h3 className="text-lg font-bold mb-4">{title}</h3>
+                <div className={`mb-6 ${currentTheme.subtleText}`}>{children}</div>
+                <div className="flex justify-end gap-4">
+                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80`}>Cancel</button>
+                    <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Confirm</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const AssignmentEditPopup = ({ assignment, detailer, onSave, onClose, position, currentTheme, weekIndex }) => {
     const [trade, setTrade] = useState(assignment.trade);
@@ -82,6 +100,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const [editingCell, setEditingCell] = useState(null);
     const popupRef = useRef(null);
     const [expandedIds, setExpandedIds] = useState(new Set());
+    const [assignmentToDelete, setAssignmentToDelete] = useState(null); // State for confirmation modal
 
     const isTaskmaster = accessLevel === 'taskmaster';
 
@@ -393,9 +412,53 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         }
     };
 
+    // Function to determine if an assignment is "incomplete/unknown"
+    const isAssignmentIncomplete = useCallback((assignment) => {
+        const project = projects.find(p => p.id === assignment.projectId);
+        const isUnknownProject = !project || project.name === 'Unknown Project';
+        const isZeroAllocation = (Number(assignment.allocation) || 0) === 0;
+        const isMissingTrade = !assignment.trade || assignment.trade.trim() === '';
+        const isMissingProjectID = !assignment.projectId || assignment.projectId.trim() === '';
+
+        // An assignment is considered incomplete if it's an unknown project, has 0% allocation,
+        // AND is missing its trade or project ID. This makes it more robust than just checking project name.
+        return isUnknownProject && isZeroAllocation && (isMissingTrade || isMissingProjectID);
+    }, [projects]);
+
+    // Function to handle deletion of an assignment
+    const confirmDeleteAssignment = (assignment) => {
+        setAssignmentToDelete(assignment);
+    };
+
+    const executeDeleteAssignment = async () => {
+        if (!assignmentToDelete) return;
+
+        try {
+            await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentToDelete.id));
+            showToast("Assignment permanently deleted.", "success");
+        } catch (error) {
+            console.error("Error permanently deleting assignment:", error);
+            showToast("Failed to permanently delete assignment.", "error");
+        } finally {
+            setAssignmentToDelete(null); // Close confirmation modal
+        }
+    };
+
+
     return (
         <TutorialHighlight tutorialKey="workloader">
         <div className="p-4 space-y-4 h-full flex flex-col">
+             {/* Confirmation Modal for deleting assignments */}
+            <ConfirmationModal
+                isOpen={!!assignmentToDelete}
+                onClose={() => setAssignmentToDelete(null)}
+                onConfirm={executeDeleteAssignment}
+                title="Confirm Assignment Deletion"
+                currentTheme={currentTheme}
+            >
+                Are you sure you want to permanently delete this assignment? This action cannot be undone.
+            </ConfirmationModal>
+
              <div className={`sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-center p-2 bg-opacity-80 backdrop-blur-sm ${currentTheme.headerBg} rounded-lg border ${currentTheme.borderColor} shadow-sm gap-4 flex-shrink-0`}>
                  <div className="flex items-center gap-2">
                      <button onClick={() => handleDateNav(-7)} className={`p-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<'}</button>
@@ -524,9 +587,24 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                         if (!isRowVisibleInCurrentView) {
                                             return null;
                                         }
+
+                                        // Determine if the delete button should be shown
+                                        const showDeleteButton = isTaskmaster && isAssignmentIncomplete(assignment);
+
                                         return (
                                             <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
-                                                <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.detailerName}</td>
+                                                <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor} flex items-center justify-between`}>
+                                                    <span>{assignment.detailerName}</span>
+                                                    {showDeleteButton && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); confirmDeleteAssignment(assignment); }}
+                                                            className="text-red-500 hover:text-red-700 ml-2 text-lg"
+                                                            title="Delete incomplete assignment"
+                                                        >
+                                                            &times;
+                                                        </button>
+                                                    )}
+                                                </td>
                                                 <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
                                                 <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
                                                 {displayableWeekDates.map((weekStart, weekIndex) => {
@@ -619,9 +697,24 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                     if (!isRowVisibleInCurrentView) {
                                         return null;
                                     }
+
+                                    // Determine if the delete button should be shown
+                                    const showDeleteButton = isTaskmaster && isAssignmentIncomplete(assignment);
+
                                     return (
                                         <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
-                                            <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.projectName}</td>
+                                            <td className={`p-1 font-medium border ${currentTheme.borderColor} ${currentTheme.textColor} flex items-center justify-between`}>
+                                                <span>{assignment.projectName}</span>
+                                                {showDeleteButton && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); confirmDeleteAssignment(assignment); }}
+                                                        className="text-red-500 hover:text-red-700 ml-2 text-lg"
+                                                        title="Delete incomplete assignment"
+                                                    >
+                                                        &times;
+                                                    </button>
+                                                )}
+                                            </td>
                                             <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
                                             <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
                                             {displayableWeekDates.map((weekStart, weekIndex) => {
