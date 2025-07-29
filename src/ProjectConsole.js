@@ -731,19 +731,27 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
     const handleToggleAllActivityBreakdown = useCallback(() => {
         if (!projectData || !projectData.activities) return;
         const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
-        const isAnyCollapsed = breakdownKeys.some(key => collapsedSections[key] !== false);
+        
         setCollapsedSections(prev => {
+            // Determine if all are currently expanded based on the 'prev' state
+            const areAllCurrentlyExpanded = breakdownKeys.every(key => prev[key] === false);
             const newState = {...prev};
+            
+            // If all are currently expanded, the target state is collapsed (true).
+            // Otherwise, the target state is expanded (false).
+            const targetCollapsedState = areAllCurrentlyExpanded; 
+            
             breakdownKeys.forEach(key => {
-                newState[key] = !isAnyCollapsed;
+                newState[key] = targetCollapsedState;
             });
             return newState;
         });
-    }, [projectData, collapsedSections]);
+    }, [projectData]); // Removed collapsedSections from dependency array
 
     const isAnyActivityBreakdownCollapsed = useMemo(() => {
         if (!projectData || !projectData.activities) return true;
         const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
+        // Check if *any* of the breakdown keys are currently collapsed (or not explicitly uncollapsed)
         return breakdownKeys.some(key => collapsedSections[key] !== false);
     }, [projectData, collapsedSections]);
 
@@ -1246,7 +1254,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <div className="flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
-                                <button onClick={() => handleToggleAllActivityBreakdown} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                                <button onClick={handleToggleAllActivityBreakdown} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
                                     {isAnyActivityBreakdownCollapsed ? 'Expand All' : 'Collapse All'}
                                 </button>
                             </div>
@@ -1306,7 +1314,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setInitialSelectedProjectInWorkloader, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setInitialSelectedProjectInWorkloader, initialProjectConsoleFilter, setInitialSelectedProjectInWorkloader: setInitialProjectConsoleFilter }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
 
