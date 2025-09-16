@@ -182,7 +182,7 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
     };
 
     const handleGoToTimeSheets = () => {
-        const path = '\\\\si.net\\si\\TCM\\Projects\\Job_Files\\6000_Commercial\\Field Time Sheets';
+        const path = 'https://southlandind.sharepoint.com/sites/NWDivision/Division%20Accounting/Forms/AllItems.aspx?id=%2Fsites%2FNWDivision%2FDivision%20Accounting%2FField%20TimeSheets%2FCAD%20Detailer&viewid=f77d01b4%2Dca2c%2D4462%2D8a6c%2D8bd4f0ba9ed9';
         try {
             const tempInput = document.createElement('textarea');
             tempInput.value = path;
@@ -190,7 +190,7 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
             tempInput.select();
             document.execCommand('copy');
             document.body.removeChild(tempInput);
-            showToast('Time Sheets path copied to clipboard!', 'success');
+            showToast('Time Sheets URL copied to clipboard!', 'success');
         } catch (err) {
             console.error('Failed to copy path: ', err);
             showToast('Failed to copy path. Please copy manually: ' + path, 'error');
