@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fixed expand/collapse in Project Console"
+git commit -m "Revised Timecard Link"
 git push origin main
 
 
