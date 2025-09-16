@@ -183,18 +183,9 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
 
     const handleGoToTimeSheets = () => {
         const path = 'https://southlandind.sharepoint.com/sites/NWDivision/Division%20Accounting/Forms/AllItems.aspx?id=%2Fsites%2FNWDivision%2FDivision%20Accounting%2FField%20TimeSheets%2FCAD%20Detailer&viewid=f77d01b4%2Dca2c%2D4462%2D8a6c%2D8bd4f0ba9ed9';
-        try {
-            const tempInput = document.createElement('textarea');
-            tempInput.value = path;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-            showToast('Time Sheets URL copied to clipboard!', 'success');
-        } catch (err) {
-            console.error('Failed to copy path: ', err);
-            showToast('Failed to copy path. Please copy manually: ' + path, 'error');
-        }
+        // Open the URL in a new tab
+        window.open(path, '_blank');
+        showToast('Opening Time Sheets in a new tab!', 'success');
     };
 
     // New handler for the job family dropdown change
@@ -262,7 +253,7 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
                         </TutorialHighlight>
 
                         <TutorialHighlight tutorialKey="goToTimeSheets">
-                            <Tooltip text="Click to copy the network path for Field Time Sheets.">
+                            <Tooltip text="Click to open Field Time Sheets.">
                                 <button
                                     onClick={handleGoToTimeSheets}
                                     className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-600 hover:text-white transition-colors`}
