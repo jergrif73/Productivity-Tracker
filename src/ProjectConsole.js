@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
-import { doc, onSnapshot, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, getDocs, getDoc } from 'firebase/firestore';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TutorialHighlight, NavigationContext } from './App'; // Import TutorialHighlight and NavigationContext
@@ -23,24 +23,26 @@ const Tooltip = ({ text, children }) => {
     );
 };
 
+// Moved initialActivityData outside the component and replaced Date.now() with static IDs
+// This ensures the initial data structure is stable and doesn't change on every render, preventing an infinite loop.
 const initialActivityData = [
-    { id: `act_${Date.now()}_1`, description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_2`, description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_3`, description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_4`, description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_5`, description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_6`, description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_7`, description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_8`, description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_9`, description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_10`, description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_11`, description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_12`, description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_13`, description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_14`, description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_15`, description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_16`, description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: `act_${Date.now()}_17`, description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_1", description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_2", description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_3", description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_4", description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_5", description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_6", description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_7", description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_8", description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_9", description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_10", description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_11", description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_12", description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_13", description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_14", description: "PL Spooling", chargeCode: "96213-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_15", description: "PL Misc", chargeCode: "96833-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_16", description: "Detailing-In House-Cad Mgr", chargeCode: "96505-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_17", description: "Project Setup", chargeCode: "96301-96-ENG-62", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
 ];
 
 const animationVariants = {
@@ -103,7 +105,6 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
 }
 
 const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, activities }) => {
-    // Removed static tradeOptions
     
     const tradeActivityOptions = useMemo(() => {
         const options = new Set(); 
@@ -116,11 +117,11 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, acti
     }, [activities]);
 
 
-    const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Blend Rate' });
+    const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Detailing Rate' });
 
     const blendedRate = project.blendedRate || 0;
-    const bimBlendedRate = project.bimBlendedRate || 0;
-    const rateToUse = newImpact.rateType === 'BIM Blend Rate' ? bimBlendedRate : blendedRate;
+    const vdcBlendedRate = project.vdcBlendedRate || 0;
+    const rateToUse = newImpact.rateType === 'VDC Rate' ? vdcBlendedRate : blendedRate;
     const calculatedAmount = (Number(newImpact.hours) || 0) * rateToUse;
 
     const handleAdd = () => {
@@ -130,7 +131,7 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, acti
                 id: `impact_${Date.now()}`,
                 amount: calculatedAmount 
             });
-            setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Blend Rate' });
+            setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Detailing Rate' });
         }
     };
 
@@ -145,7 +146,7 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, acti
                     <tr>
                         <th className="p-2 text-left font-semibold w-[10%]">Date</th>
                         <th className="p-2 text-left font-semibold w-[35%]">Description</th>
-                        <th className="p-2 text-left font-semibold w-[15%]">Activity</th> {/* Changed header to Activity */}
+                        <th className="p-2 text-left font-semibold w-[15%]">Activity</th>
                         <th className="p-2 text-left font-semibold w-[15%]">Hours</th>
                         <th className="p-2 text-left font-semibold w-[15%]">Rate Type</th>
                         <th className="p-2 text-left font-semibold w-[10%]">Impact ($)</th>
@@ -157,7 +158,7 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, acti
                         <tr key={impact.id} className="border-b border-gray-500/20">
                             <td className="p-2">{new Date(impact.date + 'T00:00:00').toLocaleDateString()}</td>
                             <td className="p-2 truncate">{impact.description}</td>
-                            <td className="p-2">{impact.tradeOrActivity}</td> {/* Display new field */}
+                            <td className="p-2">{impact.tradeOrActivity}</td>
                             <td className="p-2">{impact.hours}</td>
                             <td className="p-2">{impact.rateType}</td>
                             <td className={`p-2 ${impact.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(impact.amount)}</td>
@@ -173,15 +174,15 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, acti
                         <td className="p-1"><input type="text" placeholder="Description" value={newImpact.description} onChange={e => handleInputChange('description', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
                         <td className="p-1">
                             <select value={newImpact.tradeOrActivity} onChange={e => handleInputChange('tradeOrActivity', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="">Select Activity...</option> {/* Changed placeholder */}
+                                <option value="">Select Activity...</option>
                                 {tradeActivityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         </td>
                         <td className="p-1"><input type="number" placeholder="Hours" value={newImpact.hours} onChange={e => handleInputChange('hours', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></td>
                         <td className="p-1">
                              <select value={newImpact.rateType} onChange={e => handleInputChange('rateType', e.target.value)} className={`w-full p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="Blend Rate">Blend Rate</option>
-                                <option value="BIM Blend Rate">BIM Blend Rate</option>
+                                <option value="Detailing Rate">Detailing Rate</option>
+                                <option value="VDC Rate">VDC Rate</option>
                             </select>
                         </td>
                         <td className="p-1 text-center">{formatCurrency(calculatedAmount)}</td>
@@ -243,7 +244,6 @@ const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentB
         const yMax = d3.max([currentBudget, totalProjectedCost, d3.max(plannedSpend, d => d.value)]);
         const y = d3.scaleLinear().domain([0, yMax > 0 ? yMax : 100]).range([height, 0]);
 
-        // Fix: Assign the result of g.append('g') to xAxis and yAxis
         const xAxis = g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(5));
         xAxis.selectAll("text").style("fill", currentTheme.textColor);
         xAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
@@ -503,8 +503,8 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdatePerce
 const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme, totalProjectHours, accessLevel }) => {
     const { percentComplete = 0, hoursUsed = 0, estimatedHours = 0 } = activity;
 
-    const useBimRate = groupKey === 'bim' || activity.description === "Project Setup";
-    const rateToUse = useBimRate ? (project.bimBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
+    const useVdcRate = groupKey === 'vdc' || activity.description === "Project Setup";
+    const rateToUse = useVdcRate ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
 
     const earnedValue = (Number(estimatedHours) * rateToUse) * (Number(percentComplete) / 100);
     const actualCost = Number(hoursUsed) * rateToUse;
@@ -635,22 +635,38 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
     )
 });
 
+// FIX: Moved groupActivities outside the component to ensure a stable reference and prevent re-renders.
+const groupActivities = (activityArray) => {
+    const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], vdc: [], structural: [], coordination: [], gis: [] };
+    return activityArray.reduce((acc, act) => {
+        const desc = act.description.toUpperCase();
+        if (desc.startsWith('SM')) acc.sheetmetal.push(act);
+        else if (desc.startsWith('PF')) acc.piping.push(act);
+        else if (desc.startsWith('PL')) acc.plumbing.push(act);
+        else if (desc.startsWith('ST')) acc.structural.push(act);
+        else if (desc.startsWith('CO')) acc.coordination.push(act);
+        else if (desc.startsWith('GIS')) acc.gis.push(act);
+        else acc.vdc.push(act);
+        return acc;
+    }, defaultGroups);
+};
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast, setInitialSelectedProjectInWorkloader }) => {
-    const { navigateToView } = useContext(NavigationContext);
+
+const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
+    const { navigateToWorkloaderForProject } = useContext(NavigationContext);
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [collapsedSections, setCollapsedSections] = useState({ budgetLog: true, financialForecast: true, mainsManagement: true, actionTracker: true });
     const [weeklyHours, setWeeklyHours] = useState({});
     
-    const tradeButtonLabels = useMemo(() => ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"], []);
+    const tradeButtonLabels = useMemo(() => ["Piping", "Duct", "Plumbing", "Coordination", "VDC", "Structural", "GIS/GPS"], []);
     
     const tradeKeyMapping = useMemo(() => ({
         Piping: 'piping',
         Duct: 'sheetmetal',
         Plumbing: 'plumbing',
         Coordination: 'coordination',
-        BIM: 'bim',
+        VDC: 'vdc',
         Structural: 'structural',
         'GIS/GPS': 'gis',
     }), []);
@@ -665,7 +681,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         sheetmetal: { bg: 'bg-yellow-400/70', text: 'text-black' },
         plumbing: { bg: 'bg-blue-500/70', text: 'text-white' },
         coordination: { bg: 'bg-pink-500/70', text: 'text-white' },
-        bim: { bg: 'bg-indigo-600/70', text: 'text-white' },
+        vdc: { bg: 'bg-indigo-600/70', text: 'text-white' },
         structural: { bg: 'bg-amber-700/70', text: 'text-white' },
         gis: { bg: 'bg-teal-500/70', text: 'text-white' },
     }), []);
@@ -731,15 +747,15 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
     const handleToggleAllActivityBreakdown = useCallback(() => {
         if (!projectData || !projectData.activities) return;
         const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
-        const isAnyCollapsed = breakdownKeys.some(key => collapsedSections[key] !== false);
         setCollapsedSections(prev => {
+            const isAnyCollapsed = breakdownKeys.some(key => prev[key] !== false);
             const newState = {...prev};
             breakdownKeys.forEach(key => {
                 newState[key] = !isAnyCollapsed;
             });
             return newState;
         });
-    }, [projectData, collapsedSections]);
+    }, [projectData]);
 
     const isAnyActivityBreakdownCollapsed = useMemo(() => {
         if (!projectData || !projectData.activities) return true;
@@ -762,62 +778,45 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         };
         fetchWeeklyHours();
     }, [projectId, db, appId]);
-
-    useEffect(() => {
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            const initialLoad = projectData === null;
-            
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
-                const activities = data.activities ? { ...defaultGroups, ...data.activities } : defaultGroups;
-                
-                if (initialLoad) {
-                    const initialCollapsedState = { mainsManagement: true, actionTracker: true, budgetLog: true, financialForecast: true };
-                    Object.keys(activities).forEach(group => {
-                        initialCollapsedState[`group_${group}`] = true;
-                    });
-                    (data.mainItems || []).forEach(main => {
-                        initialCollapsedState[`main_${main.id}`] = true;
-                        Object.keys(tradeColorMapping).forEach(trade => {
-                            initialCollapsedState[`main_${main.id}_trade_${trade}`] = true;
-                        });
-                    });
-                    setCollapsedSections(initialCollapsedState);
-                }
-
-                setProjectData({ ...data, activities, actionTrackerData: data.actionTrackerData || {} });
-            } else {
-                const initialData = { activities: groupActivities(initialActivityData), budgetImpacts: [], mainItems: [], actionTrackerData: {} };
-                setDoc(docRef, initialData);
-                setProjectData(initialData);
-                 if (initialLoad) {
-                    setCollapsedSections({ mainsManagement: true, actionTracker: true, budgetLog: true, financialForecast: true });
-                }
-            }
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching project data:", error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [docRef, projectData, tradeColorMapping]);
     
-    const groupActivities = (activityArray) => {
-        const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], bim: [], structural: [], coordination: [], gis: [] };
-        return activityArray.reduce((acc, act) => {
-            const desc = act.description.toUpperCase();
-            if (desc.startsWith('SM')) acc.sheetmetal.push(act);
-            else if (desc.startsWith('PF')) acc.piping.push(act);
-            else if (desc.startsWith('PL')) acc.plumbing.push(act);
-            else if (desc.startsWith('ST')) acc.structural.push(act);
-            else if (desc.startsWith('CO')) acc.coordination.push(act);
-            else if (desc.startsWith('GIS')) acc.gis.push(act);
-            else acc.bim.push(act);
-            return acc;
-        }, defaultGroups);
-    };
+    useEffect(() => {
+        let unsubscribe = () => {};
+
+        const setupListener = () => {
+            unsubscribe = onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], vdc: [], structural: [], coordination: [], gis: [] };
+                    const activities = data.activities ? { ...defaultGroups, ...data.activities } : defaultGroups;
+                    setProjectData({ ...data, activities, actionTrackerData: data.actionTrackerData || {} });
+                }
+                setLoading(false);
+            }, (error) => {
+                console.error("Error fetching project data:", error);
+                setLoading(false);
+            });
+        };
+
+        const checkAndCreateDocument = async () => {
+            try {
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) {
+                    const initialData = { activities: groupActivities(initialActivityData), budgetImpacts: [], mainItems: [], actionTrackerData: {} };
+                    await setDoc(docRef, initialData);
+                }
+                setupListener();
+            } catch (error) {
+                console.error("Error checking or creating document:", error);
+                setLoading(false);
+            }
+        };
+
+        checkAndCreateDocument();
+
+        return () => {
+            unsubscribe();
+        };
+    }, [docRef]);
 
     const handleSaveData = async (data) => {
         await setDoc(docRef, data, { merge: true });
@@ -927,8 +926,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             const usedHours = Number(activity?.hoursUsed || 0);
             const percentComplete = Number(activity?.percentComplete || 0);
 
-            const useBimRate = groupKey === 'bim' || activity.description === "Project Setup";
-            const rateToUse = useBimRate ? (project.bimBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
+            const useVdcRate = groupKey === 'vdc' || activity.description === "Project Setup";
+            const rateToUse = useVdcRate ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
             
             const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : (estHours > 0 ? estHours : 0);
 
@@ -970,7 +969,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             const weightedPercentComplete = activities.reduce((acc, act) => {
                 const estHours = Number(act.estimatedHours) || 0;
                 const percent = Number(act.percentComplete) || 0;
-                const rate = act.description.toUpperCase().includes('BIM') ? (project.bimBlendedRate || project.blendedRate) : project.blendedRate;
+                const rate = act.description.toUpperCase().includes('VDC') ? (project.vdcBlendedRate || project.blendedRate) : project.blendedRate;
                 const actBudget = estHours * rate;
                 if (totalBudget > 0) {
                     return acc + (percent * (actBudget / totalBudget));
@@ -995,12 +994,10 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         return [...(projectData?.mainItems || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     }, [projectData?.mainItems]);
 
-    const handleGoToProjectWorkloader = (e) => {
+    const handleGoToProjectWorkloader = (e, projectId) => {
         e.stopPropagation();
-        // Allow Taskmaster AND TCL to navigate to Project Workloader
         if (accessLevel === 'taskmaster' || accessLevel === 'tcl') {
-            setInitialSelectedProjectInWorkloader(projectId);
-            navigateToView('workloader');
+            navigateToWorkloaderForProject(projectId);
         }
     };
 
@@ -1135,7 +1132,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                             )}
                             {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && ( /* Allow TCL to see this button */
                                 <button
-                                    onClick={handleGoToProjectWorkloader}
+                                    onClick={(e) => handleGoToProjectWorkloader(e, project.id)}
                                     className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
                                 >
                                     Project Workloader
@@ -1246,7 +1243,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                         <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                             <div className="flex justify-between items-center mb-2">
                                 <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
-                                <button onClick={() => handleToggleAllActivityBreakdown} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
+                                <button onClick={() => handleToggleAllActivityBreakdown()} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
                                     {isAnyActivityBreakdownCollapsed ? 'Expand All' : 'Collapse All'}
                                 </button>
                             </div>
@@ -1306,31 +1303,25 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, setInitialSelectedProjectInWorkloader, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
 
-    // Effect to handle initial filter and expansion from WorkloaderConsole
     useEffect(() => {
-        if (initialProjectConsoleFilter) {
-            setFilters(prev => ({ ...prev, query: initialProjectConsoleFilter }));
-            
-            // Find the project that matches the initial filter query
-            const projectToExpand = projects.find(p => 
-                p.name.toLowerCase() === initialProjectConsoleFilter.toLowerCase() || 
-                p.projectId.toLowerCase() === initialProjectConsoleFilter.toLowerCase()
-            );
+        if (initialProjectConsoleFilter && projects.length > 0) {
+            const projectToExpand = projects.find(p => p.id === initialProjectConsoleFilter);
 
             if (projectToExpand) {
+                setFilters(prev => ({ ...prev, query: projectToExpand.name || projectToExpand.projectId }));
                 setExpandedProjectId(projectToExpand.id);
             }
-            setInitialProjectConsoleFilter(''); // Clear the initial filter after use
+            setInitialProjectConsoleFilter(null);
         }
-    }, [initialProjectConsoleFilter, setInitialProjectConsoleFilter, projects]); // Added projects to dependency array
+    }, [initialProjectConsoleFilter, projects, setInitialProjectConsoleFilter]);
+
 
     useEffect(() => {
         if (expandedProjectId) {
-            // If a project is expanded, ensure its ID is in the query filter
             const currentProject = projects.find(p => p.id === expandedProjectId);
             if (currentProject && filters.query !== currentProject.name && filters.query !== currentProject.projectId) {
                 setFilters(prev => ({ ...prev, query: currentProject.name }));
@@ -1340,7 +1331,16 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
 
     const handleProjectClick = (projectId) => {
-        setExpandedProjectId(prevId => (prevId === projectId ? null : projectId));
+        setExpandedProjectId(prevId => {
+            if (prevId === projectId) {
+                setFilters(prev => ({ ...prev, query: '' }));
+                return null;
+            } else {
+                const newProject = projects.find(p => p.id === projectId);
+                setFilters(prev => ({ ...prev, query: newProject ? newProject.name : '' }));
+                return projectId;
+            }
+        });
     };
 
     const filteredProjects = useMemo(() => {
@@ -1351,7 +1351,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 const searchLower = query.toLowerCase();
                 
                 const nameMatch = p.name.toLowerCase().includes(searchLower);
-                const idMatch = p.projectId.toLowerCase().includes(searchLower); // Changed to toLowerCase()
+                const idMatch = p.projectId.toLowerCase().includes(searchLower);
                 
                 const projectAssignments = assignments.filter(a => a.projectId === p.id);
                 
@@ -1408,49 +1408,47 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
 
                     return (
-                        <TutorialHighlight tutorialKey="projectCard">
-                        <motion.div 
-                            key={p.id} 
-                            layout
-                            className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}
-                        >
-                            <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleProjectClick(p.id)}>
-                                <div>
-                                    <h3 className="text-lg font-semibold">{p.name}</h3>
-                                    <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
-                                </div>
-                                <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                    </svg>
+                        <TutorialHighlight tutorialKey="projectCard" key={p.id}>
+                            <motion.div 
+                                layout
+                                className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}
+                            >
+                                <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleProjectClick(p.id)}>
+                                    <div>
+                                        <h3 className="text-lg font-semibold">{p.name}</h3>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
+                                    </div>
+                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                        </svg>
+                                    </motion.div>
                                 </motion.div>
+                               
+                                <AnimatePresence>
+                                {isExpanded && (
+                                    <motion.div
+                                        key={`detail-${p.id}`}
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                        onClick={e => e.stopPropagation()}
+                                    >
+                                        <ProjectDetailView 
+                                            db={db} 
+                                            project={p} 
+                                            projectId={p.id} 
+                                            accessLevel={accessLevel} 
+                                            currentTheme={currentTheme} 
+                                            appId={appId} 
+                                            showToast={showToast} 
+                                        />
+                                    </motion.div>
+                                )}
+                                </AnimatePresence>
                             </motion.div>
-                           
-                            <AnimatePresence>
-                            {isExpanded && (
-                                <motion.div
-                                    key={`detail-${p.id}`}
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                                    className="overflow-hidden"
-                                    onClick={e => e.stopPropagation()}
-                                >
-                                    <ProjectDetailView 
-                                        db={db} 
-                                        project={p} 
-                                        projectId={p.id} 
-                                        accessLevel={accessLevel} 
-                                        currentTheme={currentTheme} 
-                                        appId={appId} 
-                                        showToast={showToast} 
-                                        setInitialSelectedProjectInWorkloader={setInitialSelectedProjectInWorkloader}
-                                    />
-                                </motion.div>
-                            )}
-                            </AnimatePresence>
-                        </motion.div>
                         </TutorialHighlight>
                     );
                 })}
@@ -1460,3 +1458,4 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 };
 
 export default ProjectConsole;
+

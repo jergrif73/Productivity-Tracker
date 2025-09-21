@@ -46,8 +46,8 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
     const jobToDisplay = !hideJobFamilyDisplay && jobFamilyData[selectedJob];
 
     const { data, skillNames, employeeNames, employeeTradeMap } = useMemo(() => {
-        const generalSkillOrder = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-        const disciplineSkillOrder = ["Piping", "Duct", "Plumbing", "Coordination", "BIM", "Structural", "GIS/GPS"];
+        const generalSkillOrder = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
+        const disciplineSkillOrder = ["Piping", "Duct", "Plumbing", "Coordination", "VDC", "Structural", "GIS/GPS"];
         const skillNames = [...generalSkillOrder, ...disciplineSkillOrder];
 
         const sortedDetailers = [...detailers].sort((a, b) => {

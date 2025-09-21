@@ -43,9 +43,9 @@ const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) =>
 
 const teamProfiles = {
     "Select a Profile...": [],
-    "The Masterminds": ["Model Knowledge", "BIM Knowledge", "Coordination", "Structural"],
+    "The Masterminds": ["Model Knowledge", "VDC Knowledge", "Coordination", "Structural"],
     "The Strong Foundation": ["Teamwork Ability", "Leadership Skills", "Piping", "Duct", "Plumbing"],
-    "The Innovators": ["BIM Knowledge", "GIS/GPS"],
+    "The Innovators": ["VDC Knowledge", "GIS/GPS"],
     "The Problem Solvers": ["Leadership Skills", "Mechanical Abilities", "Coordination", "Model Knowledge"]
 };
 

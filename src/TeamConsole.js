@@ -23,7 +23,7 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
                 ...newProject,
                 initialBudget: 0,
                 blendedRate: 0,
-                bimBlendedRate: 0,
+                vdcBlendedRate: 0,
                 contingency: 0,
                 dashboardUrl: '',
                 status: 'Planning',
@@ -238,7 +238,6 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
     // Filter assignments to only show those linked to non-archived projects
     const filteredAssignments = useMemo(() => {
         return assignments.filter(asn => {
-            // *** FIX STARTS HERE ***
             // A temporary assignment has no projectId yet, so we must include it explicitly.
             if (asn.id.startsWith('temp_')) {
                 return true;
@@ -246,7 +245,6 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
             // For existing assignments, check if the project is valid and not archived.
             const project = projects.find(p => p.id === asn.projectId);
             return project && !project.archived;
-            // *** FIX ENDS HERE ***
         });
     }, [assignments, projects]);
 
@@ -361,6 +359,19 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
     const [tempAssignment, setTempAssignment] = useState(null);
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
+    
+    // ** THE FIX IS HERE **
+    // This effect listens for the global 'close-overlays' event dispatched from App.js
+    // and closes all modals/popups within this console.
+    useEffect(() => {
+        const handleClose = () => {
+            setIsNewProjectModalOpen(false);
+            setEmployeeToDelete(null);
+            setAssignmentToDelete(null);
+        };
+        window.addEventListener('close-overlays', handleClose);
+        return () => window.removeEventListener('close-overlays', handleClose);
+    }, []); // Empty dependency array ensures this runs only once.
 
 
     useEffect(() => {
@@ -783,3 +794,4 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 };
 
 export default TeamConsole;
+

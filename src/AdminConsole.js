@@ -79,10 +79,10 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
     const [draggedDiscipline, setDraggedDiscipline] = useState(null);
     const [dragOverDiscipline, setDragOverDiscipline] = useState(null);
 
-    const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
+    const skillCategories = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
+    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "VDC"];
     const titleOptions = [
-        "Detailer I", "Detailer II", "Detailer III", "BIM Specialist", "Programmatic Detailer",
+        "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
         "Project Constructability Lead", "Project Constructability Lead, Sr.",
         "Trade Constructability Lead", "Constructability Manager"
     ];
@@ -288,13 +288,13 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
 
 
 const titleOptions = [
-    "Detailer I", "Detailer II", "Detailer III", "BIM Specialist", "Programmatic Detailer",
+    "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
     "Project Constructability Lead", "Project Constructability Lead, Sr.",
     "Trade Constructability Lead", "Constructability Manager"
 ];
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
-const disciplineOptions = ["Duct", "Piping", "Plumbing", "BIM", "Structural", "Coordination", "GIS/GPS"];
+const disciplineOptions = ["Duct", "Piping", "Plumbing", "VDC", "Structural", "Coordination", "GIS/GPS"];
 
 const statusDescriptions = {
     Planning: "Estimated",
@@ -736,7 +736,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
-    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
     
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
@@ -785,6 +785,20 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 
         return () => unsubscribe();
     }, [db, appId]);
+    
+    // ** THE FIX IS HERE **
+    // This effect adds a listener to close any modals/popups in this console
+    // when the 'close-overlays' event is dispatched from App.js.
+    useEffect(() => {
+        const handleClose = () => {
+            setEditingEmployee(null);
+            setConfirmAction(null);
+            setShowUnionManagement(false);
+        };
+        window.addEventListener('close-overlays', handleClose);
+        return () => window.removeEventListener('close-overlays', handleClose);
+    }, []); // Empty dependency array ensures this runs only once.
+
 
     const handleAddUnionLocal = async () => {
         if (newUnionLocalName.trim() === '') return;
@@ -897,12 +911,12 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 ...newProject,
                 initialBudget: Number(newProject.initialBudget),
                 blendedRate: Number(newProject.blendedRate),
-                bimBlendedRate: Number(newProject.bimBlendedRate),
+                vdcBlendedRate: Number(newProject.vdcBlendedRate),
                 contingency: Number(newProject.contingency),
                 archived: newProject.status === "Archive",
             };
             await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), payload);
-            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, bimBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
         }
     };
 
@@ -934,7 +948,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             ...data,
             initialBudget: Number(data.initialBudget),
             blendedRate: Number(data.blendedRate),
-            bimBlendedRate: Number(data.bimBlendedRate),
+            vdcBlendedRate: Number(data.vdcBlendedRate),
             contingency: Number(data.contingency),
             archived: data.status === "Archive",
         });
@@ -1187,8 +1201,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                         ))}
                                                     </select>
                                                     <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                    <div className="flex items-center gap-2"><label className="w-32">Blended Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
-                                                    <div className="flex items-center gap-2"><label className="w-32">BIM Blended Rate ($/hr):</label><input type="number" value={newProject.bimBlendedRate} onChange={e => setNewProject({...newProject, bimBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">VDC Rate ($/hr):</label><input type="number" value={newProject.vdcBlendedRate} onChange={e => setNewProject({...newProject, vdcBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">Contingency ($):</label><input type="number" value={newProject.contingency} onChange={e => setNewProject({...newProject, contingency: e.target.value})} placeholder="e.g. 5000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">Project Dashboard:</label><input type="url" value={newProject.dashboardUrl} onChange={e => setNewProject({...newProject, dashboardUrl: e.target.value})} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                 </div>
@@ -1212,8 +1226,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                                 {projectStatuses.map(status => (<option key={status} value={status}>{status}</option>))}
                                                             </select>
                                                             <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
-                                                            <div className="flex items-center gap-2"><label className="w-32">Blended Rate ($/hr):</label><input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
-                                                            <div className="flex items-center gap-2"><label className="w-32">BIM Blended Rate ($/hr):</label><input name="bimBlendedRate" value={editingProjectData.bimBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="BIM Blended Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Detailing Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">VDC Rate ($/hr):</label><input name="vdcBlendedRate" value={editingProjectData.vdcBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="VDC Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Contingency ($):</label><input name="contingency" value={editingProjectData.contingency || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Contingency ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Project Dashboard:</label><input name="dashboardUrl" value={editingProjectData.dashboardUrl || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="https://..." className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                             <div className="flex gap-2 pt-4"><button onClick={() => handleUpdateProject()} className="flex-grow bg-green-500 text-white p-2 rounded-md hover:bg-green-600">Save</button><button onClick={() => setEditingProjectId(null)} className="flex-grow bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Cancel</button></div>
@@ -1223,7 +1237,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <div className="flex justify-between items-center">
                                                                 <div>
                                                                     <p className="font-semibold">{p.name} ({p.projectId})</p>
-                                                                    <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Rate: ${p.blendedRate || 0}/hr | BIM Rate: ${p.bimBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                                                    <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Detailing Rate: ${p.blendedRate || 0}/hr | VDC Rate: ${p.vdcBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 flex-shrink-0">
                                                                     {projectStatuses.map(status => (<Tooltip key={status} text={statusDescriptions[status]}><button onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }} className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}>{status.charAt(0)}</button></Tooltip>))}
@@ -1248,3 +1262,4 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 };
 
 export default AdminConsole;
+

@@ -8,7 +8,7 @@ export const jobFamilyData = {
       "Maintains a protocol of documents in such a way that information can be retrieved and understood by others.",
       "Achieves reduced time/costs related to potential errors of clash detection.",
       "Provides MEP coordination.",
-      "Provides basic 3D modeling using BIM.",
+      "Provides basic 3D modeling using VDC.",
       "Attends and participates in construction and other meetings as required.",
       "Collaborates with design and build team to eliminate construction errors due to design flaws."
     ],
@@ -48,7 +48,7 @@ export const jobFamilyData = {
       "Maintains a protocol of documents in such a way that information can be retrieved and understood by others.",
       "Achieves reduced time/costs related to potential errors of clash detection.",
       "Provides MEP coordination.",
-      "Provides 3D modeling using BIM.",
+      "Provides 3D modeling using VDC.",
       "Attends and participates in construction and other meetings as required.",
       "Collaborates with design and build team to eliminate construction errors due to design flaws.",
       "Serves as mentor to less experienced Detailers."
@@ -90,7 +90,7 @@ export const jobFamilyData = {
       "Maintains a protocol of documents in such a way that information can be retrieved and understood by others.",
       "Achieves reduced time/costs related to potential errors of clash detection.",
       "Provides MEP coordination.",
-      "Provides advanced 3D modeling using BIM.",
+      "Provides advanced 3D modeling using VDC.",
       "Attends and participates in construction and other meetings as required.",
       "Collaborates with design and build team to eliminate construction errors due to design flaws.",
       "Serves as lead to less experienced Detailers.",

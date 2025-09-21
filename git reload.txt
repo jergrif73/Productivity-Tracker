@@ -1,11 +1,14 @@
 git add .
-git commit -m "Revised Timecard Link"
+git commit -m "Fixed Workloader Button in the Project Console"
 git push origin main
 
 
 Push Functions/Index.js
 firebase deploy --only functions
 
+Check on the site before loading:
+
+npm start
 
 w-full h-4
 

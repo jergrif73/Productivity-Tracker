@@ -778,6 +778,20 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
     const [editingLaneName, setEditingLaneName] = useState('');
     const [confirmAction, setConfirmAction] = useState(null); // Used for lane deletion confirmation
     const [confirmHardDeleteTasks, setConfirmHardDeleteTasks] = useState(false); // New state for hard delete all 'Deleted' tasks confirmation
+    
+    // ** THE FIX IS HERE **
+    // This effect listens for the global 'close-overlays' event dispatched from App.js
+    // and closes all modals/popups within this console.
+    useEffect(() => {
+        const handleClose = () => {
+            setIsModalOpen(false);
+            setConfirmAction(null);
+            setConfirmHardDeleteTasks(false);
+        };
+        window.addEventListener('close-overlays', handleClose);
+        return () => window.removeEventListener('close-overlays', handleClose);
+    }, []); // Empty dependency array ensures this runs only once.
+
 
     // Effect to remove the 'isArchiveLane' property from any lane named "Archive"
     useEffect(() => {

@@ -1,21 +1,21 @@
-import React, { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo, useRef, Suspense, lazy, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// Import all the console components
-import TeamConsole from './TeamConsole';
-import ProjectConsole from './ProjectConsole';
-import WorkloaderConsole from './WorkloaderConsole';
-import TaskConsole from './TaskConsole';
-import GanttConsole from './GanttConsole';
-import ProjectForecastConsole from './ProjectForecastConsole';
-import SkillsConsole from './SkillsConsole';
-import ReportingConsole from './ReportingConsole';
-import AdminConsole from './AdminConsole';
-import MyDashboard from './MyDashboard'; // Import the new dashboard
 import { tutorialContent } from './tutorial-steps';
+
+// Lazy load the heavy console components
+const TeamConsole = lazy(() => import('./TeamConsole'));
+const ProjectConsole = lazy(() => import('./ProjectConsole'));
+const WorkloaderConsole = lazy(() => import('./WorkloaderConsole'));
+const TaskConsole = lazy(() => import('./TaskConsole'));
+const GanttConsole = lazy(() => import('./GanttConsole'));
+const ProjectForecastConsole = lazy(() => import('./ProjectForecastConsole'));
+const SkillsConsole = lazy(() => import('./SkillsConsole'));
+const ReportingConsole = lazy(() => import('./ReportingConsole'));
+const AdminConsole = lazy(() => import('./AdminConsole'));
+const MyDashboard = lazy(() => import('./MyDashboard'));
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
@@ -30,7 +30,6 @@ const firebaseConfig = {
 
 // --- Gemini API Configuration ---
 const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY;
-
 
 // --- Firebase Initialization ---
 let db, auth;
@@ -56,7 +55,6 @@ export const NavigationContext = createContext({
     navigateToProjectConsoleForProject: () => {},
     navigateToView: () => {},
 });
-
 
 // --- Tutorial System ---
 export const useTutorial = () => useContext(TutorialContext);
@@ -202,40 +200,36 @@ const TutorialWidget = () => {
         exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } }
     };
 
-
     return (
-        <>
-            <motion.div
-                ref={widgetRef}
-                className="fixed bottom-4 right-4 w-full max-w-sm p-4 bg-gray-800 text-white rounded-lg shadow-2xl z-[100] border border-blue-400"
-                variants={widgetVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-            >
-                <div className="flex justify-between items-center mb-3">
-                    <AnimatePresence mode="wait">
-                        <motion.h3 key={tutorialStep.key + "-title"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-lg font-bold">{tutorialStep.title}</motion.h3>
-                    </AnimatePresence>
-                    <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
-                </div>
+        <motion.div
+            ref={widgetRef}
+            className="fixed bottom-4 right-4 w-full max-w-sm p-4 bg-gray-800 text-white rounded-lg shadow-2xl z-[100] border border-blue-400"
+            variants={widgetVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+        >
+            <div className="flex justify-between items-center mb-3">
                 <AnimatePresence mode="wait">
-                    <motion.p key={tutorialStep.key + "-content"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-sm text-gray-300 mb-4">{tutorialStep.content}</motion.p>
+                    <motion.h3 key={tutorialStep.key + "-title"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-lg font-bold">{tutorialStep.title}</motion.h3>
                 </AnimatePresence>
-                <div className="flex justify-between items-center">
-                    <motion.p variants={contentVariants} className="text-xs text-gray-500">Step {stepIndex + 1} of {totalSteps}</motion.p>
-                    <div className="flex gap-2">
-                        <button onClick={prevStep} disabled={stepIndex === 0} className="px-3 py-1 text-sm bg-gray-600 rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
-                        <button onClick={nextStep} disabled={stepIndex === totalSteps - 1} className="px-3 py-1 text-sm bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
-                    </div>
+                <button onClick={endTutorial} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
+            </div>
+            <AnimatePresence mode="wait">
+                <motion.p key={tutorialStep.key + "-content"} variants={contentVariants} initial="initial" animate="animate" exit="exit" className="text-sm text-gray-300 mb-4">{tutorialStep.content}</motion.p>
+            </AnimatePresence>
+            <div className="flex justify-between items-center">
+                <motion.p variants={contentVariants} className="text-xs text-gray-500">Step {stepIndex + 1} of {totalSteps}</motion.p>
+                <div className="flex gap-2">
+                    <button onClick={prevStep} disabled={stepIndex === 0} className="px-3 py-1 text-sm bg-gray-600 rounded-md hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                    <button onClick={nextStep} disabled={stepIndex === totalSteps - 1} className="px-3 py-1 text-sm bg-blue-600 rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
                 </div>
-            </motion.div>
-        </>
+            </div>
+        </motion.div>
     );
 };
 
-
-// --- NEW UX/UI Components ---
+// --- UX/UI Components ---
 const Toaster = ({ toasts }) => (
     <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
         {toasts.map(toast => (
@@ -249,6 +243,7 @@ const Toaster = ({ toasts }) => (
 const SkeletonLoader = ({ className }) => (
     <div className={`bg-gray-300 animate-pulse rounded ${className}`}></div>
 );
+
 const TeamConsoleSkeleton = ({ currentTheme }) => (
     <div>
         <div className="flex justify-end items-center mb-4 gap-2">
@@ -271,6 +266,14 @@ const TeamConsoleSkeleton = ({ currentTheme }) => (
     </div>
 );
 
+const ConsoleLoadingFallback = ({ currentTheme, consoleName }) => (
+    <div className={`h-full flex items-center justify-center ${currentTheme.consoleBg}`}>
+        <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className={`text-lg ${currentTheme.textColor}`}>Loading {consoleName}...</p>
+        </div>
+    </div>
+);
 
 const LoginInline = ({ onLogin, error }) => {
     const [username, setUsername] = useState('');
@@ -339,6 +342,7 @@ const SplashScreen = ({ onLogin, error }) => {
         </div>
     );
 };
+
 const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme }) => {
     const theme = currentTheme || { cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600' };
     return (
@@ -347,7 +351,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose} // Close on backdrop click
+            onClick={onClose}
         >
             <motion.div
                 initial={{ y: "-20px", opacity: 0 }}
@@ -355,7 +359,7 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
                 exit={{ y: "20px", opacity: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25, mass: 0.5 }}
                 className={`${theme.cardBg} ${theme.textColor} p-6 rounded-lg shadow-2xl w-full ${customClasses} max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}
-                onClick={e => e.stopPropagation()} // Prevent closing when clicking inside modal
+                onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-end">
                     <button onClick={onClose} className={`text-2xl font-bold ${theme.subtleText} hover:${theme.textColor}`}>&times;</button>
@@ -364,6 +368,22 @@ const Modal = ({ children, onClose, customClasses = 'max-w-4xl', currentTheme })
             </motion.div>
         </motion.div>
     );
+};
+
+// --- Performance Hooks ---
+const useThrottledNavigation = () => {
+    const [isNavigating, setIsNavigating] = useState(false);
+    
+    const throttledNavigate = useCallback((navigationFn) => {
+        if (isNavigating) return;
+        
+        setIsNavigating(true);
+        navigationFn();
+        
+        setTimeout(() => setIsNavigating(false), 300);
+    }, [isNavigating]);
+    
+    return throttledNavigate;
 };
 
 // --- Main Application Component ---
@@ -384,12 +404,12 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
-    const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState('');
+    const [initialProjectConsoleFilter, setInitialProjectConsoleFilter] = useState(null);
     const [initialSelectedProjectInWorkloader, setInitialSelectedProjectInWorkloader] = useState(null);
 
     const { startTutorial, isTutorialActive } = useContext(TutorialContext);
-
-
+    const throttledNavigate = useThrottledNavigation();
+    
     const showToast = (message, type = 'success') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
@@ -406,29 +426,54 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         dark: { mainBg: 'bg-gray-900', headerBg: 'bg-gray-800', cardBg: 'bg-gray-700', textColor: 'text-gray-200', subtleText: 'text-gray-400', borderColor: 'border-gray-600', altRowBg: 'bg-gray-800', navBg: 'bg-gray-700', navBtn: 'text-gray-400 hover:bg-gray-600', navBtnActive: 'bg-gray-900 text-white shadow', consoleBg: 'bg-gray-800', inputBg: 'bg-gray-800', inputText: 'text-gray-200', inputBorder: 'border-gray-600', buttonBg: 'bg-gray-600', buttonText: 'text-gray-200' }
     };
     const currentTheme = themeClasses[theme];
-
+    
     const navigationContextValue = useMemo(() => ({
         navigateToWorkloaderForEmployee: (employeeId) => {
-            setInitialSelectedEmployeeInWorkloader(employeeId);
-            setView('workloader');
+            throttledNavigate(() => {
+                setInitialSelectedProjectInWorkloader(null);
+                setInitialProjectConsoleFilter(null);
+                setInitialSelectedEmployeeInTeamConsole(null);
+                setInitialSelectedEmployeeInWorkloader(employeeId);
+                setView('workloader');
+            });
         },
         navigateToWorkloaderForProject: (projectId) => {
-            setInitialSelectedProjectInWorkloader(projectId);
-            setView('workloader');
+            throttledNavigate(() => {
+                setInitialSelectedEmployeeInWorkloader(null);
+                setInitialProjectConsoleFilter(null);
+                setInitialSelectedEmployeeInTeamConsole(null);
+                setInitialSelectedProjectInWorkloader(projectId);
+                setView('workloader');
+            });
         },
         navigateToTeamConsoleForEmployee: (employeeId) => {
-            setInitialSelectedEmployeeInTeamConsole(employeeId);
-            setView('detailers');
+            throttledNavigate(() => {
+                setInitialSelectedEmployeeInWorkloader(null);
+                setInitialSelectedProjectInWorkloader(null);
+                setInitialProjectConsoleFilter(null);
+                setInitialSelectedEmployeeInTeamConsole(employeeId);
+                setView('detailers');
+            });
         },
-        navigateToProjectConsoleForProject: (projectName) => {
-            setInitialProjectConsoleFilter(projectName);
-            setView('projects');
+        navigateToProjectConsoleForProject: (projectId) => {
+            throttledNavigate(() => {
+                setInitialSelectedEmployeeInWorkloader(null);
+                setInitialSelectedProjectInWorkloader(null);
+                setInitialSelectedEmployeeInTeamConsole(null);
+                setInitialProjectConsoleFilter(projectId);
+                setView('projects');
+            });
         },
         navigateToView: (viewId) => {
-            setView(viewId);
+            throttledNavigate(() => {
+                setInitialSelectedEmployeeInWorkloader(null);
+                setInitialSelectedProjectInWorkloader(null);
+                setInitialSelectedEmployeeInTeamConsole(null);
+                setInitialProjectConsoleFilter(null);
+                setView(viewId);
+            });
         }
-    }), [setView, setInitialSelectedEmployeeInWorkloader, setInitialSelectedProjectInWorkloader, setInitialSelectedEmployeeInTeamConsole, setInitialProjectConsoleFilter]);
-
+    }), [throttledNavigate]);
 
     useEffect(() => {
         if (!auth) {
@@ -501,7 +546,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         { id: 'dashboard', label: 'Dashboard', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg> },
         { id: 'workloader', label: 'Workloader', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5zm0 4a1 1 0 000 2h10a1 1 0 100-2H5z" /></svg> },
         { id: 'detailers', label: 'Team', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg> },
-        { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg> },
+        { id: 'projects', label: 'Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2-2H4a2 2 0 01-2-2V6z" /></svg> },
         { id: 'tasks', label: 'Tasks', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7zm0 4a1 1 0 100 2h4a1 1 0 100-2H7z" clipRule="evenodd" /></svg>},
         { id: 'gantt', label: 'Gantt', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.001 0 0120.488 9z" /></svg> },
         { id: 'project-forecast', label: 'Forecast', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L9 9.61l-3.66-1.57a1 1 0 00-1.23.26l-2 3a1 1 0 00.22 1.5l4 2a1 1 0 00.94 0l7-3a1 1 0 000-1.84l-3-1.29-3.66 1.57a1 1 0 00-1.23-.26l-2-3a1 1 0 00.22-1.5l4-2z" /></svg> },
@@ -520,53 +565,42 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         navConfig[accessLevel]?.includes(button.id)
     );
 
-    const renderView = () => {
-        if (loading) {
-            switch (view) {
-                case 'detailers': return <TeamConsoleSkeleton currentTheme={currentTheme} />;
-                default: return <div className="p-10 text-center">Loading Data...</div>;
-            }
-        }
-
-        const allowedViews = navConfig[accessLevel];
-        const currentView = allowedViews?.includes(view) ? view : (allowedViews.length > 0 ? allowedViews[0] : null);
-
-        const consoleProps = {
-            db,
-            detailers,
-            projects,
-            assignments,
-            tasks,
-            taskLanes,
-            currentTheme,
-            accessLevel,
-            theme,
-            setTheme,
-            appId,
-            showToast,
-            initialProjectConsoleFilter,
-            setInitialProjectConsoleFilter,
-            initialSelectedProjectInWorkloader,
-            setInitialSelectedProjectInWorkloader,
-            initialSelectedEmployeeInTeamConsole,
-            setInitialSelectedEmployeeInTeamConsole,
-            setInitialSelectedEmployeeInWorkloader,
-            geminiApiKey,
-        };
-
-        switch (currentView) {
-            case 'dashboard': return <MyDashboard {...consoleProps} currentUser={currentUser} navigateToView={navigationContextValue.navigateToView} />;
-            case 'detailers': return <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} />;
-            case 'projects': return <ProjectConsole {...consoleProps} />;
-            case 'workloader': return <WorkloaderConsole {...consoleProps} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} />;
-            case 'tasks': return <TaskConsole {...consoleProps} />;
-            case 'gantt': return <GanttConsole {...consoleProps} />;
-            case 'project-forecast': return <ProjectForecastConsole {...consoleProps} />;
-            case 'reporting': return <ReportingConsole {...consoleProps} allProjectActivities={allProjectActivities} />;
-            case 'admin': return <AdminConsole {...consoleProps} />;
-            default: return <div className="text-center p-10">Select a view from the navigation.</div>;
-        }
-    };
+    // Stable references for props to prevent unnecessary re-renders
+    const consoleProps = useMemo(() => ({
+        db,
+        detailers,
+        projects,
+        assignments,
+        tasks,
+        taskLanes,
+        currentTheme,
+        accessLevel,
+        theme,
+        setTheme,
+        appId,
+        showToast,
+        initialProjectConsoleFilter,
+        setInitialProjectConsoleFilter,
+        initialSelectedProjectInWorkloader,
+        setInitialSelectedProjectInWorkloader,
+        initialSelectedEmployeeInTeamConsole,
+        setInitialSelectedEmployeeInTeamConsole,
+        setInitialSelectedEmployeeInWorkloader,
+        geminiApiKey,
+    }), [
+        detailers, 
+        projects, 
+        assignments, 
+        tasks, 
+        taskLanes, 
+        currentTheme, 
+        accessLevel, 
+        theme, 
+        initialProjectConsoleFilter, 
+        initialSelectedProjectInWorkloader, 
+        initialSelectedEmployeeInTeamConsole,
+        geminiApiKey
+    ]);
 
     if (!isAuthReady && !authError) {
         return <div className="text-center p-10">Authenticating...</div>;
@@ -579,7 +613,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     if (!isLoggedIn) {
         return <SplashScreen onLogin={handleLoginAttempt} error={loginError} />;
     }
-
+    
     return (
         <NavigationContext.Provider value={navigationContextValue}>
             <div style={{ fontFamily: 'Arial, sans-serif' }} className={`${currentTheme.mainBg} h-screen w-screen overflow-hidden ${isTutorialActive ? 'tutorial-active' : ''}`}>
@@ -599,7 +633,6 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                     .hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
                         background-color: rgba(55, 65, 81, 0.8);
                     }
-                    /* For Firefox */
                     .hide-scrollbar-on-hover {
                         scrollbar-width: thin;
                         scrollbar-color: transparent transparent;
@@ -646,21 +679,84 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                 </button>
                         </div>
                     </header>
-                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0 overflow-y-auto`}>
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={view}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                {renderView()}
-                            </motion.div>
-                        </AnimatePresence>
+                    <main className={`flex-grow ${currentTheme.consoleBg} min-h-0 overflow-hidden`}>
+                        {loading ? (
+                            <div className="h-full flex items-center justify-center">
+                                <TeamConsoleSkeleton currentTheme={currentTheme} />
+                            </div>
+                        ) : (
+                            <div className="relative h-full">
+                                {/* Dashboard */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'dashboard' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Dashboard" />}>
+                                        <MyDashboard {...consoleProps} currentUser={currentUser} navigateToView={navigationContextValue.navigateToView} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Team Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'detailers' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Team Console" />}>
+                                        <TeamConsole {...consoleProps} setViewingSkillsFor={setViewingSkillsFor} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Project Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'projects' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Project Console" />}>
+                                        <ProjectConsole {...consoleProps} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Workloader Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'workloader' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Workloader Console" />}>
+                                        <WorkloaderConsole {...consoleProps} initialSelectedEmployeeInWorkloader={initialSelectedEmployeeInWorkloader} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Task Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'tasks' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Task Console" />}>
+                                        <TaskConsole {...consoleProps} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Gantt Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'gantt' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Gantt Console" />}>
+                                        <GanttConsole {...consoleProps} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Project Forecast Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'project-forecast' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Forecast Console" />}>
+                                        <ProjectForecastConsole {...consoleProps} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Reporting Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'reporting' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Reporting Console" />}>
+                                        <ReportingConsole {...consoleProps} allProjectActivities={allProjectActivities} />
+                                    </Suspense>
+                                </div>
+                                
+                                {/* Admin Console */}
+                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'admin' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                    <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Admin Console" />}>
+                                        <AdminConsole {...consoleProps} />
+                                    </Suspense>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* Skills modal */}
                         {viewingSkillsFor && (
                             <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
-                                <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                                <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Skills Console" />}>
+                                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                                </Suspense>
                             </Modal>
                         )}
                     </main>
@@ -768,6 +864,5 @@ const App = () => {
         </AuthContext.Provider>
     );
 };
-
 
 export default App;

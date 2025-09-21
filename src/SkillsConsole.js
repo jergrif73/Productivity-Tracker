@@ -28,10 +28,10 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
     const [draggedDiscipline, setDraggedDiscipline] = useState(null);
     const [dragOverDiscipline, setDragOverDiscipline] = useState(null);
 
-    const skillCategories = ["Model Knowledge", "BIM Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "BIM"];
+    const skillCategories = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
+    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "VDC"];
     const titleOptions = [
-        "Detailer I", "Detailer II", "Detailer III", "BIM Specialist", "Programmatic Detailer",
+        "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
         "Project Constructability Lead", "Project Constructability Lead, Sr.",
         "Trade Constructability Lead", "Constructability Manager"
     ];
@@ -242,3 +242,4 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
 };
 
 export default SkillsConsole;
+

@@ -16,7 +16,7 @@ const abbreviateTitle = (title) => {
         "Detailer I": "DI",
         "Detailer II": "DII",
         "Detailer III": "DIII",
-        "BIM Specialist": "BIMS",
+        "VDC Specialist": "VDCS",
         "Project Constructability Lead": "PCL",
         "Project Constructability Lead, Sr.": "PCL, Sr.",
         "Trade Constructability Lead": "TCL",
@@ -55,6 +55,19 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
 
     // Data fetched from Firestore (shared across components)
     const [jobFamilyData, setJobFamilyData] = useState({});
+
+    // ** THE FIX IS HERE **
+    // This effect listens for the global 'close-overlays' event dispatched from App.js
+    // and closes all modals/popups within this console.
+    useEffect(() => {
+        const handleClose = () => {
+            setIsGeminiVisible(false);
+            setIsJobFamilyPopupVisible(false);
+            setIsJobFamilyEditorOpen(false);
+        };
+        window.addEventListener('close-overlays', handleClose);
+        return () => window.removeEventListener('close-overlays', handleClose);
+    }, []); // Empty dependency array ensures this runs only once.
 
     // Fetch job family data from Firestore
     useEffect(() => {
@@ -153,14 +166,14 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
 
                     const allActivities = Object.values(activities).flat();
                     const earnedValue = allActivities.reduce((sum, act) => {
-                         const useBimRate = act.description === "Project Setup";
-                         const rate = useBimRate ? (p.bimBlendedRate || p.blendedRate) : p.blendedRate;
+                         const useVdcRate = act.description === "Project Setup";
+                         const rate = useVdcRate ? (p.vdcBlendedRate || p.blendedRate) : p.blendedRate;
                          return sum + (Number(act.estimatedHours || 0) * rate * (Number(act.percentComplete || 0) / 100));
                     }, 0);
                     
                     const actualCost = allActivities.reduce((sum, act) => {
-                        const useBimRate = act.description === "Project Setup";
-                        const rate = useBimRate ? (p.bimBlendedRate || p.blendedRate) : p.blendedRate;
+                        const useVdcRate = act.description === "Project Setup";
+                        const rate = useVdcRate ? (p.vdcBlendedRate || p.blendedRate) : p.blendedRate;
                         return sum + (Number(act.hoursUsed || 0) * rate);
                     }, 0);
 
@@ -226,7 +239,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                     "Piping": "MP",
                     "Duct": "MH",
                     "Plumbing": "PL",
-                    "BIM": "BIM",
+                    "VDC": "VDC",
                     "Structural": "Str",
                     "Coordination": "Coord",
                     "GIS/GPS": "GIS"

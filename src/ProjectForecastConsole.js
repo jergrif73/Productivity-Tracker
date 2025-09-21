@@ -32,7 +32,7 @@ const d3ColorMapping = {
     Duct: '#facc15',
     Plumbing: '#3b82f6',
     Coordination: '#ec4899',
-    BIM: '#4f46e5',
+    VDC: '#4f46e5',
     Structural: '#f59e0b',
     "GIS/GPS": '#14b8a6',
     Default: '#9ca3af',
@@ -47,7 +47,7 @@ const statusDescriptions = {
 };
 
 // Defines the order for stacking in the stacked bar chart.
-const tradeStackOrder = ["BIM", "Plumbing", "Piping", "Duct", "Structural", "GIS/GPS", "Coordination"];
+const tradeStackOrder = ["VDC", "Plumbing", "Piping", "Duct", "Structural", "GIS/GPS", "Coordination"];
 
 
 // --- Main Component ---
