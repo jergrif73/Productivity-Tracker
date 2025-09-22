@@ -8,7 +8,7 @@ export const tutorialContent = {
         {
             key: "workloader",
             title: "Welcome to the Workloader",
-            content: "The Workloader provides a timeline view of all project assignments and is the default view when you log in. It's the best way to visualize your team's workload over time. This console is directly populated by assignments created in the Team Console.",
+            content: "The Workloader provides a timeline view of all project assignments. It's the best way to visualize your team's workload over time. This console is directly populated by assignments created in the Team Console.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -43,27 +43,27 @@ export const tutorialContent = {
         },
         {
             key: "editAssignments",
-            title: "Editing Assignments (Taskmaster)",
-            content: "As a Taskmaster, you can click on any assignment cell to edit its trade. This is useful for re-allocating a detailer to a different discipline for a specific week without creating a new assignment.",
-            roles: ['taskmaster']
+            title: "Editing Assignments (Taskmaster & TCL)",
+            content: "As a Taskmaster or TCL, you can click on any assignment cell to open a popup where you can edit its trade or allocation for all future weeks.",
+            roles: ['taskmaster', 'tcl']
         },
         {
           key: "dragFillAssignment",
           title: "Drag-Fill Assignments",
           content: "To quickly extend an assignment's duration, click and drag the small handle on the right edge of an assignment bar. This will automatically update the 'End Date' of the assignment.",
-          roles: ['taskmaster']
+          roles: ['taskmaster', 'tcl']
         },
         {
           key: "goToEmployeeAssignments",
           title: "Navigate to Employee Assignments",
-          content: "When viewing the Workloader grouped by 'Employee', Taskmasters will see a 'Projects Assignment' button. Clicking this will take you directly to the Team Console, with that employee's assignments automatically opened for editing.",
-          roles: ['taskmaster']
+          content: "When viewing the Workloader grouped by 'Employee', Taskmasters and TCLs will see a 'Projects Assignment' button. Clicking this will take you directly to the Team Console, with that employee's assignments automatically opened for editing.",
+          roles: ['taskmaster', 'tcl']
         },
         {
           key: "goToProjectDetails",
           title: "Navigate to Project Details",
-          content: "When viewing the Workloader grouped by 'Project', Taskmasters will see a 'Project Details' button. Clicking this will take you directly to the Project Console, automatically filtered and expanded to show that project's detailed information.",
-          roles: ['taskmaster']
+          content: "When viewing the Workloader grouped by 'Project', Taskmasters and TCLs will see a 'Project Details' button. Clicking this will take you directly to the Project Console, automatically filtered and expanded to show that project's detailed information.",
+          roles: ['taskmaster', 'tcl']
         }
     ]
   },
@@ -76,7 +76,7 @@ export const tutorialContent = {
       {
         key: "detailers",
         title: "Welcome to the Team Console!",
-        content: "This is where you manage your workforce. The two-column layout allows you to view your employee list on the left and see detailed assignments for a selected employee on the right.",
+        content: "This is where you manage your workforce's project assignments. The two-column layout allows you to view your employee list on the left and see detailed assignments for a selected employee on the right.",
         roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
@@ -105,15 +105,21 @@ export const tutorialContent = {
       },
       {
         key: "manageAssignments",
-        title: "Managing Assignments (Taskmaster)",
+        title: "Managing Assignments (Taskmaster & TCL)",
         content: "In the right-hand panel, you can add new project assignments or edit existing ones for the selected employee. This is where you allocate your team's time to specific projects.",
-        roles: ['taskmaster']
+        roles: ['taskmaster', 'tcl']
+      },
+      {
+        key: "addProjectOnTheFly",
+        title: "Add Project On The Fly",
+        content: "When creating or editing an assignment, you can click the '+' button next to the project dropdown to create a new project without leaving the console. This is useful for quickly adding newly awarded projects.",
+        roles: ['taskmaster', 'tcl']
       },
       {
         key: "setSkills",
         title: "Setting Skills and Primary Trade",
         content: "Click 'View Skills' to open the skills editor. Here you can rate an employee's abilities and set their primary trade by reordering the discipline skillsets. The first discipline in the list determines their group in this console.",
-        roles: ['taskmaster', 'tcl']
+        roles: ['taskmaster']
       },
     ]
   },
@@ -155,9 +161,9 @@ export const tutorialContent = {
       },
       {
         key: "budgetImpactLog",
-        title: "Budget Impact Log", // Updated title
+        title: "Budget Impact Log (Taskmaster & TCL)",
         content: "Use this section to log events that impact the project's budget, such as change orders. Each entry adjusts the 'Current Budget' in the Financial Summary.",
-        roles: ['taskmaster', 'tcl'] // Added 'tcl' role
+        roles: ['taskmaster', 'tcl']
       },
       {
         key: "mainsManagement",
@@ -191,8 +197,8 @@ export const tutorialContent = {
       },
       {
         key: "projectDashboardLink",
-        title: "Project Dashboard Link",
-        content: "If configured, this link provides quick access to an external dashboard or relevant project documentation, centralizing project information.",
+        title: "Project Links",
+        content: "Use these links for quick access to an external dashboard or the Project Workloader, centralizing project information.",
         roles: ['taskmaster', 'tcl', 'viewer']
       },
     ],
@@ -228,39 +234,21 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-            key: "taskCardIndicators",
-            title: "Task Card Indicators",
-            content: "Task cards provide quick insights: the checklist icon shows sub-task progress, and the initials represent the assignee and watchers. Due dates are also prominently displayed.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
             key: "subTasks",
             title: "Sub-tasks & Automatic Completion",
             content: "Break down a large task into smaller steps. Each sub-task can be assigned and have a due date. Checking off all sub-tasks will automatically mark the main task as 'Completed'.",
             roles: ['taskmaster', 'tcl']
         },
         {
-            key: "watchers",
-            title: "Watchers",
-            content: "Add other team members as 'Watchers' to a task to keep them informed of progress without assigning it to them directly.",
-            roles: ['taskmaster', 'tcl']
-        },
-        {
-            key: "attachmentsAndComments",
-            title: "Attachments & Comments",
-            content: "Add relevant links and use the comments section to have discussions and provide updates, centralizing all task-related information.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
-          key: "hardDeleteTask",
-          title: "Permanently Deleting Tasks",
-          content: "When you 'Delete Task' from the detail modal, the task is permanently removed from the database. This action is irreversible.",
-          roles: ['taskmaster']
+            key: "hardDeleteTask",
+            title: "Permanently Deleting a Task",
+            content: "From the task detail modal, you can permanently delete a task. This action is irreversible and should be used with caution. You can only delete tasks that have no sub-tasks.",
+            roles: ['taskmaster']
         },
         {
             key: "hardDeleteAllDeletedTasks",
-            title: "Permanently Delete All 'Deleted' Tasks",
-            content: "In the 'Archive' lane, you'll find a button to permanently remove all tasks that currently have the 'Deleted' status. This action is irreversible.",
+            title: "Purging Archived Tasks",
+            content: "In the 'Archive' lane, you'll find a button to permanently remove all tasks that have their status set to 'Deleted'. This action is irreversible.",
             roles: ['taskmaster']
         }
     ]
@@ -274,7 +262,7 @@ export const tutorialContent = {
         {
             key: "gantt",
             title: "Gantt Console Overview",
-            content: "This chart visualizes project demand over time, showing the total weekly hours based on *assigned* work. It's a powerful tool for seeing your team's actual committed workload. The data comes from assignments made in the Team Console.",
+            content: "This chart visualizes project workload over time, showing the total weekly hours based on *assigned* work. It's a powerful tool for seeing your team's actual committed workload. The data comes from assignments made in the Team Console.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -287,12 +275,6 @@ export const tutorialContent = {
             key: "viewToggle",
             title: "Projects vs. Totals View",
             content: "Toggle between 'Projects' to see individual lines for each project's assigned hours, and 'Totals' to see a single line for the aggregated workload.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
-            key: "projectLines",
-            title: "Understanding Project Lines",
-            content: "In 'Projects' view, each colored line represents a project's assigned weekly hours. Hover over a line to see the project name. The colors correspond to the legend at the bottom.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -334,21 +316,9 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "chartArea",
-            title: "Reading the Chart",
-            content: "The chart displays the total forecasted hours per week. In 'Line View', each colored line represents a trade. In 'Stacked View', each segment of a bar represents a trade. Hover over any point or bar segment to see a tooltip with specific details.",
-            roles: ['taskmaster']
-        },
-        {
             key: "fortyHourReference",
             title: "40-Hour Reference Lines",
             content: "The dashed red lines and their corresponding labels on the vertical axis mark 40-hour increments. This helps you quickly gauge the total workload against standard full-time employee capacities (e.g., 80 hours = 2 FTEs).",
-            roles: ['taskmaster']
-        },
-        {
-            key: "legend",
-            title: "Trade Color Legend",
-            content: "The legend at the bottom of the console identifies which color corresponds to which trade. This is essential for understanding the chart in both Line and Stacked views.",
             roles: ['taskmaster']
         }
     ]
@@ -366,7 +336,7 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "manageJobPositions", // Updated step for managing job family data
+            key: "manageJobPositions",
             title: "Manage Job Family Positions",
             content: "Click this button in the header to add, edit, or delete job family roles and their associated responsibilities, skills, and experience. This data is used across the application to define roles and expectations.",
             roles: ['taskmaster']
@@ -380,31 +350,13 @@ export const tutorialContent = {
         {
             key: "dynamicFilters",
             title: "Dynamic Report Filters",
-            content: "The filters on the left sidebar are dynamic. As you select a 'Report Type,' the available filters below will change to show only the options relevant to that specific report, ensuring you can always tailor the output to your needs.",
+            content: "The filters on the left sidebar are dynamic. As you select a 'Report Type,' the available filters below will change to show only the options relevant to that specific report.",
             roles: ['taskmaster']
         },
         {
-            key: "reviewJobFamilyExpectations", // New step for the dropdown
+            key: "reviewJobFamilyExpectations",
             title: "Review Job Family Expectations (Popup)",
-            content: "When viewing 'Employee Details' or 'Employee Skill Matrix' reports, use this dropdown to select any job position. Its detailed responsibilities, skills, and experience will appear in a movable, floating window for easy reference.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "projectHealthDashboard",
-            title: "Project Health Dashboard",
-            content: "This chart provides a portfolio-level view of project performance. Each bubble is a project, plotted by its Cost Variance (CV) and Schedule Variance (SV). The size of the bubble represents its budget. Ideally, projects should be in the 'Under Budget, Ahead of Schedule' quadrant.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "employeeWorkloadDistro",
-            title: "Employee Workload Distribution",
-            content: "Select an employee to see a pie chart of how their total assigned hours are distributed across different projects. This is useful for understanding an individual's focus.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "skillMatrixReport",
-            title: "Employee Skill Matrix",
-            content: "This generates a visual heatmap of employee skills. Use the filters to narrow the list by level or primary trade. This chart is excellent for quickly identifying skill gaps or finding the right person for a specific task.",
+            content: "When viewing certain reports, use this dropdown to select any job position. Its details will appear in a movable, floating window for easy reference while you analyze the report data.",
             roles: ['taskmaster']
         },
         {
@@ -417,12 +369,6 @@ export const tutorialContent = {
             key: "geminiAiChat",
             title: "AI-Powered Insights (Taskmaster)",
             content: "After generating a tabular report, press Ctrl+Shift+Alt+G to open an AI chat window. You can ask specific questions about the report data to get instant analysis and insights.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "clearReport",
-            title: "Clearing a Report",
-            content: "After generating a report, you can use the 'Clear Report' button that appears in the top right of the results panel. This will reset the display and allow you to generate a new report with different filters.",
             roles: ['taskmaster']
         }
     ]
@@ -446,21 +392,9 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "addEmployeeFields",
-            title: "Adding New Employee Details",
-            content: "Use these input fields to enter new employee details including name, title, email, wage, and union affiliation. Ensure all required fields are filled to add a new employee.",
-            roles: ['taskmaster']
-        },
-        {
             key: "manageUnionLocals",
             title: "Managing Union Locals",
             content: "Inside the 'Add New Employee' form, click the 'Manage' button next to the Union Local dropdown to add, edit, or delete union locals from the list.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "editEmployeeDetails",
-            title: "Editing Existing Employee Details",
-            content: "Clicking 'Edit' next to an employee allows you to update their basic information, skill assessments, and discipline proficiencies. Keep this information up-to-date for accurate resource matching.",
             roles: ['taskmaster']
         },
         {
@@ -470,21 +404,9 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "projectStatusImpact",
-            title: "Project Status Impact",
-            content: "Project statuses (Planning, Conducting, Controlling, Archive) determine visibility across the app. 'Archive' projects are hidden from most active views but remain available for reporting.",
-            roles: ['taskmaster']
-        },
-        {
             key: "weeklyForecast",
             title: "Weekly Hour Forecast",
-            content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you input the *demand*—the number of hours you forecast will be needed. This data powers the Gantt and Forecast Consoles.",
-            roles: ['taskmaster']
-        },
-        {
-            key: "addForecastRow",
-            title: "Adding a Forecast Row",
-            content: "Click the '+ Add Forecast Row' button at the bottom of the timeline. You can add multiple rows for the same trade (e.g., 'Piping') but with different descriptions (e.g., 'Process', 'Mechanical') for more granular planning.",
+            content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you input the *demand*—the number of hours you forecast will be needed. This data powers the Forecast Console.",
             roles: ['taskmaster']
         },
         {
@@ -514,9 +436,15 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-            key: "reviewJobFamilyExpectations", // New step for the dropdown in MyDashboard
+            key: "reviewJobFamilyExpectations",
             title: "Review Job Family Expectations (Popup)",
-            content: "Use this dropdown to select any job position. Its detailed responsibilities, skills, and experience will appear in a movable, floating window for easy reference, starting from the bottom right of your screen.",
+            content: "Use this dropdown to select any job position. Its detailed responsibilities and skills will appear in a movable, floating window for easy reference. It opens on the bottom-right of your screen.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "jobFamilyDisplay",
+            title: "Job Family Details (Embedded)",
+            content: "This section automatically displays the details for the *selected employee's* assigned job title. For a general review of any position, use the 'Review Job Family Expectations' dropdown in the header.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -532,21 +460,9 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
-            key: "jobFamilyDisplay",
-            title: "Job Family Details (Embedded)",
-            content: "This section displays the responsibilities, knowledge, skills, and experience associated with the *selected employee's* assigned job title (e.g., 'Detailer I'). For a general review of any position, use the 'Review Job Family Expectations' dropdown.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
             key: "activeProjects",
             title: "Active Projects",
             content: "View a summary of your active project assignments. Click on a project card to navigate to the Workloader Console, filtered for this employee.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
-            key: "activeProjectsNavigation",
-            title: "Navigate to Project Assignments",
-            content: "The 'Active Projects' section lists all projects you are currently assigned to. Clicking on any project card in this list will take you directly to the Workloader Console, automatically filtered to show your specific assignments for that project.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -556,15 +472,9 @@ export const tutorialContent = {
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
-            key: "myTasksNavigation",
-            title: "Jump to Your Tasks",
-            content: "The 'My Tasks' section shows a summary of your upcoming and open tasks. Clicking on any task card will navigate you directly to the Task Console, where you can view and manage all the details for that task.",
-            roles: ['taskmaster', 'tcl', 'viewer']
-        },
-        {
             key: "goToTimeSheets",
             title: "Go to Time Sheets",
-            content: "Click this button to copy the network path for Field Time Sheets to your clipboard. You can then paste it into your file explorer to access the folder.",
+            content: "Click this button to open the SharePoint folder for Field Time Sheets in a new browser tab.",
             roles: ['taskmaster', 'tcl', 'viewer']
         }
     ]
