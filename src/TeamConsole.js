@@ -4,9 +4,53 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { NavigationContext } from './App'; // Import the new context
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
+// Add CSS for the hide-scrollbar-on-hover functionality
+const scrollbarStyles = `
+.hide-scrollbar-on-hover {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.hide-scrollbar-on-hover::-webkit-scrollbar {
+    width: 0px;
+    background: transparent; /* Chrome/Safari/Webkit */
+}
+
+.hide-scrollbar-on-hover:hover {
+    scrollbar-width: thin; /* Firefox */
+    -ms-overflow-style: auto; /* Internet Explorer 10+ */
+}
+
+.hide-scrollbar-on-hover:hover::-webkit-scrollbar {
+    width: 8px;
+}
+
+.hide-scrollbar-on-hover:hover::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+.hide-scrollbar-on-hover:hover::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+}
+`;
+
+// Inject the styles into the document head
+if (typeof document !== 'undefined' && !document.getElementById('scrollbar-styles')) {
+    const style = document.createElement('style');
+    style.id = 'scrollbar-styles';
+    style.textContent = scrollbarStyles;
+    document.head.appendChild(style);
+}
+
 // --- Helper Components ---
 
-// New Modal for creating a project on the fly
 const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme }) => {
     const [newProject, setNewProject] = useState({ name: '', projectId: '' });
     const [error, setError] = useState('');
@@ -67,7 +111,6 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
     );
 };
 
-
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
     if (!isOpen) return null;
     return (
@@ -88,7 +131,6 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
     const sortedProjects = useMemo(() => {
-        // Filter out archived projects from the dropdown list
         return [...projects].filter(p => !p.archived).sort((a, b) => a.name.localeCompare(b.name));
     }, [projects]);
 
@@ -235,23 +277,19 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
         exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
     };
 
-    // Filter assignments to only show those linked to non-archived projects
     const filteredAssignments = useMemo(() => {
         return assignments.filter(asn => {
-            // A temporary assignment has no projectId yet, so we must include it explicitly.
             if (asn.id.startsWith('temp_')) {
                 return true;
             }
-            // For existing assignments, check if the project is valid and not archived.
             const project = projects.find(p => p.id === asn.projectId);
             return project && !project.archived;
         });
     }, [assignments, projects]);
 
-
     return (
-        <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} h-full flex flex-col`}>
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+        <div className={`rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex flex-col h-full`}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                 <h3 className="text-xl font-bold">{employee.firstName} {employee.lastName}'s Assignments</h3>
                 <div className="flex items-center gap-2">
                     {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
@@ -269,82 +307,82 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
                     )}
                 </div>
             </div>
-            <div className="space-y-3 overflow-y-auto flex-grow hide-scrollbar-on-hover pr-2">
-                {filteredAssignments.length > 0 ? (
-                    filteredAssignments.map(asn => {
-                        const isExpanded = expandedAssignmentId === asn.id;
-                        return (
-                            <motion.div
-                                key={asn.id}
-                                layout
-                                initial={false} // Disable initial animation for layout
-                                animate={{ backgroundColor: isExpanded ? currentTheme.altRowBg : currentTheme.cardBg }}
-                                transition={{ duration: 0.2, ease: "easeInOut" }}
-                                className={`p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer`}
-                            >
-                                <motion.div layout="position" className="flex justify-between items-center" onClick={() => toggleAssignmentExpansion(asn.id)}>
-                                    <div>
-                                        {/* Display project name and number, with fallback for missing data and no fixed parentheses */}
-                                        <p className="font-semibold">
-                                            {asn.projectName || 'No Project Selected'}
-                                            {asn.projectNumber ? ` (${asn.projectNumber})` : ''}
-                                        </p>
-                                        <p className={`text-sm ${currentTheme.subtleText}`}>Trade: {asn.trade} | Allocation: {asn.allocation}%</p>
-                                        <p className={`text-xs ${currentTheme.subtleText}`}>{asn.startDate} to {asn.endDate}</p>
-                                    </div>
-                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                        </svg>
-                                    </motion.div>
-                                </motion.div>
 
-                                <AnimatePresence>
-                                    {isExpanded && (
-                                        <motion.div
-                                            key={`detail-${asn.id}`}
-                                            variants={animationVariants}
-                                            initial="hidden"
-                                            animate="visible"
-                                            exit="exit"
-                                            className="overflow-hidden mt-3"
-                                            onClick={e => e.stopPropagation()} // Prevent closing when clicking inside editor
-                                        >
-                                            <TutorialHighlight tutorialKey="manageAssignments"> {/* Added TutorialHighlight */}
-                                                <InlineAssignmentEditor
-                                                    db={db}
-                                                    assignment={asn}
-                                                    projects={projects}
-                                                    detailerDisciplines={Array.isArray(employee.disciplineSkillsets) ? employee.disciplineSkillsets.map(s => s.name) : Object.keys(employee.disciplineSkillsets || {})}
-                                                    onSave={handleSaveAssignment}
-                                                    onDelete={() => { 
-                                                        if (asn.id.startsWith('temp_')) {
-                                                            handleDeleteAssignment(asn.id);
-                                                        } else {
-                                                            setAssignmentToDelete(asn);
-                                                        }
-                                                        setExpandedAssignmentId(null);
-                                                    }}
-                                                    currentTheme={currentTheme}
-                                                    onAddNewProject={onAddNewProjectForAssignment}
-                                                    accessLevel={accessLevel}
-                                                />
-                                            </TutorialHighlight>
+            <div className="flex-1 p-4 overflow-y-auto hide-scrollbar-on-hover">
+                <div className="space-y-3">
+                    {filteredAssignments.length > 0 ? (
+                        filteredAssignments.map(asn => {
+                            const isExpanded = expandedAssignmentId === asn.id;
+                            return (
+                                <motion.div
+                                    key={asn.id}
+                                    layout
+                                    initial={false}
+                                    animate={{ backgroundColor: isExpanded ? currentTheme.altRowBg : currentTheme.cardBg }}
+                                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                                    className={`p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer`}
+                                >
+                                    <motion.div layout="position" className="flex justify-between items-center" onClick={() => toggleAssignmentExpansion(asn.id)}>
+                                        <div>
+                                            <p className="font-semibold">
+                                                {asn.projectName || 'No Project Selected'}
+                                                {asn.projectNumber ? ` (${asn.projectNumber})` : ''}
+                                            </p>
+                                            <p className={`text-sm ${currentTheme.subtleText}`}>Trade: {asn.trade} | Allocation: {asn.allocation}%</p>
+                                            <p className={`text-xs ${currentTheme.subtleText}`}>{asn.startDate} to {asn.endDate}</p>
+                                        </div>
+                                        <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                                            </svg>
                                         </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </motion.div>
-                        );
-                    })
-                ) : (
-                    <p className={currentTheme.subtleText}>No assignments for this employee.</p>
-                )}
+                                    </motion.div>
+
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.div
+                                                key={`detail-${asn.id}`}
+                                                variants={animationVariants}
+                                                initial="hidden"
+                                                animate="visible"
+                                                exit="exit"
+                                                className="overflow-hidden mt-3"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <TutorialHighlight tutorialKey="manageAssignments">
+                                                    <InlineAssignmentEditor
+                                                        db={db}
+                                                        assignment={asn}
+                                                        projects={projects}
+                                                        detailerDisciplines={Array.isArray(employee.disciplineSkillsets) ? employee.disciplineSkillsets.map(s => s.name) : Object.keys(employee.disciplineSkillsets || {})}
+                                                        onSave={handleSaveAssignment}
+                                                        onDelete={() => { 
+                                                            if (asn.id.startsWith('temp_')) {
+                                                                handleDeleteAssignment(asn.id);
+                                                            } else {
+                                                                setAssignmentToDelete(asn);
+                                                            }
+                                                            setExpandedAssignmentId(null);
+                                                        }}
+                                                        currentTheme={currentTheme}
+                                                        onAddNewProject={onAddNewProjectForAssignment}
+                                                        accessLevel={accessLevel}
+                                                    />
+                                                </TutorialHighlight>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
+                            );
+                        })
+                    ) : (
+                        <p className={currentTheme.subtleText}>No assignments for this employee.</p>
+                    )}
+                </div>
             </div>
-            {/* The button has been moved to the header of this panel */}
         </div>
     );
 };
-
 
 const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, accessLevel, setInitialSelectedEmployeeInWorkloader }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
@@ -359,9 +397,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
     const [tempAssignment, setTempAssignment] = useState(null);
     
-    // ** THE FIX IS HERE **
-    // This effect listens for the global 'close-overlays' event dispatched from App.js
-    // and closes all modals/popups within this console.
     useEffect(() => {
         const handleClose = () => {
             setIsNewProjectModalOpen(false);
@@ -370,8 +405,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         };
         window.addEventListener('close-overlays', handleClose);
         return () => window.removeEventListener('close-overlays', handleClose);
-    }, []); // Empty dependency array ensures this runs only once.
-
+    }, []);
 
     useEffect(() => {
         if (initialSelectedEmployeeInTeamConsole && detailers.length > 0) {
@@ -429,8 +463,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         setSelectedEmployeeId(prevId => {
             const newId = prevId === employeeId ? null : employeeId;
             if (prevId !== newId) {
-                setExpandedAssignmentId(null); // Collapse assignments when changing employee
-                setTempAssignment(null); // Clear temp assignment when changing employee
+                setExpandedAssignmentId(null);
+                setTempAssignment(null);
             }
             return newId;
         });
@@ -456,15 +490,13 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const handleSaveAssignment = async (assignmentData) => {
         try {
             if (assignmentData.id.startsWith('temp_')) {
-                // This is a new, temporary assignment. Save it as a new document.
                 const { id, ...dataToSave } = assignmentData;
                 await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), dataToSave);
-                setTempAssignment(null); // Clear the temporary assignment from state
-                setExpandedAssignmentId(null); // Collapse after saving
+                setTempAssignment(null);
+                setExpandedAssignmentId(null);
             } else {
-                // This is an existing assignment. Update it.
                 await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentData.id), assignmentData, { merge: true });
-                setExpandedAssignmentId(null); // Collapse after saving
+                setExpandedAssignmentId(null);
             }
         } catch (error) {
             console.error("Error saving assignment:", error);
@@ -473,11 +505,9 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 
     const handleDeleteAssignment = async (assignmentId) => {
         if (assignmentId.startsWith('temp_')) {
-            // If it's a temporary assignment, just remove it from local state
             setTempAssignment(null);
             setExpandedAssignmentId(null);
         } else {
-            // Otherwise, delete from Firestore
             try {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId));
                 setAssignmentToDelete(null);
@@ -488,7 +518,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     };
 
     const handleAddNewAssignment = (detailerId) => {
-        // If there's already an unsaved temp assignment, don't create another
         if (tempAssignment) {
             showToast("Please save or delete the current new assignment first.", "error");
             return;
@@ -597,7 +626,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 
         const firestoreAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
         
-        // Combine firestore assignments with the temporary one if it belongs to the selected employee
         const allAssignments = [...firestoreAssignments];
         if (tempAssignment && tempAssignment.detailerId === selectedEmployeeId) {
             allAssignments.push(tempAssignment);
@@ -617,8 +645,9 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     }, [selectedEmployeeId, detailers, assignments, projects, tempAssignment]);
 
     return (
-        <TutorialHighlight tutorialKey="detailers"> {/* Main highlight for Team Console */}
-            <div className="p-4 h-full flex flex-col">
+        <TutorialHighlight tutorialKey="detailers">
+            <div className="absolute inset-0 flex flex-col">
+                {/* Modals */}
                 {isNewProjectModalOpen && (
                     <NewProjectModal
                         db={db}
@@ -628,34 +657,39 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                         currentTheme={currentTheme}
                     />
                 )}
-                <div className="flex justify-between items-center mb-4 gap-4 flex-shrink-0 flex-wrap">
-                    <TutorialHighlight tutorialKey="viewToggle"> {/* Highlight for view toggle */}
-                        <div className={`flex items-center gap-1 p-1 rounded-lg ${currentTheme.altRowBg}`}>
-                            <button onClick={() => setViewMode('condensed')} className={`px-3 py-1 text-sm rounded-md ${viewMode === 'condensed' ? `${currentTheme.cardBg} shadow` : ''}`}>Condensed</button>
-                            <button onClick={() => setViewMode('detailed')} className={`px-3 py-1 text-sm rounded-md ${viewMode === 'detailed' ? `${currentTheme.cardBg} shadow` : ''}`}>Detailed</button>
-                        </div>
-                    </TutorialHighlight>
-                    <TutorialHighlight tutorialKey="searchAndFilter"> {/* Highlight for search and filter buttons */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                            {allTrades.map(trade => (
+
+                {/* Top Controls - Fixed Header */}
+                <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
+                        <TutorialHighlight tutorialKey="viewToggle">
+                            <div className={`flex items-center gap-1 p-1 rounded-lg ${currentTheme.altRowBg}`}>
+                                <button onClick={() => setViewMode('condensed')} className={`px-3 py-1 text-sm rounded-md ${viewMode === 'condensed' ? `${currentTheme.cardBg} shadow` : ''}`}>Condensed</button>
+                                <button onClick={() => setViewMode('detailed')} className={`px-3 py-1 text-sm rounded-md ${viewMode === 'detailed' ? `${currentTheme.cardBg} shadow` : ''}`}>Detailed</button>
+                            </div>
+                        </TutorialHighlight>
+                        <TutorialHighlight tutorialKey="searchAndFilter">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {allTrades.map(trade => (
+                                    <button
+                                        key={trade}
+                                        onClick={() => handleTradeFilterToggle(trade)}
+                                        className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                    >
+                                        {trade}
+                                    </button>
+                                ))}
                                 <button
-                                    key={trade}
-                                    onClick={() => handleTradeFilterToggle(trade)}
-                                    className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                    onClick={handleSelectAllTrades}
+                                    className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === allTrades.length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                 >
-                                    {trade}
+                                    {activeTrades.length === allTrades.length ? 'None' : 'All'}
                                 </button>
-                            ))}
-                            <button
-                                onClick={handleSelectAllTrades}
-                                className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === allTrades.length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                            >
-                                {activeTrades.length === allTrades.length ? 'None' : 'All'}
-                            </button>
-                        </div>
-                    </TutorialHighlight>
+                            </div>
+                        </TutorialHighlight>
+                    </div>
                 </div>
 
+                {/* Confirmation Modals */}
                 {employeeToDelete && (
                     <ConfirmationModal
                         isOpen={!!employeeToDelete}
@@ -680,9 +714,11 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     </ConfirmationModal>
                 )}
 
-                <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 overflow-hidden">
-                    <div className="md:col-span-1 flex flex-col overflow-hidden">
-                        <TutorialHighlight tutorialKey="searchAndFilter"> {/* Re-highlight for search bar */}
+                {/* Main Content Area - Two Column Layout */}
+                <div className="flex-1 flex gap-4 p-4 min-h-0">
+                    {/* Left Column - Employee List with Independent Scrolling */}
+                    <div className="w-1/3 flex flex-col min-h-0">
+                        <TutorialHighlight tutorialKey="searchAndFilter">
                             <div className="mb-4 flex-shrink-0">
                                 <input
                                     type="text"
@@ -693,55 +729,61 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                 />
                             </div>
                         </TutorialHighlight>
-                        <div className="flex-grow overflow-y-auto space-y-4 pr-2 hide-scrollbar-on-hover">
-                            {Object.keys(groupedEmployees).sort().map(trade => (
-                                <div key={trade}>
-                                    <h3 className={`text-sm font-bold uppercase ${currentTheme.subtleText} mb-2 pl-1`}>{trade}</h3>
-                                    <div className="space-y-2">
-                                        {groupedEmployees[trade].map((employee) => {
-                                            const isSelected = selectedEmployeeId === employee.id;
-                                            const allocationColor = employee.currentWeekAllocation > 100 ? 'text-red-500' : (employee.currentWeekAllocation < 80 ? 'text-yellow-500' : 'text-green-500');
+                        
+                        {/* Scrollable employee list */}
+                        <div className="flex-1 overflow-y-auto hide-scrollbar-on-hover">
+                            <div className="space-y-4">
+                                {Object.keys(groupedEmployees).sort().map(trade => (
+                                    <div key={trade}>
+                                        <h3 className={`text-sm font-bold uppercase ${currentTheme.subtleText} mb-2 pl-1 sticky top-0 ${currentTheme.cardBg} py-1 z-10`}>{trade}</h3>
+                                        <div className="space-y-2">
+                                            {groupedEmployees[trade].map((employee) => {
+                                                const isSelected = selectedEmployeeId === employee.id;
+                                                const allocationColor = employee.currentWeekAllocation > 100 ? 'text-red-500' : (employee.currentWeekAllocation < 80 ? 'text-yellow-500' : 'text-green-500');
 
-                                            return (
-                                                <TutorialHighlight tutorialKey="selectEmployee"> {/* Highlight for selecting an employee */}
-                                                    <div
-                                                        key={employee.id}
-                                                        onClick={() => handleSelectEmployee(employee.id)}
-                                                        className={`p-3 rounded-lg border ${isSelected ? 'border-blue-500 ring-2 ring-blue-500' : currentTheme.borderColor} ${currentTheme.cardBg} shadow-sm cursor-pointer transition-all duration-200`}
-                                                    >
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <h3 className="font-semibold">{employee.firstName} {employee.lastName}</h3>
-                                                                {viewMode === 'detailed' && (
-                                                                    <>
-                                                                        <p className={`text-xs ${currentTheme.subtleText}`}>{employee.title || 'N/A'}</p>
-                                                                        <p className={`text-xs ${currentTheme.subtleText}`}>{employee.email || 'No email'}</p>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                            <TutorialHighlight tutorialKey="currentWeekAllocation"> {/* Highlight for current week allocation */}
-                                                                <span className={`text-lg font-bold ${allocationColor}`}>{employee.currentWeekAllocation}%</span>
-                                                            </TutorialHighlight>
-                                                        </div>
-                                                        {viewMode === 'detailed' && (
-                                                            <div className="flex justify-end gap-2 mt-2 text-xs">
-                                                                <TutorialHighlight tutorialKey="setSkills"> {/* Highlight for setting skills */}
-                                                                    <button onClick={(e) => { e.stopPropagation(); setViewingSkillsFor(employee); }} className="text-blue-500 hover:underline">View Skills</button>
+                                                return (
+                                                    <TutorialHighlight key={employee.id} tutorialKey="selectEmployee">
+                                                        <div
+                                                            onClick={() => handleSelectEmployee(employee.id)}
+                                                            className={`p-3 rounded-lg border ${isSelected ? 'border-blue-500 ring-2 ring-blue-500' : currentTheme.borderColor} ${currentTheme.cardBg} shadow-sm cursor-pointer transition-all duration-200`}
+                                                        >
+                                                            <div className="flex justify-between items-start">
+                                                                <div className="flex-1 min-w-0">
+                                                                    <h3 className="font-semibold truncate">{employee.firstName} {employee.lastName}</h3>
+                                                                    {viewMode === 'detailed' && (
+                                                                        <>
+                                                                            <p className={`text-xs ${currentTheme.subtleText} truncate`}>{employee.title || 'N/A'}</p>
+                                                                            <p className={`text-xs ${currentTheme.subtleText} truncate`}>{employee.email || 'No email'}</p>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <TutorialHighlight tutorialKey="currentWeekAllocation">
+                                                                    <span className={`text-lg font-bold ${allocationColor} ml-2 flex-shrink-0`}>{employee.currentWeekAllocation}%</span>
                                                                 </TutorialHighlight>
-                                                                <button onClick={(e) => { e.stopPropagation(); setEmployeeToDelete(employee); }} className="text-red-500 hover:underline">Delete</button>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                </TutorialHighlight>
-                                            );
-                                        })}
+                                                            {viewMode === 'detailed' && (
+                                                                <div className="flex justify-end gap-2 mt-2 text-xs">
+                                                                    <TutorialHighlight tutorialKey="setSkills">
+                                                                        <button onClick={(e) => { e.stopPropagation(); setViewingSkillsFor(employee); }} className="text-blue-500 hover:underline">View Skills</button>
+                                                                    </TutorialHighlight>
+                                                                    {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
+                                                                        <button onClick={(e) => { e.stopPropagation(); setEmployeeToDelete(employee); }} className="text-red-500 hover:underline">Delete</button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </TutorialHighlight>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="md:col-span-2 overflow-hidden h-full">
+                    {/* Right Column - Assignment Details with Independent Scrolling */}
+                    <div className="flex-1 min-h-0">
                         <AnimatePresence mode="wait">
                             {selectedEmployee ? (
                                 <motion.div
@@ -793,4 +835,3 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 };
 
 export default TeamConsole;
-
