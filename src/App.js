@@ -556,7 +556,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
 
     const navConfig = {
         taskmaster: ['dashboard', 'workloader', 'detailers', 'projects', 'tasks', 'gantt', 'project-forecast', 'reporting', 'admin'],
-        tcl: ['dashboard', 'workloader', 'projects', 'tasks', 'gantt'],
+        tcl: ['dashboard', 'workloader', 'detailers', 'projects', 'tasks', 'gantt'],
         viewer: ['dashboard', 'workloader', 'tasks', 'gantt'],
         default: []
     };
@@ -866,3 +866,4 @@ const App = () => {
 };
 
 export default App;
+

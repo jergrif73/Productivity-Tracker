@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fixed Workloader Button in the Project Console"
+git commit -m "Fixed Workloader Button andd Workloader perscentages"
 git push origin main
 
 

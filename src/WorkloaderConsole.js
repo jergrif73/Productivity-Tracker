@@ -114,7 +114,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const [expandedIds, setExpandedIds] = useState(new Set());
     const [assignmentToDelete, setAssignmentToDelete] = useState(null); // State for confirmation modal
 
-    const isTaskmaster = accessLevel === 'taskmaster';
+    const isEditor = accessLevel === 'taskmaster' || accessLevel === 'tcl';
 
     const tradeColorMapping = {
         Piping: { bg: 'bg-green-500', text: 'text-white' },
@@ -406,7 +406,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
     const handleCellClick = (e, assignment, weekIndex) => {
         if (!dragState) {
-            if (!isTaskmaster) return;
+            if (!isEditor) return;
             
             // If this is a virtual consolidated assignment, we need to find the actual assignment for this week
             let targetAssignment = assignment;
@@ -583,7 +583,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         } finally {
             setDragState(null);
         }
-    }, [dragState, displayableWeekDates, db, appId, showToast, isWeekInRange, assignments, mergeContiguousAssignments]);
+    }, [dragState, displayableWeekDates, db, appId, showToast, isWeekInRange, mergeContiguousAssignments]);
 
     const toggleExpansion = (id) => {
         setExpandedIds(prev => {
@@ -654,7 +654,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
     const handleGoToEmployeeAssignments = (e, employeeId) => {
         e.stopPropagation();
-        if (isTaskmaster) {
+        if (isEditor) {
             navigateToTeamConsoleForEmployee(employeeId);
         }
     };
@@ -703,7 +703,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
     const handleGoToProjectDetails = (e, projectId) => {
         e.stopPropagation();
-        if (isTaskmaster) {
+        if (isEditor) {
             navigateToProjectConsoleForProject(projectId);
         }
     };
@@ -851,7 +851,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                     </svg>
                                                     {project.name} ({project.projectId})
                                                 </div>
-                                                {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
+                                                {(isEditor) && (
                                                     <TutorialHighlight tutorialKey="goToProjectDetails">
                                                     <button
                                                         onClick={(e) => handleGoToProjectDetails(e, project.id)}
@@ -879,7 +879,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                             return null;
                                         }
 
-                                        const showDeleteButton = isTaskmaster && isAssignmentIncomplete(assignment);
+                                        const showDeleteButton = isEditor && isAssignmentIncomplete(assignment);
 
                                         return (
                                             <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
@@ -943,14 +943,14 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
                                                     return (
                                                         <td key={weekStart.toISOString()}
-                                                            className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
+                                                            className={`p-0 border relative ${currentTheme.borderColor} ${isEditor ? 'cursor-pointer' : ''}`}
                                                             onMouseEnter={() => {
                                                                 if (dragState && dragState.assignment?.id === actualAssignment.id) {
                                                                     setDragState(prev => ({ ...prev, currentWeekIndex: weekIndex }));
                                                                 }
                                                             }}
                                                             onMouseDown={(e) => {
-                                                                if (isTaskmaster && isAssignmentIncomplete(actualAssignment)) {
+                                                                if (isEditor && isAssignmentIncomplete(actualAssignment)) {
                                                                     e.preventDefault();
                                                                     setDragState({
                                                                         type: 'new-assignment',
@@ -968,7 +968,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                 <div 
                                                                     className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded relative`}
                                                                     onDoubleClick={(e) => {
-                                                                        if (isTaskmaster) {
+                                                                        if (isEditor) {
                                                                             e.stopPropagation();
                                                                             setInlineEditing({ assignmentId: actualAssignment.id, weekIndex, currentValue: currentAllocation });
                                                                         }
@@ -1004,7 +1004,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                         <span>{currentAllocation}%</span>
                                                                     )}
 
-                                                                    {isTaskmaster && isAssigned && !isInlineEditingThisCell && (
+                                                                    {isEditor && isAssigned && !isInlineEditingThisCell && (
                                                                         <>
                                                                         <div
                                                                             className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
@@ -1063,7 +1063,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                     {employee.firstName} {employee.lastName}
                                                 </span>
                                             </div>
-                                            {isTaskmaster && (
+                                            {isEditor && (
                                                 <TutorialHighlight tutorialKey="goToEmployeeAssignments">
                                                 <button
                                                     onClick={(e) => handleGoToEmployeeAssignments(e, employee.id)}
@@ -1090,7 +1090,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                         return null;
                                     }
 
-                                    const showDeleteButton = isTaskmaster && isAssignmentIncomplete(assignment);
+                                    const showDeleteButton = isEditor && isAssignmentIncomplete(assignment);
 
                                     return (
                                         <tr key={assignment.id} className={`${currentTheme.cardBg} hover:${currentTheme.altRowBg} h-8`}>
@@ -1149,14 +1149,14 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
                                                 return (
                                                     <td key={weekStart.toISOString()}
-                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isTaskmaster ? 'cursor-pointer' : ''}`}
+                                                        className={`p-0 border relative ${currentTheme.borderColor} ${isEditor ? 'cursor-pointer' : ''}`}
                                                         onMouseEnter={() => {
                                                             if (dragState && dragState.assignment?.id === actualAssignment.id) {
                                                                 setDragState(prev => ({ ...prev, currentWeekIndex: weekIndex }));
                                                             }
                                                         }}
                                                         onMouseDown={(e) => {
-                                                            if (isTaskmaster && isAssignmentIncomplete(actualAssignment)) {
+                                                            if (isEditor && isAssignmentIncomplete(actualAssignment)) {
                                                                 e.preventDefault();
                                                                 setDragState({
                                                                     type: 'new-assignment',
@@ -1173,7 +1173,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                             <div 
                                                                 className={`h-full w-full flex items-center justify-center p-1 ${bgColor} ${textColor} text-xs font-bold rounded relative`}
                                                                 onDoubleClick={(e) => {
-                                                                    if (isTaskmaster) {
+                                                                    if (isEditor) {
                                                                         e.stopPropagation();
                                                                         setInlineEditing({ assignmentId: actualAssignment.id, weekIndex, currentValue: currentAllocation });
                                                                     }
@@ -1208,7 +1208,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                 ) : (
                                                                     <span>{currentAllocation}%</span>
                                                                 )}
-                                                                {isTaskmaster && isAssigned && !isInlineEditingThisCell && (
+                                                                {isEditor && isAssigned && !isInlineEditingThisCell && (
                                                                     <>
                                                                     <div
                                                                         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize"
@@ -1269,6 +1269,4 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 };
 
 export default WorkloaderConsole;
-
-
 

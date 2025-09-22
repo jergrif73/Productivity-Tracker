@@ -149,7 +149,7 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
                                 <option key={p.id} value={p.id}>{p.name} ({p.projectId})</option>
                             ))}
                         </select>
-                        {accessLevel === 'taskmaster' && (
+                        {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                              <button
                                 onClick={() => onAddNewProject(editableAssignment)}
                                 className={`p-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80 flex-shrink-0`}
@@ -220,7 +220,7 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
 
     const handleGoToEmployeeWorkloader = (e, employeeId) => {
         e.stopPropagation();
-        if (accessLevel === 'taskmaster') {
+        if (accessLevel === 'taskmaster' || accessLevel === 'tcl') {
             navigateToWorkloaderForEmployee(employeeId);
         }
     };
@@ -254,10 +254,10 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h3 className="text-xl font-bold">{employee.firstName} {employee.lastName}'s Assignments</h3>
                 <div className="flex items-center gap-2">
-                    {accessLevel === 'taskmaster' && (
+                    {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                         <button onClick={() => handleAddNewAssignment(employee.id)} className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md">+ Add Assignment</button>
                     )}
-                    {accessLevel === 'taskmaster' && (
+                    {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                         <TutorialHighlight tutorialKey="goToEmployeeAssignments">
                             <button
                                 onClick={(e) => handleGoToEmployeeWorkloader(e, employee.id)}
@@ -358,7 +358,6 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [assignmentForNewProject, setAssignmentForNewProject] = useState(null);
     const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
     const [tempAssignment, setTempAssignment] = useState(null);
-    const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
     
     // ** THE FIX IS HERE **
     // This effect listens for the global 'close-overlays' event dispatched from App.js
