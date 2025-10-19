@@ -26,16 +26,16 @@ const Tooltip = ({ text, children }) => {
 // Moved initialActivityData outside the component and replaced Date.now() with static IDs
 // This ensures the initial data structure is stable and doesn't change on every render, preventing an infinite loop.
 const initialActivityData = [
-    { id: "act_init_1", description: "SM Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_2", description: "SM Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_3", description: "SM Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_4", description: "SM Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_5", description: "SM Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_6", description: "PF Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_7", description: "PF Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_8", description: "PF Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_9", description: "PF Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
-    { id: "act_init_10", description: "PF Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_1", description: "MH Modeling", chargeCode: "96100-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_2", description: "MH Coordination", chargeCode: "96800-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_3", description: "MH Deliverables", chargeCode: "96810-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_4", description: "MH Spooling", chargeCode: "96210-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_5", description: "MH Misc", chargeCode: "96830-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_6", description: "MP Modeling", chargeCode: "96110-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_7", description: "MP Coordination", chargeCode: "96801-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_8", description: "MP Deliverables", chargeCode: "96811-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_9", description: "MP Spooling", chargeCode: "96211-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
+    { id: "act_init_10", description: "MP Misc", chargeCode: "96831-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
     { id: "act_init_11", description: "PL Modeling", chargeCode: "96130-96-ENG-10", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
     { id: "act_init_12", description: "PL Coordination", chargeCode: "96803-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
     { id: "act_init_13", description: "PL Deliverables", chargeCode: "96813-96-ENG-61", estimatedHours: 0, hoursUsed: 0, percentComplete: 0, subsets: [] },
@@ -640,8 +640,8 @@ const groupActivities = (activityArray) => {
     const defaultGroups = { sheetmetal: [], piping: [], plumbing: [], vdc: [], structural: [], coordination: [], gis: [] };
     return activityArray.reduce((acc, act) => {
         const desc = act.description.toUpperCase();
-        if (desc.startsWith('SM')) acc.sheetmetal.push(act);
-        else if (desc.startsWith('PF')) acc.piping.push(act);
+        if (desc.startsWith('MH')) acc.sheetmetal.push(act);
+        else if (desc.startsWith('MP')) acc.piping.push(act);
         else if (desc.startsWith('PL')) acc.plumbing.push(act);
         else if (desc.startsWith('ST')) acc.structural.push(act);
         else if (desc.startsWith('CO')) acc.coordination.push(act);
@@ -1458,4 +1458,3 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 };
 
 export default ProjectConsole;
-
