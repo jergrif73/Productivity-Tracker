@@ -763,16 +763,18 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                 </div>
                 <div className="flex items-center gap-4 flex-shrink-0 ml-4">
                     {accessLevel === 'taskmaster' && (
-                        <div className="flex items-center gap-1 text-white text-xs">
-                            <input
-                                type="checkbox"
-                                checked={isProjectWide}
-                                onChange={() => onToggleProjectWide(groupKey)}
-                                onClick={(e) => e.stopPropagation()}
-                                id={`project-wide-${groupKey}`}
-                            />
-                            <label htmlFor={`project-wide-${groupKey}`} className="cursor-pointer">Project-Wide</label>
-                        </div>
+                        <TutorialHighlight tutorialKey="projectWideActivities">
+                            <div className="flex items-center gap-1 text-white text-xs">
+                                <input
+                                    type="checkbox"
+                                    checked={isProjectWide}
+                                    onChange={() => onToggleProjectWide(groupKey)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    id={`project-wide-${groupKey}`}
+                                />
+                                <label htmlFor={`project-wide-${groupKey}`} className="cursor-pointer">Project-Wide</label>
+                            </div>
+                        </TutorialHighlight>
                     )}
                     <select
                         value={rateType}
@@ -1751,5 +1753,4 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 };
 
 export default ProjectDetailView;
-
 

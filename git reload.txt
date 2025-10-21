@@ -1,5 +1,5 @@
 git add .
-git commit -m "Updated Project Console Terms"
+git commit -m "Updated Project Console, Added Database and Reports"
 git push origin main
 
 

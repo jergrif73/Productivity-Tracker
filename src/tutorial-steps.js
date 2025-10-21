@@ -190,6 +190,18 @@ export const tutorialContent = {
         roles: ['taskmaster']
       },
       {
+        key: "projectWideActivities",
+        title: "Project-Wide Activities (Taskmaster)",
+        content: "In the 'Activity Values Breakdown', you can check the 'Project-Wide' box for an entire trade section. This moves it to a separate area in the Action Tracker where TCLs can report a single progress percentage for that trade, independent of the 'Mains'.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "alphabeticalSorting",
+        title: "Alphabetical Sorting",
+        content: "The trade sections within the 'Activity Values Breakdown' are now automatically sorted alphabetically, making it easier to locate a specific discipline.",
+        roles: ['taskmaster']
+      },
+      {
         key: "tradeFiltersProjectConsole",
         title: "Filter by Trade",
         content: "Use these trade buttons to filter which trades' activities are displayed in the 'Action Tracker' and 'Activity Values Breakdown' sections, helping you focus on specific disciplines.",
@@ -338,7 +350,7 @@ export const tutorialContent = {
         {
             key: "manageJobPositions",
             title: "Manage Job Family Positions",
-            content: "Click this button in the header to add, edit, or delete job family roles and their associated responsibilities, skills, and experience. This data is used across the application to define roles and expectations.",
+            content: "Click this button in the header to open a dedicated editor where you can add, modify, or delete job family roles and their associated responsibilities, skills, and experience.",
             roles: ['taskmaster']
         },
         {
@@ -415,6 +427,44 @@ export const tutorialContent = {
           content: "You can quickly fill multiple cells by typing a value and then using the small blue square handle to drag and fill across weeks. You can also paste copied data from spreadsheets and reorder rows via drag-and-drop.",
           roles: ['taskmaster']
         }
+    ]
+  },
+  // =================================================================
+  // == Database Console
+  // =================================================================
+  database: {
+    title: "Database Console Tutorial",
+    steps: [
+        {
+            key: "database",
+            title: "Welcome to the Database Console",
+            content: "This is a powerful tool for Taskmasters to directly view and manipulate the raw data in the database. Use this console with caution, as changes made here directly affect the entire application.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "navigateCollections",
+            title: "Navigate Collections",
+            content: "Click the buttons at the top to switch between different data collections, like 'detailers', 'projects', and 'assignments'. The number on each button shows how many items are in that collection.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "searchAndSortData",
+            title: "Search and Sort Data",
+            content: "Use the search bar to filter the currently viewed collection. You can also click on any column header to sort the data by that column.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "editData",
+            title: "Editing Data",
+            content: "Click the 'Edit' button on any row to open an editor. Some collections have specialized editors (like for Detailers and Projects), while others use a generic form.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "addDeleteData",
+            title: "Adding & Deleting Data",
+            content: "You can add new items to most collections using the 'Add New' button. The 'Delete' button on each row will permanently remove that item from the database.",
+            roles: ['taskmaster']
+        },
     ]
   },
   // =================================================================

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { collection, onSnapshot, doc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
+import { TutorialHighlight } from './App';
 
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
     if (!isOpen) return null;
@@ -930,120 +931,129 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
 
 
     return (
-        <div className="p-4 h-full flex flex-col gap-4">
-            <ConfirmationModal
-                isOpen={!!itemToDelete}
-                onClose={() => setItemToDelete(null)}
-                onConfirm={executeDelete}
-                title={`Confirm Deletion`}
-                currentTheme={currentTheme}
-            >
-                Are you sure you want to permanently delete this item?
-                <br />
-                <strong>{itemToDelete?.name}</strong> from <strong>{itemToDelete?.collectionName}</strong>
-                <br />
-                This action cannot be undone.
-            </ConfirmationModal>
-
-            {editingItem && !EditorComponent && (
-                <GenericEditorModal
-                    item={editingItem.item}
-                    config={config}
-                    onSave={(item) => handleSaveItem(selectedCollection, item)}
-                    onCancel={() => setEditingItem(null)}
+        <TutorialHighlight tutorialKey="database">
+            <div className="p-4 h-full flex flex-col gap-4">
+                <ConfirmationModal
+                    isOpen={!!itemToDelete}
+                    onClose={() => setItemToDelete(null)}
+                    onConfirm={executeDelete}
+                    title={`Confirm Deletion`}
                     currentTheme={currentTheme}
-                    allData={allData}
-                />
-            )}
+                >
+                    Are you sure you want to permanently delete this item?
+                    <br />
+                    <strong>{itemToDelete?.name}</strong> from <strong>{itemToDelete?.collectionName}</strong>
+                    <br />
+                    This action cannot be undone.
+                </ConfirmationModal>
 
-
-            <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Database Console</h1>
-
-            <div className={`p-2 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm`}>
-                <div className="flex flex-wrap gap-2">
-                    {collectionsToFetch.map(name => (
-                        <button
-                            key={name}
-                            onClick={() => handleSelectCollection(name)}
-                            className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center gap-2 ${selectedCollection === name ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
-                        >
-                            {name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1').trim()}
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${selectedCollection === name ? 'bg-blue-800' : currentTheme.altRowBg}`}>{allData[name]?.length || 0}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className={`flex-grow flex flex-col p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm min-h-0`}>
-                <div className="flex-shrink-0 mb-4 flex justify-between items-center">
-                    <input
-                        type="text"
-                        placeholder={`Search in ${selectedCollection}...`}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className={`w-full max-w-sm p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                {editingItem && !EditorComponent && (
+                    <GenericEditorModal
+                        item={editingItem.item}
+                        config={config}
+                        onSave={(item) => handleSaveItem(selectedCollection, item)}
+                        onCancel={() => setEditingItem(null)}
+                        currentTheme={currentTheme}
+                        allData={allData}
                     />
-                    {/* --- NEW SORTING UI --- */}
-                    <div className="flex items-center gap-4">
-                        {selectedCollection === 'detailers' && (
-                            <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
-                                <button onClick={() => handleSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
-                                <button onClick={() => handleSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
-                            </div>
-                        )}
-                        {selectedCollection === 'projects' && (
-                            <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
-                                <button onClick={() => handleSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Name</button>
-                                <button onClick={() => handleSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
-                            </div>
-                        )}
-                        {!config?.customEditor && (
-                            <button onClick={() => setEditingItem({ item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                Add New {selectedCollection.slice(0, -1)}
-                            </button>
-                        )}
-                    </div>
-                </div>
-                {loading ? <p>Loading data...</p> : (
-                    <div className="flex-grow overflow-auto hide-scrollbar-on-hover">
-                        <table className="w-full text-sm text-left border-collapse">
-                            <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
-                                <tr>
-                                    {displayColumns?.map(col => (
-                                        <th key={col.header} className={`p-2 font-semibold border ${currentTheme.borderColor} cursor-pointer`} onClick={() => requestSort(col.header)}>
-                                            {col.header}
-                                            {sortConfig.key === col.header && (sortConfig.direction === 'ascending' ? ' ▲' : ' ▼')}
-                                        </th>
-                                    ))}
-                                    <th className={`p-2 font-semibold border ${currentTheme.borderColor}`}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredAndSortedData.map(item => (
-                                    <tr key={item.id} className={`hover:${currentTheme.altRowBg}`}>
-                                       {displayColumns?.map(col => (
-                                            <td key={`${item.id}-${col.header}`} className={`p-2 border ${currentTheme.borderColor} max-w-xs truncate`}>
-                                                {typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]}
-                                            </td>
-                                        ))}
-                                        <td className={`p-2 border ${currentTheme.borderColor} text-center`}>
-                                             <div className="flex justify-center items-center gap-2">
-                                                <button onClick={() => setEditingItem({ collectionName: selectedCollection, item: item })} className="text-blue-400 hover:underline">Edit</button>
-                                                <button onClick={() => confirmDelete(selectedCollection, item.id, (typeof displayColumns[0]?.accessor === 'function' ? displayColumns[0].accessor(item) : item[displayColumns[0]?.accessor]) || item.id)} className="text-red-500 hover:text-red-700">Delete</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
                 )}
+
+
+                <h1 className={`text-2xl font-bold ${currentTheme.textColor}`}>Database Console</h1>
+                <TutorialHighlight tutorialKey="navigateCollections">
+                    <div className={`p-2 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm`}>
+                        <div className="flex flex-wrap gap-2">
+                            {collectionsToFetch.map(name => (
+                                <button
+                                    key={name}
+                                    onClick={() => handleSelectCollection(name)}
+                                    className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center gap-2 ${selectedCollection === name ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                >
+                                    {name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1').trim()}
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${selectedCollection === name ? 'bg-blue-800' : currentTheme.altRowBg}`}>{allData[name]?.length || 0}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </TutorialHighlight>
+
+                <div className={`flex-grow flex flex-col p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm min-h-0`}>
+                    <TutorialHighlight tutorialKey="searchAndSortData">
+                        <div className="flex-shrink-0 mb-4 flex justify-between items-center">
+                            <input
+                                type="text"
+                                placeholder={`Search in ${selectedCollection}...`}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className={`w-full max-w-sm p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            />
+                            <div className="flex items-center gap-4">
+                                {selectedCollection === 'detailers' && (
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                                        <button onClick={() => handleSortBy('firstName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'firstName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>First Name</button>
+                                        <button onClick={() => handleSortBy('lastName')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'lastName' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Last Name</button>
+                                    </div>
+                                )}
+                                {selectedCollection === 'projects' && (
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                                        <button onClick={() => handleSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Name</button>
+                                        <button onClick={() => handleSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                                    </div>
+                                )}
+                                {!config?.customEditor && (
+                                    <TutorialHighlight tutorialKey="addDeleteData">
+                                        <button onClick={() => setEditingItem({ item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                            Add New {selectedCollection.slice(0, -1)}
+                                        </button>
+                                    </TutorialHighlight>
+                                )}
+                            </div>
+                        </div>
+                    </TutorialHighlight>
+                    {loading ? <p>Loading data...</p> : (
+                        <div className="flex-grow overflow-auto hide-scrollbar-on-hover">
+                            <table className="w-full text-sm text-left border-collapse">
+                                <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
+                                    <tr>
+                                        {displayColumns?.map(col => (
+                                            <th key={col.header} className={`p-2 font-semibold border ${currentTheme.borderColor} cursor-pointer`} onClick={() => requestSort(col.header)}>
+                                                {col.header}
+                                                {sortConfig.key === col.header && (sortConfig.direction === 'ascending' ? ' ▲' : ' ▼')}
+                                            </th>
+                                        ))}
+                                        <th className={`p-2 font-semibold border ${currentTheme.borderColor}`}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredAndSortedData.map((item, index) => (
+                                        <tr key={item.id} className={`hover:${currentTheme.altRowBg}`}>
+                                        {displayColumns?.map(col => (
+                                                <td key={`${item.id}-${col.header}`} className={`p-2 border ${currentTheme.borderColor} max-w-xs truncate`}>
+                                                    {typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]}
+                                                </td>
+                                            ))}
+                                            <td className={`p-2 border ${currentTheme.borderColor} text-center`}>
+                                                <div className="flex justify-center items-center gap-2">
+                                                    <TutorialHighlight tutorialKey={index === 0 ? "editData" : ""}>
+                                                        <button onClick={() => setEditingItem({ collectionName: selectedCollection, item: item })} className="text-blue-400 hover:underline">Edit</button>
+                                                    </TutorialHighlight>
+                                                    <TutorialHighlight tutorialKey={index === 0 ? "addDeleteData" : ""}>
+                                                        <button onClick={() => confirmDelete(selectedCollection, item.id, (typeof displayColumns[0]?.accessor === 'function' ? displayColumns[0].accessor(item) : item[displayColumns[0]?.accessor]) || item.id)} className="text-red-500 hover:text-red-700">Delete</button>
+                                                    </TutorialHighlight>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+        </TutorialHighlight>
     );
 };
 
 export default DatabaseConsole;
-
