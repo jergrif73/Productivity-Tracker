@@ -36,8 +36,9 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
     const [selectedSkills, setSelectedSkills] = useState([]);
     const [selectedProfile, setSelectedProfile] = useState("Select a Profile...");
+    const [reportOption, setReportOption] = useState('fullProject');
     const [collapsedFilters, setCollapsedFilters] = useState({
-        level: true, trade: true, profile: true, skills: true, employee: true, project: true, dateRange: true, jobFamily: true,
+        level: true, trade: true, profile: true, skills: true, employee: true, project: true, dateRange: true, jobFamily: true, reportOptions: true
     });
 
     // State for report results (managed here, passed to ReportDisplay)
@@ -56,7 +57,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
     // Data fetched from Firestore (shared across components)
     const [jobFamilyData, setJobFamilyData] = useState({});
 
-    // ** THE FIX IS HERE **
     // This effect listens for the global 'close-overlays' event dispatched from App.js
     // and closes all modals/popups within this console.
     useEffect(() => {
@@ -122,7 +122,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
     const projectActivitiesMap = useMemo(() => {
         const map = new Map();
         allProjectActivities.forEach(activityDoc => {
-            map.set(activityDoc.id, activityDoc.activities);
+            map.set(activityDoc.id, activityDoc);
         });
         return map;
     }, [allProjectActivities]);
@@ -159,23 +159,115 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         let isTabularReport = false;
 
         switch (reportType) {
+            case 'full-project-report':
+                if (!selectedProjectId) {
+                    alert("Please select a project.");
+                    return;
+                }
+                isTabularReport = false; // This is a complex view, not a simple table
+                
+                const project = projects.find(p => p.id === selectedProjectId);
+                const activitiesDoc = projectActivitiesMap.get(selectedProjectId);
+    
+                if (!project || !activitiesDoc) {
+                    alert("Could not find all data for the selected project.");
+                    return;
+                }
+    
+                const currentBudget = (project.initialBudget || 0) + (activitiesDoc.budgetImpacts || []).reduce((sum, impact) => sum + impact.amount, 0);
+                
+                const allActivities = Object.values(activitiesDoc.activities || {}).flat();
+    
+                const calculateTotals = (activitiesList) => {
+                  return activitiesList.reduce((acc, activity) => {
+                    const estHours = Number(activity?.estimatedHours || 0);
+                    const usedHours = Number(activity?.hoursUsed || 0);
+                    const percentComplete = Number(activity?.percentComplete || 0);
+            
+                    const useVdcRate = activity.description.toUpperCase().includes('VDC') || activity.description === "Project Setup";
+                    const rateToUse = useVdcRate ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
+            
+                    const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : (estHours > 0 ? estHours : 0);
+            
+                    acc.estimated += estHours;
+                    acc.used += usedHours;
+                    acc.budget += estHours * rateToUse;
+                    acc.actualCost += usedHours * rateToUse;
+                    acc.earnedValue += (estHours * rateToUse) * (percentComplete / 100);
+                    acc.projectedCost += projectedHours * rateToUse;
+                    
+                    return acc;
+                  }, { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projectedCost: 0 });
+                };
+    
+                const activityTotals = calculateTotals(allActivities);
+                
+                const actionTrackerSummary = [];
+                if (activitiesDoc.mainItems && activitiesDoc.actionTrackerData) {
+                    activitiesDoc.mainItems.forEach(main => {
+                        const mainSummary = { mainName: main.name, disciplines: [] };
+                        (activitiesDoc.actionTrackerDisciplines || []).forEach(disc => {
+                            const tradeData = activitiesDoc.actionTrackerData[main.id]?.[disc.key];
+                            if (tradeData) {
+                                let totalCompletion = 0;
+                                let activityCount = 0;
+                                if(tradeData.activities){
+                                    const completions = Object.values(tradeData.activities);
+                                    activityCount = completions.length;
+                                    if(activityCount > 0){
+                                       totalCompletion = completions.reduce((sum, val) => sum + (Number(val) || 0), 0) / activityCount;
+                                    }
+                                }
+                                mainSummary.disciplines.push({
+                                    disciplineName: disc.label,
+                                    tradePercentage: tradeData.tradePercentage || 0,
+                                    avgPercentComplete: totalCompletion.toFixed(1)
+                                });
+                            }
+                        });
+                        actionTrackerSummary.push(mainSummary);
+                    });
+                }
+    
+                const fullReportPayload = {
+                    project,
+                    activitiesDoc,
+                    financialSummary: {
+                        currentBudget,
+                        allocatedHours: activityTotals.estimated,
+                        spentToDate: activityTotals.actualCost,
+                        earnedValue: activityTotals.earnedValue,
+                        projectedFinalCost: activityTotals.projectedCost,
+                        costToComplete: activityTotals.projectedCost - activityTotals.actualCost,
+                        variance: currentBudget - activityTotals.projectedCost,
+                        productivity: activityTotals.actualCost > 0 ? activityTotals.earnedValue / activityTotals.actualCost : 0
+                    },
+                    actionTrackerSummary,
+                    reportOption,
+                    dateRange: { startDate: sDate, endDate: eDate }
+                };
+    
+                setReportData(fullReportPayload);
+                break;
+
             case 'project-health':
                 const healthData = projects.filter(p => !p.archived).map(p => {
-                    const activities = projectActivitiesMap.get(p.id);
-                    if (!activities) return null;
+                    const activitiesDoc = projectActivitiesMap.get(p.id);
+                    if (!activitiesDoc || !activitiesDoc.activities) return null;
+                    const activities = activitiesDoc.activities;
 
-                    const allActivities = Object.values(activities).flat();
-                    const earnedValue = allActivities.reduce((sum, act) => {
-                         const useVdcRate = act.description === "Project Setup";
-                         const rate = useVdcRate ? (p.vdcBlendedRate || p.blendedRate) : p.blendedRate;
-                         return sum + (Number(act.estimatedHours || 0) * rate * (Number(act.percentComplete || 0) / 100));
-                    }, 0);
-                    
-                    const actualCost = allActivities.reduce((sum, act) => {
-                        const useVdcRate = act.description === "Project Setup";
-                        const rate = useVdcRate ? (p.vdcBlendedRate || p.blendedRate) : p.blendedRate;
-                        return sum + (Number(act.hoursUsed || 0) * rate);
-                    }, 0);
+                    let earnedValue = 0;
+                    let actualCost = 0;
+            
+                    Object.entries(activities).forEach(([groupKey, activityList]) => {
+                        const isVdcGroup = groupKey === 'vdc';
+                        const rate = isVdcGroup ? (p.vdcBlendedRate || p.blendedRate) : p.blendedRate;
+            
+                        activityList.forEach(act => {
+                            earnedValue += (Number(act.estimatedHours || 0) * rate * (Number(act.percentComplete || 0) / 100));
+                            actualCost += (Number(act.hoursUsed || 0) * rate);
+                        });
+                    });
 
                     const projectAssignments = assignments.filter(a => a.projectId === p.id);
                     if(projectAssignments.length === 0) return null;
@@ -443,7 +535,9 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 }
                 
                 data = projectsToReport.map(p => {
-                        const projectActivities = projectActivitiesMap.get(p.id);
+                        const activitiesDoc = projectActivitiesMap.get(p.id);
+                        const projectActivities = activitiesDoc ? activitiesDoc.activities : null;
+
 
                         const actualBurn = projectActivities 
                             ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.hoursUsed) || 0), 0)
@@ -481,7 +575,11 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             default:
                 break;
         }
-        setReportData(data);
+        
+        if (reportType !== 'full-project-report') {
+            setReportData(data);
+        }
+        
         setReportHeaders(headers);
 
         if (isTabularReport) {
@@ -489,7 +587,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         } else {
             setReportContext(null);
         }
-    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, selectedSkills, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks, allSkillsOptions, filteredDetailersForMatrix, selectedProjectId]);
+    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, selectedSkills, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks, allSkillsOptions, filteredDetailersForMatrix, selectedProjectId, reportOption]);
 
     const handleClearReport = useCallback(() => {
         setReportData(null);
@@ -506,6 +604,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         setSelectedEmployeeId('');
         setSelectedSkills([]);
         setSelectedProfile("Select a Profile...");
+        setReportOption('fullProject');
         // Close modals/popups
         setIsJobFamilyPopupVisible(false);
         setJobFamilyToDisplayInPopup(null);
@@ -545,6 +644,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             case 'selectedEmployeeId': setSelectedEmployeeId(value); break;
             case 'selectedSkills': setSelectedSkills(value); break;
             case 'selectedProfile': setSelectedProfile(value); break;
+            case 'reportOption': setReportOption(value); break;
             default: break;
         }
     }, []);
@@ -583,6 +683,8 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                     {`
                         @media print {
                             body * { visibility: hidden; }
+                            #full-project-report-printable, #full-project-report-printable * { visibility: visible; }
+                            #full-project-report-printable { position: absolute; left: 0; top: 0; width: 100%; }
                             #skill-matrix-printable-area, #skill-matrix-printable-area * { visibility: visible; }
                             #skill-matrix-printable-area { position: absolute; left: 0; top: 0; width: 100%; }
                         }
@@ -652,6 +754,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                         selectedEmployeeId={selectedEmployeeId}
                         selectedSkills={selectedSkills}
                         selectedProfile={selectedProfile}
+                        reportOption={reportOption}
                         collapsedFilters={collapsedFilters}
                         jobFamilyToDisplayInPopup={jobFamilyToDisplayInPopup}
                         jobFamilyData={jobFamilyData}
@@ -689,3 +792,4 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
 };
 
 export default ReportingConsole;
+

@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect, useCallback, useState } from 'react';
 import { TutorialHighlight } from './App';
 import EmployeeSkillMatrix from './EmployeeSkillMatrix';
+import FullProjectReport from './FullProjectReport'; // Import the new component
 import * as d3 from 'd3';
 
 // --- Helper Components ---
@@ -399,6 +400,25 @@ const ReportDisplay = ({
         }
     };
 
+    if (reportType === 'full-project-report' && reportData) {
+        return (
+            <div className="flex-grow flex flex-col min-h-0 min-w-0">
+                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex-grow flex flex-col`}>
+                    <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                        <h3 className="text-xl font-semibold">Report Results</h3>
+                        <div className="flex gap-2">
+                            <button onClick={onClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
+                            <button onClick={() => window.print()} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Print</button>
+                        </div>
+                    </div>
+                    <div id="full-project-report-printable" className="overflow-auto hide-scrollbar-on-hover flex-grow">
+                        <FullProjectReport report={reportData} currentTheme={currentTheme} />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (reportType === 'employee-details' && reportData && reportHeaders) {
         return (
             <div className="flex-grow flex flex-col min-h-0 min-w-0">
@@ -549,3 +569,4 @@ const ReportDisplay = ({
 };
 
 export default ReportDisplay;
+

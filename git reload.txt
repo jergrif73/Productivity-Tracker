@@ -1,5 +1,5 @@
 git add .
-git commit -m "Fixed Teams Scrolling"
+git commit -m "Updated Project Console Terms"
 git push origin main
 
 
