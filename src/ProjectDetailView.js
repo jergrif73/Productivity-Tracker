@@ -142,7 +142,7 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
             </div>
         </TutorialHighlight>
     )
-}
+};
 
 const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, activities }) => {
 
@@ -880,6 +880,7 @@ const ProjectDetailView = ({
     onTradeFilterToggle,
     onSelectAllTrades
 }) => {
+    // ... other state and context ...
     const { navigateToWorkloaderForProject } = useContext(NavigationContext);
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -1201,12 +1202,51 @@ const ProjectDetailView = ({
         handleSaveData({ rateTypes: newRateTypes });
     };
 
+    // --- UPDATED: handleAddActivityGroup ---
     const handleAddActivityGroup = () => {
-        if (!newActivityGroup || projectData.activities[newActivityGroup]) return;
-        const updatedActivities = { ...projectData.activities, [newActivityGroup]: [] };
-        handleSaveData({ activities: updatedActivities });
+        if (!newActivityGroup || !projectData || projectData.activities?.[newActivityGroup]) {
+            console.warn("Invalid selection or group already exists:", newActivityGroup);
+            return;
+        }
+
+        const disciplineToAddDetails = allDisciplines.find(d => d.key === newActivityGroup);
+        if (!disciplineToAddDetails) {
+            console.error("Could not find discipline details for key:", newActivityGroup);
+             showToast(`Error finding details for ${newActivityGroup}.`, "error");
+            return;
+        }
+
+        const currentDisciplines = projectData.actionTrackerDisciplines || [];
+        // Check if the discipline already exists in the array
+        const disciplineExists = currentDisciplines.some(d => d.key === newActivityGroup);
+
+        const updatedDisciplines = disciplineExists
+            ? currentDisciplines // No change if it exists
+            : [...currentDisciplines, { key: disciplineToAddDetails.key, label: disciplineToAddDetails.label }]; // Add if it doesn't exist
+
+        // Prepare data to save, always include activities, include disciplines if they changed
+        const dataToSave = {
+            activities: {
+                ...(projectData.activities || {}), // Keep existing activities
+                [newActivityGroup]: [] // Add the new empty array for the group
+            }
+        };
+        if (!disciplineExists) {
+            dataToSave.actionTrackerDisciplines = updatedDisciplines;
+        }
+
+
+        handleSaveData(dataToSave);
         setNewActivityGroup('');
+        showToast(`Activity section "${disciplineToAddDetails?.label || newActivityGroup}" added.`, "success");
+
+        // Optionally, update parent filter state immediately if needed,
+        // though the listener *should* update it eventually.
+        // If immediate update is required:
+        // onTradeFilterToggle(projectId, newActivityGroup); // Toggle it on? Or just ensure it's included?
+        // Maybe better to rely on Firestore listener update for simplicity.
     };
+    // --- END UPDATE ---
 
     const handleDeleteActivityGroup = (groupKey) => {
         if (!window.confirm(`Are you sure you want to delete the "${groupKey}" activity section and all its tasks? This cannot be undone.`)) return;
