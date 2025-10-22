@@ -233,10 +233,12 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     }, [assignments, db, appId]);
 
     // Helper function to consolidate non-overlapping assignments for display
+    // Helper function to consolidate non-overlapping assignments for display
+    // MODIFIED: Now also groups by allocation so different %s stay on separate rows
     const consolidateAssignments = (assignments) => {
-        // Group by detailer + project + trade
+        // Group by detailer + project + trade + ALLOCATION
         const groups = assignments.reduce((acc, assignment) => {
-            const key = `${assignment.detailerId}-${assignment.projectId}-${assignment.trade}`;
+            const key = `${assignment.detailerId}-${assignment.projectId}-${assignment.trade}-${assignment.allocation}`;
             if (!acc[key]) acc[key] = [];
             acc[key].push(assignment);
             return acc;
@@ -249,7 +251,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                 // Single assignment, just add it
                 consolidated.push(group[0]);
             } else {
-                // Multiple assignments - check for overlaps
+                // Multiple assignments with SAME allocation - check for overlaps
                 const sorted = group.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
                 
                 // Check if any assignments overlap
@@ -258,11 +260,9 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     const currentEnd = new Date(sorted[i].endDate);
                     const nextStart = new Date(sorted[i + 1].startDate);
                     
-                    // Add one day to current end for comparison (assignments ending on Friday and starting on Monday should be considered contiguous, not overlapping)
                     const currentEndPlusOne = new Date(currentEnd);
                     currentEndPlusOne.setDate(currentEnd.getDate() + 1);
                     
-                    // If next assignment starts before current ends + 1 day, there's overlap
                     if (nextStart < currentEndPlusOne) {
                         hasOverlap = true;
                         break;
@@ -273,13 +273,13 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     // Keep separate if there are overlaps
                     consolidated.push(...sorted);
                 } else {
-                    // No overlaps - create a virtual consolidated assignment for display
+                    // No overlaps and SAME allocation - create a virtual consolidated assignment for display
                     const virtualAssignment = {
-                        ...sorted[0], // Use first assignment as base
-                        id: `virtual-${sorted.map(s => s.id).join('-')}`, // Create virtual ID
+                        ...sorted[0],
+                        id: `virtual-${sorted.map(s => s.id).join('-')}`,
                         startDate: sorted[0].startDate,
                         endDate: sorted[sorted.length - 1].endDate,
-                        segments: sorted, // Store all segments for reference
+                        segments: sorted,
                         isVirtualConsolidated: true
                     };
                     consolidated.push(virtualAssignment);
@@ -435,6 +435,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     };
 
     // MODIFIED: Updated function with merging logic
+    // MODIFIED: Split assignment from edit week forward, but keep displaying on same row
     const handleSplitAndUpdateAssignment = async (assignmentId, updates, editWeekIndex) => {
         const originalAssignment = assignments.find(a => a.id === assignmentId);
         
@@ -458,8 +459,10 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
         const originalEndDate = new Date(originalAssignment.endDate);
         originalEndDate.setUTCHours(0, 0, 0, 0);
 
+        // Delete the original assignment
         batch.delete(doc(assignmentsRef, originalAssignment.id));
 
+        // Create "before" segment with original values (if needed)
         const dayBeforeChange = new Date(changeDate);
         dayBeforeChange.setUTCDate(dayBeforeChange.getUTCDate() - 1);
         if (originalStartDate < changeDate) {
@@ -471,6 +474,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
             batch.set(doc(assignmentsRef), beforeSegment);
         }
 
+        // Create "after" segment with new values
         const changedAndForwardSegment = {
             ...originalAssignment,
             ...updates,
@@ -482,19 +486,10 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
         try {
             await batch.commit();
-            
-            // NEW: Trigger merge check after a short delay to allow state to update
-            setTimeout(() => {
-                mergeContiguousAssignments(
-                    originalAssignment.detailerId, 
-                    originalAssignment.projectId
-                );
-            }, 500);
-            
-            showToast("Assignment updated for all future weeks.", "success");
+            showToast("Assignment updated from this week forward", "success");
         } catch (e) {
             console.error("Error during split-update operation:", e);
-            showToast("Error updating assignment.", "error");
+            showToast("Error updating assignment", "error");
         } finally {
             setEditingCell(null);
             setInlineEditing(null);
@@ -565,17 +560,17 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     break;
             }
             
-            // After any drag operation, try to merge assignments
-            setTimeout(() => {
-                try {
-                    mergeContiguousAssignments(
-                        assignment.detailerId,
-                        assignment.projectId
-                    );
-                } catch (error) {
-                    console.error("Error merging after drag:", error);
-                }
-            }, 500); // Small delay to ensure the update is processed first
+            // Note: Merging disabled to preserve split assignments with different allocations
+            // setTimeout(() => {
+            //     try {
+            //         mergeContiguousAssignments(
+            //             assignment.detailerId,
+            //             assignment.projectId
+            //         );
+            //     } catch (error) {
+            //         console.error("Error merging after drag:", error);
+            //     }
+            // }, 500);
 
         } catch (e) {
             console.error("Error during drag-and-drop operation:", e);
@@ -1186,17 +1181,17 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                                         className={`w-full h-full text-center bg-white text-black rounded inline-edit-cell`}
                                                                         autoFocus
                                                                         onBlur={(e) => {
-                                                                            const newAllocation = e.target.value;
-                                                                            if (newAllocation !== currentAllocation) {
-                                                                                handleSplitAndUpdateAssignment(actualAssignment.id, { allocation: Number(newAllocation) }, weekIndex);
+                                                                            const newAllocation = Number(e.target.value);
+                                                                            if (newAllocation !== Number(currentAllocation) && !isNaN(newAllocation)) {
+                                                                                handleSplitAndUpdateAssignment(actualAssignment.id, { allocation: newAllocation }, weekIndex);
                                                                             }
                                                                             setInlineEditing(null);
                                                                         }}
                                                                         onKeyDown={(e) => {
                                                                             if (e.key === 'Enter') {
-                                                                                const newAllocation = e.target.value;
-                                                                                if (newAllocation !== currentAllocation) {
-                                                                                    handleSplitAndUpdateAssignment(actualAssignment.id, { allocation: Number(newAllocation) }, weekIndex);
+                                                                                const newAllocation = Number(e.target.value);
+                                                                                if (newAllocation !== Number(currentAllocation) && !isNaN(newAllocation)) {
+                                                                                    handleSplitAndUpdateAssignment(actualAssignment.id, { allocation: newAllocation }, weekIndex);
                                                                                 }
                                                                                 setInlineEditing(null);
                                                                             } else if (e.key === 'Escape') {
@@ -1269,4 +1264,3 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 };
 
 export default WorkloaderConsole;
-

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
+// Added collection and getDocs back
 import { doc, onSnapshot, setDoc, collection, getDocs, getDoc } from 'firebase/firestore';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -54,8 +55,12 @@ const animationVariants = {
 const groupActivities = (activityArray, actionTrackerDisciplines) => {
     const defaultGroups = {};
     (actionTrackerDisciplines || []).forEach(disc => {
-        defaultGroups[disc.key] = [];
+        // Ensure keys exist even if empty
+        if (!defaultGroups[disc.key]) {
+            defaultGroups[disc.key] = [];
+        }
     });
+    // Ensure VDC exists
     if (!defaultGroups.vdc) {
         defaultGroups.vdc = [];
     }
@@ -63,14 +68,18 @@ const groupActivities = (activityArray, actionTrackerDisciplines) => {
     return activityArray.reduce((acc, act) => {
         const desc = act.description.toUpperCase();
         let found = false;
-        if(desc.startsWith('MH')) { acc.sheetmetal.push(act); found = true; }
-        else if (desc.startsWith('MP')) { acc.piping.push(act); found = true; }
-        else if (desc.startsWith('PL')) { acc.plumbing.push(act); found = true; }
-        else if (desc.startsWith('ST')) { acc.structural.push(act); found = true; }
-        else if (desc.startsWith('CO')) { acc.coordination.push(act); found = true; }
-        else if (desc.startsWith('GIS')) { acc.gis.push(act); found = true; }
-        
+        // Find the discipline key based on the label/description prefix
+        const discipline = (actionTrackerDisciplines || []).find(d => desc.startsWith(d.label.substring(0, 2).toUpperCase()));
+
+        if (discipline) {
+             if (!acc[discipline.key]) acc[discipline.key] = []; // Ensure key exists if dynamically added
+            acc[discipline.key].push(act);
+            found = true;
+        }
+
+        // Fallback for VDC/Misc or if not found by prefix
         if (!found) {
+            if (!acc.vdc) acc.vdc = []; // Ensure vdc exists
             acc.vdc.push(act);
         }
         return acc;
@@ -80,6 +89,8 @@ const groupActivities = (activityArray, actionTrackerDisciplines) => {
 
 // --- Sub-Components for ProjectDetailView ---
 
+// FinancialSummary, BudgetImpactLog, FinancialForecastChart, ProjectBreakdown, ActionTrackerDisciplineManager components remain the same
+// ... (Paste those components here) ...
 const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget }) => {
     if (!project || !activityTotals) return null;
 
@@ -89,7 +100,7 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
 
     const projectedFinalCost = activityTotals.totalProjectedCost;
     const costToComplete = projectedFinalCost - spentToDate;
-    
+
     const productivity = spentToDate > 0 ? earnedValue / spentToDate : 0;
     const variance = currentBudget - projectedFinalCost;
 
@@ -134,9 +145,9 @@ const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget
 }
 
 const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, activities }) => {
-    
+
     const tradeActivityOptions = useMemo(() => {
-        const options = new Set(); 
+        const options = new Set();
         if (activities) {
             Object.values(activities).flat().forEach(activity => {
                 options.add(activity.description);
@@ -155,10 +166,10 @@ const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, acti
 
     const handleAdd = () => {
         if (newImpact.description && newImpact.hours > 0 && newImpact.tradeOrActivity) {
-            onAdd({ 
-                ...newImpact, 
+            onAdd({
+                ...newImpact,
                 id: `impact_${Date.now()}`,
-                amount: calculatedAmount 
+                amount: calculatedAmount
             });
             setNewImpact({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Detailing Rate' });
         }
@@ -233,7 +244,7 @@ const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentB
         Object.values(weeklyHours).forEach(tradeData => {
             Object.keys(tradeData).forEach(week => allWeeks.add(week));
         });
-        
+
         const sortedWeeks = Array.from(allWeeks).sort();
         if (sortedWeeks.length === 0) return null;
 
@@ -256,10 +267,10 @@ const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentB
 
     useEffect(() => {
         if (!chartData || !svgRef.current) return;
-        
+
         const { plannedSpend, startDate, endDate } = chartData;
         const { totalEarnedValue, totalActualCost, totalProjectedCost } = activityTotals;
-        
+
         const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove();
 
@@ -298,7 +309,7 @@ const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentB
         if (today >= startDate && today <= endDate) {
             g.append('line').attr('x1', x(today)).attr('x2', x(today)).attr('y1', 0).attr('y2', height).attr('stroke', currentTheme.textColor).attr('stroke-width', 1).attr('stroke-dasharray', '2,2');
             g.append('text').attr('x', x(today)).attr('y', -5).text('Today').attr('fill', currentTheme.textColor).attr('text-anchor', 'middle');
-            
+
             g.append('circle').attr('cx', x(today)).attr('cy', y(totalEarnedValue)).attr('r', 5).attr('fill', '#14b8a6');
             g.append('text').attr('x', x(today) + 8).attr('y', y(totalEarnedValue)).text(`Earned: ${formatCurrency(totalEarnedValue)}`).attr('fill', '#14b8a6').attr('alignment-baseline', 'middle');
 
@@ -355,10 +366,10 @@ const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReorder, cur
 
         const updatedItems = [...mainItems];
         const draggedItemIndex = updatedItems.findIndex(item => item.id === draggingItem.id);
-        
+
         const [reorderedItem] = updatedItems.splice(draggedItemIndex, 1);
         updatedItems.splice(dropIndex, 0, reorderedItem);
-        
+
         onReorder(updatedItems);
         setDraggingItem(null);
     };
@@ -367,8 +378,8 @@ const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReorder, cur
         <>
             <div className="space-y-2 max-h-96 overflow-y-auto mb-4 hide-scrollbar-on-hover">
                 {(mainItems || []).map((item, index) => (
-                    <div 
-                        key={item.id} 
+                    <div
+                        key={item.id}
                         className="flex items-center justify-between p-2 bg-gray-500/10 rounded-md cursor-move"
                         draggable
                         onDragStart={(e) => handleDragStart(e, item)}
@@ -376,7 +387,7 @@ const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReorder, cur
                         onDrop={(e) => handleDrop(e, index)}
                     >
                         {editingItem?.id === item.id ? (
-                            <input 
+                            <input
                                 type="text"
                                 value={editingItem.name}
                                 onChange={e => setEditingItem({...editingItem, name: e.target.value})}
@@ -396,7 +407,7 @@ const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReorder, cur
                 ))}
             </div>
             <div className="flex gap-2 border-t pt-2">
-                <input 
+                <input
                     type="text"
                     value={newItemName}
                     onChange={e => setNewItemName(e.target.value)}
@@ -448,7 +459,6 @@ const ActionTrackerDisciplineManager = ({ disciplines, onAdd, onDelete, currentT
     );
 };
 
-
 const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActivityCompletion, onUpdatePercentage, onDeleteActivityFromActionTracker, actionTrackerData, currentTheme, actionTrackerDisciplines, tradeColorMapping, isTradePercentageEditable, isActivityCompletionEditable, collapsedSections, onToggle, activeTrades, projectWideActivities }) => {
 
     const handlePercentageChange = (mainId, trade, value) => {
@@ -460,8 +470,8 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
         if (numericValue > 100) return;
         onUpdateActivityCompletion(mainId, trade, activityId, numericValue);
     };
-    
-    const projectWideDisciplines = actionTrackerDisciplines.filter(disc => 
+
+    const projectWideDisciplines = (actionTrackerDisciplines || []).filter(disc =>
         projectWideActivities?.includes(disc.key) && activeTrades.includes(disc.key)
     );
 
@@ -509,7 +519,7 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
                                                     return (
                                                         <div key={act.id} className="grid grid-cols-[1fr,auto,auto] items-center text-sm py-1 gap-2">
                                                             <span>{act.description}</span>
-                                                            <input 
+                                                            <input
                                                                 type="number"
                                                                 value={activityCompletion}
                                                                 onClick={(e) => e.stopPropagation()}
@@ -561,7 +571,7 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
                             className="overflow-hidden"
                         >
                             <div className="space-y-3 pt-2">
-                                {actionTrackerDisciplines
+                                {(actionTrackerDisciplines || [])
                                     .filter(disc => !projectWideActivities?.includes(disc.key) && activeTrades.includes(disc.key))
                                     .map(discipline => {
                                     const trade = discipline.key;
@@ -573,7 +583,7 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
 
                                     const tradeTotalHours = tradeActivities.reduce((sum, act) => sum + Number(act.estimatedHours || 0), 0);
                                     const percentageOfProject = totalProjectHours > 0 ? (tradeTotalHours / totalProjectHours) * 100 : 0;
-                                    
+
                                     const tradeData = actionTrackerData?.[main.id]?.[trade] || {};
                                     const tradePercentage = tradeData.tradePercentage || '';
                                     const tradeSectionId = `main_${main.id}_trade_${trade}`;
@@ -584,8 +594,8 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
                                                 <span className="font-bold text-sm">{discipline.label}</span>
                                                 <div className="flex items-center gap-2 text-sm">
                                                     <span>Percentage of Est. Hrs. ({percentageOfProject.toFixed(2)}%)</span>
-                                                    <input 
-                                                        type="number" 
+                                                    <input
+                                                        type="number"
                                                         value={tradePercentage}
                                                         onClick={(e) => e.stopPropagation()}
                                                         onChange={(e) => { e.stopPropagation(); handlePercentageChange(main.id, trade, e.target.value); }}
@@ -620,7 +630,7 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
                                                             return (
                                                                 <div key={act.id} className="grid grid-cols-[1fr,auto,auto] items-center text-sm py-1 gap-2">
                                                                     <span>{act.description}</span>
-                                                                    <input 
+                                                                    <input
                                                                         type="number"
                                                                         value={activityCompletion}
                                                                         onClick={(e) => e.stopPropagation()}
@@ -656,7 +666,6 @@ const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpdateActiv
     );
 };
 
-
 const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme, totalProjectHours, accessLevel, rateType }) => {
     const { percentComplete = 0, hoursUsed = 0, estimatedHours = 0 } = activity;
 
@@ -665,18 +674,22 @@ const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete,
     const earnedValue = (Number(estimatedHours) * rateToUse) * (Number(percentComplete) / 100);
     const actualCost = Number(hoursUsed) * rateToUse;
     const percentOfProject = totalProjectHours > 0 ? (Number(estimatedHours) / totalProjectHours) * 100 : 0;
-    
+
     const rawBudget = (Number(estimatedHours) || 0) * rateToUse;
     const lineItemBudget = Math.ceil(rawBudget / 5) * 5;
 
     const calculateProjectedHours = (act) => {
         const localHoursUsed = Number(act.hoursUsed) || 0;
         const localPercentComplete = Number(act.percentComplete) || 0;
-        if (!localPercentComplete || localPercentComplete === 0) return Number(act.estimatedHours) || 0;
+        // If % complete is 0, projected hours should be the estimated hours.
+        if (localPercentComplete === 0) return Number(act.estimatedHours) || 0;
+        // Avoid division by zero, although technically handled by the check above.
+        if (localPercentComplete <= 0) return Number(act.estimatedHours) || 0;
+        // Calculate projected hours based on current burn rate.
         return (localHoursUsed / localPercentComplete) * 100;
     };
-    const projected = calculateProjectedHours(activity);
-    
+    const projected = calculateProjectedHours(activity); // This is projected HOURS now
+
     return (
         <tr key={activity.id} className={currentTheme.cardBg}>
             <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
@@ -689,10 +702,10 @@ const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete,
             </td>
             <td className={`p-1 w-24 text-center`}>
                 {accessLevel === 'taskmaster' ? (
-                    <input 
-                        type="number" 
-                        value={hoursUsed} 
-                        onChange={(e) => onChange(groupKey, index, 'hoursUsed', e.target.value)} 
+                    <input
+                        type="number"
+                        value={hoursUsed}
+                        onChange={(e) => onChange(groupKey, index, 'hoursUsed', e.target.value)}
                         className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
                     />
                 ) : (
@@ -721,6 +734,9 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
         onRenameGroup(groupKey, editableTitle);
     };
 
+    // Removed unused groupProjectedCost calculation
+    // const groupProjectedCost = (data || []).reduce((sum, activity) => { ... }, 0);
+
     return (
         <div className={`border-b ${currentTheme.borderColor}`}>
             <div className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}>
@@ -731,7 +747,7 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                         xmlns="http://www.w3.org/2000/svg" className="cursor-pointer h-5 w-5 transition-transform flex-shrink-0 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </motion.svg>
-                    
+
                     {isEditingTitle ? (
                         <input
                             type="text"
@@ -750,15 +766,16 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
                     )}
 
                     <div className="flex-grow grid grid-cols-9 text-xs ml-4">
-                        <span></span>
+                        <span></span> {/* Spacer for Description */}
                         <span className="text-center">{groupTotals.estimated.toFixed(2)}</span>
                         <span className="text-center">{formatCurrency(groupTotals.budget)}</span>
-                        <span></span>
+                        <span></span> {/* Spacer for % of Project */}
                         <span className="text-center">{groupTotals.percentComplete.toFixed(2)}%</span>
                         <span className="text-center">{groupTotals.used.toFixed(2)}</span>
                         <span className="text-center">{formatCurrency(groupTotals.earnedValue)}</span>
                         <span className="text-center">{formatCurrency(groupTotals.actualCost)}</span>
-                        <span className="text-center">{groupTotals.projected.toFixed(2)}</span>
+                        {/* Display Projected Hours calculation for the group */}
+                        <span className="text-center">{groupTotals.projected.toFixed(2)}</span> {/* Correctly reflects sum of projected hours */}
                     </div>
                 </div>
                 <div className="flex items-center gap-4 flex-shrink-0 ml-4">
@@ -849,25 +866,40 @@ const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass
 
 // --- Main ProjectDetailView Component ---
 
-const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, appId, showToast }) => {
+const ProjectDetailView = ({
+    db,
+    project,
+    projectId,
+    accessLevel,
+    currentTheme,
+    appId,
+    showToast,
+    // --- UPDATED/NEW PROPS ---
+    activeTrades, // No longer optional, expected to be an array
+    allDisciplines, // Expecting the full list of disciplines for this project
+    onTradeFilterToggle,
+    onSelectAllTrades
+}) => {
     const { navigateToWorkloaderForProject } = useContext(NavigationContext);
     const [projectData, setProjectData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [collapsedSections, setCollapsedSections] = useState({ 
-        budgetLog: true, 
-        financialForecast: true, 
-        mainsManagement: true, 
+    const [collapsedSections, setCollapsedSections] = useState({
+        budgetLog: true,
+        financialForecast: true,
+        mainsManagement: true,
         actionTrackerSettings: true,
-        actionTracker: true 
+        actionTracker: true
     });
     const [weeklyHours, setWeeklyHours] = useState({});
-    
+    const [newActivityGroup, setNewActivityGroup] = useState('');
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
-    
+
+    // --- Trade Color Mapping (remains the same) ---
     const tradeColorMapping = useMemo(() => {
         const mapping = {};
-        if (projectData?.actionTrackerDisciplines) {
-            projectData.actionTrackerDisciplines.forEach(d => {
+        // Use allDisciplines passed from parent for consistency
+        if (allDisciplines) {
+            allDisciplines.forEach(d => {
                 if (d.label.toLowerCase().includes('pip')) mapping[d.key] = { bg: 'bg-green-500/70', text: 'text-white' };
                 else if (d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet')) mapping[d.key] = { bg: 'bg-yellow-400/70', text: 'text-black' };
                 else if (d.label.toLowerCase().includes('plumb')) mapping[d.key] = { bg: 'bg-blue-500/70', text: 'text-white' };
@@ -879,112 +911,11 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             });
         }
         return mapping;
-    }, [projectData?.actionTrackerDisciplines]);
-    
-    const [activeTrades, setActiveTrades] = useState([]);
-    
-    const [newActivityGroup, setNewActivityGroup] = useState('');
-
-    useEffect(() => {
-        if(projectData?.actionTrackerDisciplines) {
-            setActiveTrades(projectData.actionTrackerDisciplines.map(d => d.key));
-        }
-    }, [projectData?.actionTrackerDisciplines]);
-
-    const handleTradeFilterToggle = (tradeKey) => {
-        setActiveTrades(prev => {
-            const newTrades = new Set(prev);
-            if (newTrades.has(tradeKey)) {
-                newTrades.delete(tradeKey);
-            } else {
-                newTrades.add(tradeKey);
-            }
-            return Array.from(newTrades);
-        });
-    };
-
-    const handleSelectAllTrades = () => {
-        if (activeTrades.length === (projectData?.actionTrackerDisciplines || []).length) {
-            setActiveTrades([]);
-        } else {
-            setActiveTrades((projectData?.actionTrackerDisciplines || []).map(d => d.key));
-        }
-    };
-
-    const handleToggleAllActionTracker = useCallback(() => {
-        const actionTrackerKeys = [];
-        if (projectData && projectData.mainItems) {
-            projectData.mainItems.forEach(main => {
-                const mainId = `main_${main.id}`;
-                actionTrackerKeys.push(mainId);
-                (projectData.actionTrackerDisciplines || []).forEach(disc => {
-                    const tradeId = `${mainId}_trade_${disc.key}`;
-                    actionTrackerKeys.push(tradeId);
-                });
-            });
-        }
-
-        const isAnyCollapsed = actionTrackerKeys.some(key => collapsedSections[key] !== false);
-        
-        setCollapsedSections(prev => {
-            const newCollapsedState = { ...prev };
-            actionTrackerKeys.forEach(key => {
-                newCollapsedState[key] = !isAnyCollapsed;
-            });
-            return newCollapsedState;
-        });
-    }, [projectData, collapsedSections]);
-
-    const isAnyActionTrackerSectionCollapsed = useMemo(() => {
-        if (!projectData || !projectData.mainItems || !projectData.actionTrackerDisciplines) return true;
-        const actionTrackerKeys = [];
-        projectData.mainItems.forEach(main => {
-            const mainId = `main_${main.id}`;
-            actionTrackerKeys.push(mainId);
-            projectData.actionTrackerDisciplines.forEach(disc => {
-                const tradeId = `${mainId}_trade_${disc.key}`;
-                actionTrackerKeys.push(tradeId);
-            });
-        });
-        return actionTrackerKeys.some(key => collapsedSections[key] !== false);
-    }, [collapsedSections, projectData]);
-
-    const handleToggleAllActivityBreakdown = useCallback(() => {
-        if (!projectData || !projectData.activities) return;
-        const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
-        setCollapsedSections(prev => {
-            const isAnyCollapsed = breakdownKeys.some(key => prev[key] !== false);
-            const newState = {...prev};
-            breakdownKeys.forEach(key => {
-                newState[key] = !isAnyCollapsed;
-            });
-            return newState;
-        });
-    }, [projectData]);
-
-    const isAnyActivityBreakdownCollapsed = useMemo(() => {
-        if (!projectData || !projectData.activities) return true;
-        const breakdownKeys = Object.keys(projectData.activities).map(group => `group_${group}`);
-        return breakdownKeys.some(key => collapsedSections[key] !== false);
-    }, [projectData, collapsedSections]);
+    }, [allDisciplines]);
 
 
-    useEffect(() => {
-        const fetchWeeklyHours = async () => {
-            const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${projectId}/weeklyHours`);
-            const snapshot = await getDocs(weeklyHoursRef);
-            const hoursData = {};
-            snapshot.docs.forEach(doc => {
-                if (doc.id !== '_config') {
-                    hoursData[doc.id] = doc.data();
-                }
-            });
-            setWeeklyHours(hoursData);
-        };
-        fetchWeeklyHours();
-    }, [projectId, db, appId]);
-    
-    useEffect(() => {
+    // --- Firestore listener useEffect (slightly modified) ---
+     useEffect(() => {
         let unsubscribe = () => {};
 
         const setupListener = () => {
@@ -992,10 +923,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     setProjectData(data);
+                } else {
+                     // If doc doesn't exist yet, clear projectData or handle appropriately
+                    setProjectData(null);
                 }
                 setLoading(false);
             }, (error) => {
                 console.error("Error fetching project data:", error);
+                setProjectData(null); // Ensure projectData is null on error
                 setLoading(false);
             });
         };
@@ -1004,6 +939,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             try {
                 const docSnap = await getDoc(docRef);
                 if (!docSnap.exists()) {
+                    // Create doc with initial data
                     const initialDisciplines = [
                         { key: 'piping', label: 'Piping' },
                         { key: 'sheetmetal', label: 'Duct' },
@@ -1013,18 +949,29 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                         { key: 'structural', label: 'Structural' },
                         { key: 'gis', label: 'GIS/GPS' }
                     ];
-                    const initialData = { 
-                        activities: groupActivities(initialActivityData, initialDisciplines), 
-                        budgetImpacts: [], 
-                        mainItems: [], 
-                        actionTrackerData: {}, 
-                        actionTrackerDisciplines: initialDisciplines, 
+                    const initialData = {
+                        activities: groupActivities(initialActivityData, initialDisciplines),
+                        budgetImpacts: [],
+                        mainItems: [],
+                        actionTrackerData: {},
+                        actionTrackerDisciplines: initialDisciplines,
                         rateTypes: {},
-                        projectWideActivities: [] // New field
+                        projectWideActivities: []
                     };
                     await setDoc(docRef, initialData);
+                    setProjectData(initialData); // Set initial state locally too
+                     // Call parent to initialize filters now that disciplines exist
+                    onSelectAllTrades(projectId, initialDisciplines); // Select all initially
+                } else {
+                    const existingData = docSnap.data();
+                    setProjectData(existingData);
+                    // If projectData was loaded, ensure parent filters are initialized if needed
+                    // (This might run if ProjectConsole loaded before this component fully initialized)
+                    if (activeTrades === null && existingData?.actionTrackerDisciplines) {
+                        onSelectAllTrades(projectId, existingData.actionTrackerDisciplines);
+                    }
                 }
-                setupListener();
+                setupListener(); // Setup listener after ensuring doc exists/is created
             } catch (error) {
                 console.error("Error checking or creating document:", error);
                 setLoading(false);
@@ -1036,20 +983,48 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         return () => {
             unsubscribe();
         };
-    }, [docRef]);
+    }, [docRef, projectId, onSelectAllTrades, activeTrades]); // Added projectId, onSelectAllTrades, activeTrades dependencies
 
-    const handleSaveData = async (data) => {
+    // --- useEffect to fetch Weekly Hours --- Added dependencies
+    useEffect(() => {
+        const fetchWeeklyHours = async () => {
+            if (!db || !appId || !projectId) return; // Guard against missing dependencies
+            const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${projectId}/weeklyHours`);
+            try {
+                const snapshot = await getDocs(weeklyHoursRef);
+                const hoursData = {};
+                snapshot.docs.forEach(doc => {
+                    if (doc.id !== '_config') {
+                        hoursData[doc.id] = doc.data();
+                    }
+                });
+                setWeeklyHours(hoursData); // Use the state setter
+            } catch (error) {
+                console.error("Error fetching weekly hours:", error);
+                // Optionally set an error state or show a toast
+            }
+        };
+        fetchWeeklyHours();
+    }, [projectId, db, appId]); // Added dependencies
+
+
+    // --- Other handlers (handleSaveData, handleAddImpact, etc. remain the same) ---
+     const handleSaveData = async (data) => {
         await setDoc(docRef, data, { merge: true });
     };
-    
+
     const handleAddActionTrackerDiscipline = (newDiscipline) => {
         const newDisciplines = [...(projectData.actionTrackerDisciplines || []), newDiscipline];
         handleSaveData({ actionTrackerDisciplines: newDisciplines });
+        // Update parent state as well
+        onSelectAllTrades(projectId, newDisciplines); // Assuming new discipline should be active by default
     };
 
     const handleDeleteActionTrackerDiscipline = (disciplineKey) => {
         const newDisciplines = (projectData.actionTrackerDisciplines || []).filter(d => d.key !== disciplineKey);
         handleSaveData({ actionTrackerDisciplines: newDisciplines });
+         // Update parent state
+        onTradeFilterToggle(projectId, disciplineKey); // Removed redundant allDisciplines arg
     };
 
     const handleRemoveDuplicateActivities = () => {
@@ -1057,19 +1032,19 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             showToast("No activities to process.", "info");
             return;
         }
-    
+
         const allActivities = Object.values(projectData.activities).flat();
         const originalCount = allActivities.length;
-        
+
         const activityMap = new Map();
-    
+
         for (const activity of allActivities) {
             const key = activity.description.trim();
             if (activityMap.has(key)) {
                 const existing = activityMap.get(key);
                 existing.estimatedHours = (Number(existing.estimatedHours) || 0) + (Number(activity.estimatedHours) || 0);
                 existing.hoursUsed = (Number(existing.hoursUsed) || 0) + (Number(activity.hoursUsed) || 0);
-                
+
                 if (!existing.chargeCode && activity.chargeCode) {
                     existing.chargeCode = activity.chargeCode;
                 }
@@ -1081,11 +1056,11 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 });
             }
         }
-    
+
         const uniqueActivities = Array.from(activityMap.values());
         const newCount = uniqueActivities.length;
         const duplicatesRemovedCount = originalCount - newCount;
-    
+
         if (duplicatesRemovedCount > 0) {
             const regroupedActivities = groupActivities(uniqueActivities, projectData.actionTrackerDisciplines);
             handleSaveData({ activities: regroupedActivities });
@@ -1134,7 +1109,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             showToast('Activity removed from all groups.', 'success');
         }
     };
-    
+
     const handleAddImpact = (impact) => {
         const newImpacts = [...(projectData.budgetImpacts || []), impact];
         handleSaveData({ budgetImpacts: newImpacts });
@@ -1154,7 +1129,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         const newMains = (projectData.mainItems || []).map(m => m.id === updatedMain.id ? updatedMain : m);
         handleSaveData({ mainItems: newMains });
     };
-    
+
     const handleDeleteMain = (mainId) => {
         const newMains = (projectData.mainItems || []).filter(m => m.id !== mainId);
         handleSaveData({ mainItems: newMains });
@@ -1164,7 +1139,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         const mainsWithOrder = reorderedMains.map((main, index) => ({ ...main, order: index }));
         handleSaveData({ mainItems: mainsWithOrder });
     };
-    
+
     const handleToggleCollapse = (id) => {
         setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] }));
     };
@@ -1182,23 +1157,23 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         const localActionData = JSON.parse(JSON.stringify(projectData.actionTrackerData || {}));
         const updatedActivities = JSON.parse(JSON.stringify(projectData.activities));
         let activityToUpdate;
-    
+
         if (isProjectWide) {
             if (!localActionData.project_wide) localActionData.project_wide = {};
             if (!localActionData.project_wide[trade]) localActionData.project_wide[trade] = {};
             localActionData.project_wide[trade][activityId] = newPercentage;
-    
+
             activityToUpdate = updatedActivities[trade]?.find(act => act.id === activityId);
             if (activityToUpdate) {
                 activityToUpdate.percentComplete = newPercentage === '' ? 0 : Number(newPercentage);
             }
-    
+
         } else { // Mains-specific logic
             if (!localActionData[mainId]) localActionData[mainId] = {};
             if (!localActionData[mainId][trade]) localActionData[mainId][trade] = {};
             if (!localActionData[mainId][trade].activities) localActionData[mainId][trade].activities = {};
             localActionData[mainId][trade].activities[activityId] = newPercentage;
-    
+
             activityToUpdate = updatedActivities[trade]?.find(act => act.id === activityId);
             if (activityToUpdate) {
                 let activityTotalCompletion = 0;
@@ -1213,14 +1188,14 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 activityToUpdate.percentComplete = activityTotalCompletion * 100;
             }
         }
-    
+
         const dataToSave = { actionTrackerData: localActionData };
         if (activityToUpdate) {
             dataToSave.activities = updatedActivities;
         }
         handleSaveData(dataToSave);
     };
-    
+
     const handleSetRateType = (groupKey, rateType) => {
         const newRateTypes = { ...(projectData.rateTypes || {}), [groupKey]: rateType };
         handleSaveData({ rateTypes: newRateTypes });
@@ -1235,21 +1210,24 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
 
     const handleDeleteActivityGroup = (groupKey) => {
         if (!window.confirm(`Are you sure you want to delete the "${groupKey}" activity section and all its tasks? This cannot be undone.`)) return;
-    
+
         const { [groupKey]: _, ...restActivities } = projectData.activities;
         const { [groupKey]: __, ...restRateTypes } = projectData.rateTypes || {};
-    
+
         const newDisciplines = (projectData.actionTrackerDisciplines || []).filter(d => d.key !== groupKey);
-    
-        handleSaveData({ 
-            activities: restActivities, 
+
+        handleSaveData({
+            activities: restActivities,
             rateTypes: restRateTypes,
-            actionTrackerDisciplines: newDisciplines 
+            actionTrackerDisciplines: newDisciplines
         });
-        
+
+        // Update parent filters
+        onTradeFilterToggle(projectId, groupKey); // Removed redundant allDisciplines arg
+
         showToast(`Activity section "${groupKey}" deleted.`, 'success');
     };
-    
+
     const handleRenameActivityGroup = (groupKey, newLabel) => {
         if (!newLabel.trim()) return;
 
@@ -1263,18 +1241,19 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         handleSaveData({ actionTrackerDisciplines: newDisciplines });
         showToast(`Renamed section to "${newLabel.trim()}".`, 'success');
     };
-    
+
     const handleToggleProjectWide = (groupKey) => {
         const currentProjectWide = projectData.projectWideActivities || [];
         const isCurrentlyProjectWide = currentProjectWide.includes(groupKey);
         const newProjectWideActivities = isCurrentlyProjectWide
             ? currentProjectWide.filter(key => key !== groupKey)
             : [...currentProjectWide, groupKey];
-        
+
         handleSaveData({ projectWideActivities: newProjectWideActivities });
     };
 
 
+    // --- Calculation memos (activityTotals, groupTotals, currentBudget, sortedMainItems) remain the same ---
     const calculateGroupTotals = useCallback((activities, project, groupKey, rateType) => {
         return activities.reduce((acc, activity) => {
             const estHours = Number(activity?.estimatedHours || 0);
@@ -1282,7 +1261,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             const percentComplete = Number(activity?.percentComplete || 0);
 
             const rateToUse = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
-            
+
+             // Correct calculation for projected hours
             const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : (estHours > 0 ? estHours : 0);
 
             acc.estimated += estHours;
@@ -1290,15 +1270,15 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             acc.budget += estHours * rateToUse;
             acc.actualCost += usedHours * rateToUse;
             acc.earnedValue += (estHours * rateToUse) * (percentComplete / 100);
-            acc.projected += projectedHours * rateToUse;
-            
+            acc.projected += projectedHours; // Sum projected hours directly
+
             return acc;
         }, { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, percentComplete: 0 });
-    }, []);
+    }, []); // Removed project from dependencies as it's passed directly now
 
     const activityTotals = useMemo(() => {
         if (!projectData?.activities) return { estimated: 0, used: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 };
-        
+
         const allActivities = Object.entries(projectData.activities).flatMap(([groupKey, acts]) => {
             const rateType = projectData.rateTypes?.[groupKey] || 'Detailing Rate';
             return acts.map(act => ({ ...act, rateType, groupKey }));
@@ -1310,30 +1290,31 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
             const percentComplete = Number(activity?.percentComplete || 0);
 
             const rateToUse = activity.rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
-            const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : estHours;
+            const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : (estHours > 0 ? estHours : 0);
+
 
             acc.estimated += estHours;
             acc.used += usedHours;
             acc.totalActualCost += usedHours * rateToUse;
             acc.totalEarnedValue += (estHours * rateToUse) * (percentComplete / 100);
-            acc.totalProjectedCost += projectedHours * rateToUse;
-            
+            acc.totalProjectedCost += projectedHours * rateToUse; // Calculate total projected cost
+
             return acc;
         }, { estimated: 0, used: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 });
 
         return totals;
 
     }, [projectData?.activities, projectData?.rateTypes, project]);
-    
+
     const groupTotals = useMemo(() => {
         if (!projectData?.activities) return {};
-        
+
         const allTotals = {};
         for(const group in projectData.activities) {
             const activities = projectData.activities[group];
             const rateType = projectData.rateTypes?.[group] || 'Detailing Rate';
-            const totals = calculateGroupTotals(activities, project, group, rateType); 
-            
+            const totals = calculateGroupTotals(activities, project, group, rateType);
+
             const totalBudgetForGroup = activities.reduce((sum, act) => {
                 const estHours = Number(act.estimatedHours) || 0;
                 const rateToUse = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate) : project.blendedRate;
@@ -1368,28 +1349,29 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
         return [...(projectData?.mainItems || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     }, [projectData?.mainItems]);
 
-    const handleGoToProjectWorkloader = (e, projectId) => {
-        e.stopPropagation();
-        if (accessLevel === 'taskmaster' || accessLevel === 'tcl') {
-            navigateToWorkloaderForProject(projectId);
-        }
-    };
+    // --- Render logic ---
+    if (loading) return <div className="p-4 text-center">Loading Project Details...</div>; // Keep loading state
+    if (!projectData) return <div className="p-4 text-center text-red-500">Error loading project activity data. It might not exist yet.</div>; // Handle null projectData
 
-    if (loading || !projectData) return <div className="p-4 text-center">Loading Project Details...</div>;
 
     const grandTotals = Object.entries(groupTotals).reduce((acc, [key, totals]) => {
+        // --- Use the activeTrades derived from props ---
         if (activeTrades.includes(key)) {
             acc.estimated += totals.estimated;
             acc.used += totals.used;
             acc.budget += totals.budget;
             acc.earnedValue += totals.earnedValue;
             acc.actualCost += totals.actualCost;
-            acc.projected += totals.projected;
+            acc.projected += totals.projected; // Sum of projected HOURS
         }
         return acc;
     }, { estimated: 0, used: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0 });
 
-    const availableDisciplinesToAdd = (projectData.actionTrackerDisciplines || []).filter(
+     // Removed unused grandProjectedCost calculation
+    // const grandProjectedCost = Object.entries(groupTotals).reduce((acc, [key, totals]) => { ... }, 0);
+
+
+    const availableDisciplinesToAdd = (allDisciplines || []).filter(
         d => !projectData.activities || !projectData.activities[d.key]
     );
 
@@ -1399,20 +1381,32 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 <div className={`p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
                     <h4 className="text-sm font-semibold mb-2 text-center">Activity & Action Tracker Filters</h4>
                     <div className="flex items-center justify-center gap-2 flex-wrap">
-                        {(projectData.actionTrackerDisciplines || []).map(d => (
-                            <button 
+                        {/* Use allDisciplines from props */}
+                        {(allDisciplines || []).map(d => (
+                            <button
                                 key={d.key}
-                                onClick={() => handleTradeFilterToggle(d.key)}
+                                // --- Use the passed-in handler ---
+                                onClick={() => onTradeFilterToggle(projectId, d.key)} // Removed redundant allDisciplines arg
+                                // --- Use the activeTrades derived from props ---
                                 className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(d.key) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                             >
                                 {d.label}
                             </button>
                         ))}
-                        <button 
-                            onClick={handleSelectAllTrades}
-                            className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.length === (projectData.actionTrackerDisciplines || []).length ? 'bg-green-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                        <button
+                            // --- Use the passed-in handler ---
+                            onClick={() => onSelectAllTrades(projectId)} // Removed redundant allDisciplines arg
+                             // --- Determine button text based on derived activeTrades ---
+                            className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                                allDisciplines.length > 0 && activeTrades.length === allDisciplines.length
+                                    ? 'bg-green-600 text-white'
+                                    : `${currentTheme.buttonBg} ${currentTheme.buttonText}`
+                            }`}
                         >
-                            {activeTrades.length === (projectData.actionTrackerDisciplines || []).length ? 'Deselect All' : 'Select All'}
+                             {allDisciplines.length > 0 && activeTrades.length === allDisciplines.length
+                                ? 'Deselect All'
+                                : 'Select All'
+                            }
                         </button>
                     </div>
                 </div>
@@ -1475,12 +1469,12 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                         className="overflow-hidden"
                                     >
                                         <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                            <BudgetImpactLog 
-                                                impacts={projectData?.budgetImpacts || []} 
-                                                onAdd={handleAddImpact} 
-                                                onDelete={handleDeleteImpact} 
-                                                currentTheme={currentTheme} 
-                                                project={project} 
+                                            <BudgetImpactLog
+                                                impacts={projectData?.budgetImpacts || []}
+                                                onAdd={handleAddImpact}
+                                                onDelete={handleDeleteImpact}
+                                                currentTheme={currentTheme}
+                                                project={project}
                                                 activities={projectData.activities}
                                             />
                                         </div>
@@ -1493,7 +1487,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                 </>
             )}
 
-            {(project.dashboardUrl || accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
+             {(project.dashboardUrl || accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                 <TutorialHighlight tutorialKey="projectDashboardLink">
                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>
                         <h3 className="text-lg font-semibold mb-2">Project Links</h3>
@@ -1513,7 +1507,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                             )}
                             {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                                 <button
-                                    onClick={(e) => handleGoToProjectWorkloader(e, project.id)}
+                                    onClick={(e) => navigateToWorkloaderForProject(project.id)} // Use context function
                                     className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
                                 >
                                     Project Workloader
@@ -1550,7 +1544,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                         exit="exit"
                                         className="overflow-hidden"
                                     >
-                                        <ProjectBreakdown 
+                                        <ProjectBreakdown
                                             mainItems={sortedMainItems}
                                             onAdd={handleAddMain}
                                             onUpdate={handleUpdateMain}
@@ -1564,7 +1558,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                             </div>
                         </TutorialHighlight>
                     )}
-                    
+
                     {projectData?.mainItems && projectData.mainItems.length > 0 && (
                         <TutorialHighlight tutorialKey={accessLevel === 'tcl' ? 'actionTracker-tcl' : 'actionTracker-taskmaster'}>
                          <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
@@ -1584,9 +1578,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                                 Settings
                                             </button>
                                         )}
-                                        <button onClick={handleToggleAllActionTracker} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                                            {isAnyActionTrackerSectionCollapsed ? 'Expand All' : 'Collapse All'}
-                                        </button>
+                                        {/* Removed Toggle All button as individual sections are sufficient */}
                                     </div>
                                 )}
                             </div>
@@ -1614,8 +1606,8 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                                 <div className="pt-2 mt-2 border-t border-gray-500/20 space-y-4 p-3 bg-black/10 rounded-md">
                                                     <div>
                                                         <h4 className="font-semibold text-md mb-2">Disciplines</h4>
-                                                        <ActionTrackerDisciplineManager 
-                                                            disciplines={projectData?.actionTrackerDisciplines || []}
+                                                        <ActionTrackerDisciplineManager
+                                                            disciplines={allDisciplines} // Use prop
                                                             onAdd={handleAddActionTrackerDiscipline}
                                                             onDelete={handleDeleteActionTrackerDiscipline}
                                                             currentTheme={currentTheme}
@@ -1634,7 +1626,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                     )}
 
                                     <div className="pt-2 mt-2 border-t border-gray-500/20">
-                                        <ActionTracker 
+                                        <ActionTracker
                                             mainItems={sortedMainItems}
                                             activities={projectData.activities}
                                             totalProjectHours={activityTotals.estimated}
@@ -1643,13 +1635,13 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                             onDeleteActivityFromActionTracker={handleDeleteActivityFromActionTracker}
                                             actionTrackerData={projectData.actionTrackerData || {}}
                                             currentTheme={currentTheme}
-                                            actionTrackerDisciplines={projectData.actionTrackerDisciplines || []}
+                                            actionTrackerDisciplines={allDisciplines} // Use prop
                                             tradeColorMapping={tradeColorMapping}
                                             isTradePercentageEditable={accessLevel === 'taskmaster'}
                                             isActivityCompletionEditable={accessLevel === 'tcl'}
                                             collapsedSections={collapsedSections}
                                             onToggle={handleToggleCollapse}
-                                            activeTrades={activeTrades}
+                                            activeTrades={activeTrades} // Use prop
                                             projectWideActivities={projectData.projectWideActivities}
                                         />
                                     </div>
@@ -1679,18 +1671,16 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                         ))}
                                     </select>
                                     <button onClick={handleAddActivityGroup} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>Add</button>
-                                    <button onClick={() => handleToggleAllActivityBreakdown()} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>
-                                        {isAnyActivityBreakdownCollapsed ? 'Expand All' : 'Collapse All'}
-                                    </button>
+                                    {/* Removed Toggle All button */}
                                 </div>
                             </div>
-                            
+
                             <div className="space-y-1">
                                 {Object.entries(projectData.activities || {})
-                                    .filter(([group]) => activeTrades.includes(group))
+                                    .filter(([group]) => activeTrades.includes(group)) // Use prop for filtering
                                     .sort(([groupA], [groupB]) => {
-                                        const groupLabelA = projectData.actionTrackerDisciplines.find(d => d.key === groupA)?.label || groupA;
-                                        const groupLabelB = projectData.actionTrackerDisciplines.find(d => d.key === groupB)?.label || groupB;
+                                        const groupLabelA = (allDisciplines || []).find(d => d.key === groupA)?.label || groupA;
+                                        const groupLabelB = (allDisciplines || []).find(d => d.key === groupB)?.label || groupB;
                                         return groupLabelA.localeCompare(groupLabelB);
                                     })
                                     .map(([group, acts]) => {
@@ -1698,7 +1688,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                     const colorInfo = tradeColorMapping[group];
                                     const colorClass = colorInfo ? `${colorInfo.bg} ${colorInfo.text}` : 'bg-gray-500/70 text-white';
                                     const rateType = projectData.rateTypes?.[group] || 'Detailing Rate';
-                                    const groupLabel = projectData.actionTrackerDisciplines.find(d => d.key === group)?.label || group;
+                                    const groupLabel = (allDisciplines || []).find(d => d.key === group)?.label || group;
 
                                     return (
                                         <CollapsibleActivityTable
@@ -1716,7 +1706,7 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                             currentTheme={currentTheme}
                                             totalProjectHours={activityTotals.estimated}
                                             accessLevel={accessLevel}
-                                            groupTotals={groupTotals[group] || {}}
+                                            groupTotals={groupTotals[group] || { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, percentComplete: 0 }} // Added default empty totals
                                             rateType={rateType}
                                             onRateTypeChange={handleSetRateType}
                                             onDeleteGroup={handleDeleteActivityGroup}
@@ -1727,20 +1717,23 @@ const ProjectDetailView = ({ db, project, projectId, accessLevel, currentTheme, 
                                     );
                                 })}
                             </div>
+                            {/* Grand Totals Section */}
                             <TutorialHighlight tutorialKey="activityGrandTotals">
                                 <div className={`w-full p-2 text-left font-bold flex justify-between items-center mt-2 ${currentTheme.altRowBg}`}>
                                     <div className="flex-grow grid grid-cols-10 text-xs font-bold">
                                         <span>Visible Totals</span>
-                                        <span></span>
+                                        <span></span> {/* Spacer for Charge Code */}
                                         <span className="text-center">{grandTotals.estimated.toFixed(2)}</span>
                                         <span className="text-center">{formatCurrency(grandTotals.budget)}</span>
-                                        <span></span>
-                                        <span className="text-center">--</span>
+                                        <span></span> {/* Spacer for % of Project */}
+                                        <span className="text-center">--</span> {/* Spacer for % Comp */}
                                         <span className="text-center">{grandTotals.used.toFixed(2)}</span>
                                         <span className="text-center">{formatCurrency(grandTotals.earnedValue)}</span>
                                         <span className="text-center">{formatCurrency(grandTotals.actualCost)}</span>
-                                        <span className="text-center">{grandTotals.projected.toFixed(2)}</span>
+                                        <span className="text-center">{grandTotals.projected.toFixed(2)}</span> {/* Display projected HOURS */}
                                     </div>
+                                    {/* Optionally, display grandProjectedCost separately if needed */}
+                                    {/* <div className="text-xs font-bold ml-4">Proj. Cost: {formatCurrency(grandProjectedCost)}</div> */}
                                 </div>
                             </TutorialHighlight>
                         </div>

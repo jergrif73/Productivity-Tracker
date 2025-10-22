@@ -792,4 +792,3 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
 };
 
 export default ReportingConsole;
-

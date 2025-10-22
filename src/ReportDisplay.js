@@ -569,4 +569,3 @@ const ReportDisplay = ({
 };
 
 export default ReportDisplay;
-
