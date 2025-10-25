@@ -7,6 +7,7 @@ import { NavigationContext } from './App'; // Import the new context
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // Add CSS for the hide-scrollbar-on-hover functionality
+// ... (scrollbarStyles and injection remain the same) ...
 const scrollbarStyles = `
 .hide-scrollbar-on-hover {
     scrollbar-width: none; /* Firefox */
@@ -51,8 +52,9 @@ if (typeof document !== 'undefined' && !document.getElementById('scrollbar-style
     document.head.appendChild(style);
 }
 
-// --- Helper Components ---
 
+// --- Helper Components ---
+// ... (NewProjectModal, ConfirmationModal) ...
 const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme }) => {
     const [newProject, setNewProject] = useState({ name: '', projectId: '' });
     const [error, setError] = useState('');
@@ -129,10 +131,12 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, curren
     );
 };
 
+
+// --- REVERTED InlineAssignmentEditor to pass original assignment prop on delete ---
 const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines, onSave, onDelete, currentTheme, onAddNewProject, accessLevel }) => {
     const [editableAssignment, setEditableAssignment] = useState({ ...assignment });
 
-    // Update local state if the assignment prop changes (e.g., after creating a new project)
+    // Update local state if the assignment prop changes
     useEffect(() => {
         setEditableAssignment({...assignment});
     }, [assignment]);
@@ -145,17 +149,14 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     const handleSave = async () => {
         const updatedAssignment = {
             ...editableAssignment,
-            allocation: Number(editableAssignment.allocation) || 0 // Ensure allocation is a number
+            allocation: Number(editableAssignment.allocation) || 0
         };
         onSave(updatedAssignment);
     };
 
     const handleDateChange = (e) => {
         const { name, value } = e.target;
-        setEditableAssignment(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        setEditableAssignment(prev => ({ ...prev, [name]: value }));
     };
 
     const handleProjectChange = (e) => {
@@ -170,23 +171,24 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
     };
 
     const handleTradeChange = (e) => {
-        setEditableAssignment(prev => ({
-            ...prev,
-            trade: e.target.value
-        }));
+        setEditableAssignment(prev => ({ ...prev, trade: e.target.value }));
     };
 
     const handleAllocationChange = (e) => {
-        setEditableAssignment(prev => ({
-            ...prev,
-            allocation: e.target.value
-        }));
+        setEditableAssignment(prev => ({ ...prev, allocation: e.target.value }));
     };
+
+    // --- REVERTED: Pass the assignment object from props on delete ---
+    const triggerDelete = () => {
+        onDelete(assignment); // Pass the original assignment object from props
+    };
+    // --- END REVERT ---
 
     return (
         <div className={`p-4 rounded-md ${currentTheme.altRowBg} space-y-3`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
+                {/* ... Input fields remain the same ... */}
+                 <div>
                     <label className={`block text-sm font-medium mb-1 ${currentTheme.subtleText}`}>Project</label>
                     <div className="flex items-center gap-2">
                         <select
@@ -259,13 +261,18 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
             </div>
             <div className="flex justify-end gap-2 mt-4">
                 <button onClick={handleSave} className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">Save</button>
-                <button onClick={onDelete} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Delete</button>
+                {/* UPDATED: Call triggerDelete */}
+                <button onClick={triggerDelete} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Delete</button>
             </div>
         </div>
     );
 };
+// --- END UPDATE ---
 
-const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssignment, setAssignmentToDelete, handleSaveAssignment, handleDeleteAssignment, currentTheme, db, accessLevel, setViewingSkillsFor, onAddNewProjectForAssignment, expandedAssignmentId, setExpandedAssignmentId }) => {
+
+// --- EmployeeDetailPanel ---
+const EmployeeDetailPanel = ({ employee, assignmentsProp, projects, handleAddNewAssignment, setAssignmentToDelete, handleSaveAssignment, handleDeleteAssignment, currentTheme, db, accessLevel, setViewingSkillsFor, onAddNewProjectForAssignment, expandedAssignmentId, setExpandedAssignmentId }) => {
+
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
 
     const handleGoToEmployeeWorkloader = (e, employeeId) => {
@@ -285,8 +292,7 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
         exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
     };
 
-    // Filtered assignments (using the prop) already handle archived projects
-    const filteredAssignments = assignments;
+    const filteredAssignments = assignmentsProp;
 
     return (
         <div className={`rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex flex-col h-full`}>
@@ -314,7 +320,6 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
                     {filteredAssignments.length > 0 ? (
                         filteredAssignments.map(asn => {
                             const isExpanded = expandedAssignmentId === asn.id;
-                            // Ensure detailerDisciplines are correctly extracted, handling both array and object formats
                             const detailerDisciplines = Array.isArray(employee.disciplineSkillsets)
                                 ? employee.disciplineSkillsets.map(s => s.name)
                                 : Object.keys(employee.disciplineSkillsets || {});
@@ -358,15 +363,17 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
                                                 <TutorialHighlight tutorialKey="manageAssignments">
                                                     <InlineAssignmentEditor
                                                         db={db}
-                                                        assignment={asn}
+                                                        assignment={asn} // Pass the current version of asn from the list
                                                         projects={projects}
-                                                        detailerDisciplines={detailerDisciplines} // Pass the correctly extracted disciplines
+                                                        detailerDisciplines={detailerDisciplines}
                                                         onSave={handleSaveAssignment}
-                                                        onDelete={() => {
-                                                            // Always ask for confirmation before deleting
-                                                            setAssignmentToDelete(asn);
+                                                        // --- REVERTED: Pass the assignment object directly ---
+                                                        onDelete={(assignmentObject) => { // Renamed param for clarity
+                                                            // console.log("Setting assignment to delete:", assignmentObject); // Keep for debug if needed
+                                                            setAssignmentToDelete(assignmentObject); // Use the object passed directly from editor's props
                                                             setExpandedAssignmentId(null); // Close editor on delete prompt
                                                         }}
+                                                        // --- END REVERT ---
                                                         currentTheme={currentTheme}
                                                         onAddNewProject={onAddNewProjectForAssignment}
                                                         accessLevel={accessLevel}
@@ -386,8 +393,11 @@ const EmployeeDetailPanel = ({ employee, assignments, projects, handleAddNewAssi
         </div>
     );
 };
+// --- END UPDATE ---
+
 
 const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, accessLevel, setInitialSelectedEmployeeInWorkloader }) => {
+    // ... (State variables remain the same) ...
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     const [viewMode, setViewMode] = useState('condensed');
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
@@ -398,10 +408,9 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
     const [assignmentForNewProject, setAssignmentForNewProject] = useState(null);
     const [expandedAssignmentId, setExpandedAssignmentId] = useState(null);
-    // --- REMOVE tempAssignment state ---
-    // const [tempAssignment, setTempAssignment] = useState(null); // REMOVED
 
-    useEffect(() => {
+    // ... (useEffect hooks remain the same) ...
+     useEffect(() => {
         const handleClose = () => {
             setIsNewProjectModalOpen(false);
             setEmployeeToDelete(null);
@@ -431,48 +440,34 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
             if (Array.isArray(skills) && skills.length > 0) {
                 mainTrade = skills[0].name;
             } else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
-                 // Backward compatibility: If it's an old object, try to get the first key
                  const firstKey = Object.keys(skills)[0];
-                 mainTrade = firstKey || 'Uncategorized'; // Use first key or fallback
+                 mainTrade = firstKey || 'Uncategorized';
             }
-
-
-            if (mainTrade) {
-                trades.add(mainTrade);
-            }
+            if (mainTrade) trades.add(mainTrade);
         });
         const tradeArray = Array.from(trades).sort();
         setAllTrades(tradeArray);
         setActiveTrades(tradeArray);
     }, [detailers]);
 
-    const handleTradeFilterToggle = (tradeToToggle) => {
+    // ... (Event handlers: handleTradeFilterToggle, handleSelectAllTrades, handleSelectEmployee, handleDeleteEmployee, handleSaveAssignment remain mostly the same) ...
+     const handleTradeFilterToggle = (tradeToToggle) => {
         setActiveTrades(prev => {
             const newTrades = new Set(prev);
-            if (newTrades.has(tradeToToggle)) {
-                newTrades.delete(tradeToToggle);
-            } else {
-                newTrades.add(tradeToToggle);
-            }
+            if (newTrades.has(tradeToToggle)) newTrades.delete(tradeToToggle);
+            else newTrades.add(tradeToToggle);
             return Array.from(newTrades);
         });
     };
 
     const handleSelectAllTrades = () => {
-        if (activeTrades.length === allTrades.length) {
-            setActiveTrades([]);
-        } else {
-            setActiveTrades(allTrades);
-        }
+        setActiveTrades(prev => prev.length === allTrades.length ? [] : allTrades);
     };
 
     const handleSelectEmployee = (employeeId) => {
         setSelectedEmployeeId(prevId => {
             const newId = prevId === employeeId ? null : employeeId;
-            if (prevId !== newId) {
-                setExpandedAssignmentId(null);
-                // setTempAssignment(null); // REMOVED - No longer needed
-            }
+            if (prevId !== newId) setExpandedAssignmentId(null);
             return newId;
         });
     };
@@ -480,105 +475,98 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
     const handleDeleteEmployee = async (id) => {
         try {
             await deleteDoc(doc(db, `artifacts/${appId}/public/data/detailers`, id));
-            // --- FIX: Use imported Firestore functions ---
             const assignmentsRef = collection(db, `artifacts/${appId}/public/data/assignments`);
-            const assignmentsToDeleteQuery = query(assignmentsRef, where("detailerId", "==", id));
-            const assignmentsSnapshot = await getDocs(assignmentsToDeleteQuery);
+            const q = query(assignmentsRef, where("detailerId", "==", id));
+            const snapshot = await getDocs(q);
             const batch = writeBatch(db);
-            // --- END FIX ---
-            assignmentsSnapshot.forEach((doc) => {
-                batch.delete(doc.ref);
-            });
+            snapshot.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
-
             setEmployeeToDelete(null);
-            if (selectedEmployeeId === id) {
-                setSelectedEmployeeId(null);
-            }
-            showToast("Employee and their assignments deleted.", "success");
+            if (selectedEmployeeId === id) setSelectedEmployeeId(null);
+            showToast("Employee deleted.", "success");
         } catch (error) {
             console.error("Error deleting employee:", error);
             showToast("Failed to delete employee.", "error");
         }
     };
 
-
     const handleSaveAssignment = async (assignmentData) => {
         try {
-            // --- FIX: Logic simplified - always treat as update/set ---
-            // Basic validation before saving update
             if (!assignmentData.projectId || !assignmentData.trade || !assignmentData.startDate || !assignmentData.endDate || assignmentData.allocation === undefined) {
-                 showToast("Please fill all required assignment fields (Project, Trade, Dates, Allocation).", "error");
+                 showToast("Please fill all required fields.", "error");
                  return;
             }
-            // Use setDoc with merge:true which handles both add and update
-            await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentData.id), assignmentData, { merge: true });
-            setExpandedAssignmentId(null); // Collapse after save
-            showToast(assignmentData.id.startsWith('new_') ? "Assignment added successfully!" : "Assignment updated successfully!", "success"); // Adjust toast message slightly
-            // --- END FIX ---
+            const { isPlaceholder, ...dataToSave } = assignmentData;
+            await setDoc(doc(db, `artifacts/${appId}/public/data/assignments`, dataToSave.id), dataToSave, { merge: true });
+            setExpandedAssignmentId(null);
+            showToast("Assignment saved.", "success");
         } catch (error) {
             console.error("Error saving assignment:", error);
             showToast("Error saving assignment.", "error");
         }
     };
 
+    // --- REVERTED handleDeleteAssignment ---
+    // Now accepts assignmentId as argument
     const handleDeleteAssignment = async (assignmentId) => {
-         // --- FIX: Logic simplified - always delete from Firestore ---
+        console.log("handleDeleteAssignment called with ID:", assignmentId); // Log entry
+        if (!assignmentId || typeof assignmentId !== 'string') {
+            console.error("Invalid assignment ID received for deletion:", assignmentId);
+            showToast("Cannot delete: Invalid assignment ID.", "error");
+            setAssignmentToDelete(null); // Clear confirmation state
+            return;
+        }
+
+        // Removed the placeholder check as it shouldn't be needed if the ID passed is correct
+        console.log("Attempting Firestore delete for:", assignmentId); // Log before Firestore call
         try {
             await deleteDoc(doc(db, `artifacts/${appId}/public/data/assignments`, assignmentId));
-            setAssignmentToDelete(null); // Clear confirmation state
-            setExpandedAssignmentId(null); // Ensure editor closes if it was open
+            console.log("Firestore delete successful for:", assignmentId); // Log success
             showToast("Assignment deleted.", "success");
         } catch (error) {
-            console.error("Error deleting assignment:", error);
+            console.error("Error deleting from Firestore:", assignmentId, error); // Log the error
             showToast("Failed to delete assignment.", "error");
+        } finally {
+            // Always clear state regardless of success/failure
+            setAssignmentToDelete(null);
+            setExpandedAssignmentId(null);
         }
-        // --- END FIX ---
     };
+    // --- END REVERT ---
 
-
-    // --- FIX: Modified handleAddNewAssignment ---
     const handleAddNewAssignment = async (detailerId) => {
-        // Check if there's already an unsaved new assignment being edited for THIS user
-        const existingNew = assignments.find(a => a.id.startsWith('new_placeholder_') && a.detailerId === detailerId);
+        const existingNew = assignments.find(a =>
+             a.detailerId === detailerId &&
+             (!a.projectId || !a.trade || a.allocation === 0)
+        );
+        // --- FIX: Check against the actual ID used for expansion ---
         if (existingNew && expandedAssignmentId === existingNew.id) {
             showToast("Please save or delete the current new assignment first.", "info");
             return;
         }
-
+        // --- END FIX ---
         const newAssignmentData = {
-            // Generate a temporary client-side ID for UI key and expansion tracking
-            id: `new_placeholder_${Date.now()}`, // Added prefix for clarity
-            detailerId,
-            projectId: '',
-            trade: '',
+            detailerId, projectId: '', trade: '',
             startDate: new Date().toISOString().split('T')[0],
             endDate: new Date().toISOString().split('T')[0],
-            allocation: 0,
-            status: 'active', // Assuming a default status
-            isPlaceholder: true // Flag to indicate this isn't saved yet
+            allocation: 0, status: 'active'
         };
-
         try {
-            // Add the placeholder to Firestore immediately
             const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/assignments`), newAssignmentData);
-            // Expand this newly added Firestore document for editing using its REAL ID
+            console.log("Added assignment placeholder:", docRef.id);
             setExpandedAssignmentId(docRef.id);
-            // No need for local temp state anymore
-            showToast("New assignment added. Fill in details and save.", "info");
+            showToast("New row added. Fill details & save.", "info");
         } catch (error) {
-             console.error("Error adding new assignment placeholder:", error);
-             showToast("Could not add new assignment.", "error");
+             console.error("Error adding placeholder:", error);
+             showToast("Could not add assignment.", "error");
         }
     };
-    // --- END FIX ---
 
     const handleOpenNewProjectModal = (assignment) => {
         setAssignmentForNewProject(assignment);
         setIsNewProjectModalOpen(true);
     };
 
-    // --- FIX: handleProjectCreated needs to update Firestore if assignment already exists ---
     const handleProjectCreated = async (newProject) => {
         if (assignmentForNewProject) {
             const updatedAssignment = {
@@ -587,154 +575,108 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 projectName: newProject.name,
                 projectNumber: newProject.projectId
             };
-
-            // If the assignment already exists in Firestore (even as a placeholder)
-            // update it directly.
             try {
-                // Save the update directly to Firestore
-                // Remove the placeholder flag when linking a real project
                 const { isPlaceholder, ...dataToSave } = updatedAssignment;
-                await handleSaveAssignment(dataToSave); // Use existing save logic
-                // The InlineAssignmentEditor should update via its useEffect on the assignment prop change triggered by Firestore listener
-
+                await handleSaveAssignment(dataToSave);
+                if (expandedAssignmentId === assignmentForNewProject.id) {
+                     // The useEffect in InlineAssignmentEditor should handle this
+                }
             } catch (error) {
                  console.error("Error updating assignment after project creation:", error);
-                 showToast("Failed to link new project to assignment.", "error");
+                 showToast("Failed to link project.", "error");
             }
-
-            setAssignmentForNewProject(null); // Clear the state
+            setAssignmentForNewProject(null);
         }
     };
-    // --- END FIX ---
 
 
-    // --- UPDATED: groupedEmployees memoization ---
+    // ... (groupedEmployees, selectedEmployeeData, selectedEmployeeAssignments memos remain the same) ...
     const groupedEmployees = useMemo(() => {
-        // console.log("Recalculating groupedEmployees. Assignments count:", assignments.length); // Keep for debugging
         const processed = detailers
             .map(employee => {
                 const employeeAssignments = assignments
                     .filter(a => a.detailerId === employee.id)
                     .map(a => {
                         const project = projects.find(p => p.id === a.projectId);
-                        return { // Enrich assignments used ONLY for allocation calculation
-                            ...a,
-                            isArchivedProject: project ? project.archived : false // Default to false if no project found (e.g., placeholder)
-                        };
+                        return { ...a, isArchivedProject: project ? project.archived : false };
                     });
-
                 let currentWeekAllocation = 0;
                 const today = new Date();
                 const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay()); // Adjust to Sunday
+                startOfWeek.setDate(today.getDate() - today.getDay());
                 startOfWeek.setHours(0, 0, 0, 0);
                 const endOfWeek = new Date(startOfWeek);
                 endOfWeek.setDate(startOfWeek.getDate() + 6);
                 endOfWeek.setHours(23, 59, 59, 999);
-
                 employeeAssignments.forEach(ass => {
                     if (ass.isArchivedProject) return;
-
-                    // --- ADDED DATE VALIDATION ---
-                    const assignStart = new Date(ass.startDate);
-                    const assignEnd = new Date(ass.endDate);
-
-                    if (isNaN(assignStart.getTime()) || isNaN(assignEnd.getTime())) {
-                        // console.warn(`Skipping allocation calculation for assignment ID ${ass.id} due to invalid date.`); // Optional logging
-                        return; // Skip this assignment if dates are invalid
+                    const assignStartStr = ass.startDate;
+                    const assignEndStr = ass.endDate;
+                    if (typeof assignStartStr !== 'string' || !assignStartStr.match(/^\d{4}-\d{2}-\d{2}$/) ||
+                        typeof assignEndStr !== 'string' || !assignEndStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                         return;
                     }
-                    // --- END DATE VALIDATION ---
-
-                    // Adjust assign dates AFTER validation
+                    const assignStart = new Date(assignStartStr);
+                    const assignEnd = new Date(assignEndStr);
+                    if (isNaN(assignStart.getTime()) || isNaN(assignEnd.getTime())) return;
                     assignStart.setHours(0, 0, 0, 0);
                     assignEnd.setHours(23, 59, 59, 999);
-
                     if (assignStart <= endOfWeek && assignEnd >= startOfWeek) {
                         currentWeekAllocation += Number(ass.allocation) || 0;
                     }
                 });
-
-
                 const skills = employee.disciplineSkillsets;
                 let mainTrade = 'Uncategorized';
-                if (Array.isArray(skills) && skills.length > 0) {
-                    mainTrade = skills[0].name;
-                } else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
-                     // Backward compatibility check
+                if (Array.isArray(skills) && skills.length > 0) mainTrade = skills[0].name;
+                else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
                      const firstKey = Object.keys(skills)[0];
                      mainTrade = firstKey || 'Uncategorized';
                 }
-
-                // Return basic employee data + calculated fields needed for the list
-                return {
-                    id: employee.id,
-                    firstName: employee.firstName,
-                    lastName: employee.lastName,
-                    title: employee.title,
-                    email: employee.email,
-                    disciplineSkillsets: employee.disciplineSkillsets, // Pass for EmployeeDetailPanel
-                    currentWeekAllocation,
-                    mainTrade
-                };
+                return { ...employee, currentWeekAllocation, mainTrade };
             })
             .filter(employee => {
-                const lowercasedTerm = searchTerm.toLowerCase();
-                return (employee.firstName.toLowerCase().includes(lowercasedTerm) ||
-                        employee.lastName.toLowerCase().includes(lowercasedTerm)) &&
+                const lower = searchTerm.toLowerCase();
+                return (employee.firstName.toLowerCase().includes(lower) ||
+                        employee.lastName.toLowerCase().includes(lower)) &&
                        activeTrades.includes(employee.mainTrade);
             })
             .sort((a, b) => a.lastName.localeCompare(b.lastName));
-
         return processed.reduce((acc, employee) => {
-            const { mainTrade } = employee;
-            if (!acc[mainTrade]) {
-                acc[mainTrade] = [];
-            }
-            acc[mainTrade].push(employee);
+            if (!acc[employee.mainTrade]) acc[employee.mainTrade] = [];
+            acc[employee.mainTrade].push(employee);
             return acc;
         }, {});
-    }, [detailers, assignments, searchTerm, activeTrades, projects]); // Added projects dependency
+    }, [detailers, assignments, searchTerm, activeTrades, projects]);
 
-    // --- NEW: Separate memo for selected employee's basic data ---
     const selectedEmployeeData = useMemo(() => {
         return detailers.find(e => e.id === selectedEmployeeId);
     }, [selectedEmployeeId, detailers]);
 
-    // --- FIX: selectedEmployeeAssignments memo updated ---
     const selectedEmployeeAssignments = useMemo(() => {
         if (!selectedEmployeeId) return [];
-        // console.log("Recalculating selectedEmployeeAssignments for:", selectedEmployeeId); // Debug log (keep for testing)
-
-        // Directly use the assignments prop from App.js (updated via Firestore listener)
         const firestoreAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
-
-        // Filter out assignments linked to archived projects for the display panel
         const activeAssignments = firestoreAssignments.filter(asn => {
             const project = projects.find(p => p.id === asn.projectId);
-            // Show assignment if project exists and is NOT archived, OR if projectId is missing (treat as new/unsaved placeholder)
-            return !asn.projectId || (project && !project.archived);
+            const startDateValid = asn.startDate && typeof asn.startDate === 'string' && asn.startDate.match(/^\d{4}-\d{2}-\d{2}$/) && !isNaN(new Date(asn.startDate).getTime());
+            return (!asn.projectId || (project && !project.archived)) && startDateValid;
         });
-
-        // Enrich with project details
-        return activeAssignments.map(a => {
-            const project = projects.find(p => p.id === a.projectId);
-            return {
-                ...a,
-                projectName: project ? project.name : (a.projectName || 'No Project Selected'),
-                projectNumber: project ? project.projectId : (a.projectNumber || '')
-            };
-        }).sort((a, b) => {
-             // Prioritize showing newly added (placeholder) assignments first
-             const aIsNew = a.id.startsWith('new_placeholder_');
-             const bIsNew = b.id.startsWith('new_placeholder_');
-             if (aIsNew && !bIsNew) return -1;
-             if (!aIsNew && bIsNew) return 1;
-             // Otherwise, sort by start date
-            return new Date(a.startDate) - new Date(b.startDate);
-        });
-
-    }, [selectedEmployeeId, assignments, projects]); // REMOVED tempAssignment dependency
-    // --- END FIX ---
+        return activeAssignments
+            .map(a => {
+                const project = projects.find(p => p.id === a.projectId);
+                return { ...a,
+                    projectName: project ? project.name : (a.projectName || 'No Project Selected'),
+                    projectNumber: project ? project.projectId : (a.projectNumber || '')
+                };
+            })
+             // --- REVERTED filter here, moved date validation above ---
+            .sort((a, b) => {
+                 const aIsNew = !a.projectId || !a.trade || a.allocation === undefined || a.allocation === 0;
+                 const bIsNew = !b.projectId || !b.trade || b.allocation === undefined || b.allocation === 0;
+                 if (aIsNew && !bIsNew) return -1;
+                 if (!aIsNew && bIsNew) return 1;
+                return new Date(a.startDate) - new Date(b.startDate);
+            });
+    }, [selectedEmployeeId, assignments, projects]);
 
 
     return (
@@ -795,17 +737,20 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     </ConfirmationModal>
                 )}
 
+                {/* --- UPDATED ConfirmationModal onConfirm --- */}
                 {assignmentToDelete && (
                     <ConfirmationModal
                         isOpen={!!assignmentToDelete}
                         onClose={() => setAssignmentToDelete(null)}
-                        onConfirm={() => handleDeleteAssignment(assignmentToDelete.id)}
+                        onConfirm={() => handleDeleteAssignment(assignmentToDelete.id)} // Pass ID from state
                         title="Confirm Assignment Deletion"
                         currentTheme={currentTheme}
                     >
                         Are you sure you want to delete the assignment for {assignmentToDelete.projectName || 'this assignment'} ({assignmentToDelete.trade || 'No Trade'})?
                     </ConfirmationModal>
                 )}
+                 {/* --- END UPDATE --- */}
+
 
                 {/* Main Content Area - Two Column Layout */}
                 <div className="flex-1 flex gap-4 p-4 min-h-0">
@@ -889,12 +834,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                 >
                                     <EmployeeDetailPanel
                                         employee={selectedEmployeeData} // Pass basic data
-                                        assignments={selectedEmployeeAssignments} // Pass calculated assignments
+                                        assignmentsProp={selectedEmployeeAssignments} // Pass calculated assignments (renamed prop)
                                         projects={projects}
                                         handleAddNewAssignment={handleAddNewAssignment}
                                         setAssignmentToDelete={setAssignmentToDelete}
                                         handleSaveAssignment={handleSaveAssignment}
-                                        handleDeleteAssignment={handleDeleteAssignment}
+                                        handleDeleteAssignment={handleDeleteAssignment} // Pass the main delete handler
                                         currentTheme={currentTheme}
                                         db={db}
                                         accessLevel={accessLevel}
@@ -913,7 +858,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                     className={`w-full h-full flex flex-col justify-center items-center p-4 rounded-lg ${currentTheme.altRowBg} border-2 border-dashed ${currentTheme.borderColor}`}
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-12 w-12 mb-4 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656-.126-1.283-.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                     </svg>
                                     <h3 className="text-lg font-semibold">Project Assignments</h3>
                                     <p className={currentTheme.subtleText}>Select an employee from the list to view and manage their project assignments.</p>

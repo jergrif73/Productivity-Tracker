@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getDocs, writeBatch } from 'firebase/firestore';
+// --- FIX: Add query, where, writeBatch, getDocs ---
+import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getDocs, writeBatch, query, where } from 'firebase/firestore';
+// --- END FIX ---
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
 
 // --- Helper Components ---
-
+// ... (useDebounce, formatCurrency, Tooltip, ConfirmationModal, BubbleRating, NoteEditorModal, EditEmployeeModal remain the same) ...
 const useDebounce = (value, delay) => {
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
@@ -115,7 +117,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
         "Project Constructability Lead", "Project Constructability Lead, Sr.",
         "Trade Constructability Lead", "Constructability Manager"
     ];
-    
+
     useEffect(() => {
         if (employee) {
             let skills = employee.disciplineSkillsets;
@@ -134,7 +136,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
             skills: { ...prev.skills, [skillName]: score }
         }));
     };
-    
+
     const handleAddDiscipline = () => {
         if (newDiscipline && editableEmployee) {
             const currentDisciplines = editableEmployee.disciplineSkillsets || [];
@@ -147,18 +149,18 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
             }
         }
     };
-    
+
     const handleRemoveDiscipline = (disciplineToRemove) => {
         setEditableEmployee(prev => ({
             ...prev,
             disciplineSkillsets: (prev.disciplineSkillsets || []).filter(d => d.name !== disciplineToRemove)
         }));
     };
-    
+
     const handleDisciplineRatingChange = (name, score) => {
         setEditableEmployee(prev => ({
             ...prev,
-            disciplineSkillsets: (prev.disciplineSkillsets || []).map(d => 
+            disciplineSkillsets: (prev.disciplineSkillsets || []).map(d =>
                 d.name === name ? { ...d, score } : d
             )
         }));
@@ -206,10 +208,10 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
             setDragOverDiscipline(null);
             return;
         }
-        
+
         const [removed] = skillsetsArray.splice(draggedIndex, 1);
         skillsetsArray.splice(targetIndex, 0, removed);
-        
+
         setEditableEmployee(prev => ({
             ...prev,
             disciplineSkillsets: skillsetsArray
@@ -262,7 +264,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
                         <input name="percentAboveScale" type="number" value={editableEmployee.percentAboveScale || ''} onChange={handleDataChange} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                         <select name="unionLocal" value={editableEmployee.unionLocal || ''} onChange={handleDataChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                             <option value="">Select Union Local...</option>
-                            {unionLocals.map(local => (
+                            {(unionLocals || []).map(local => ( // Added guard for unionLocals
                                 <option key={local.id} value={local.name}>{local.name}</option>
                             ))}
                         </select>
@@ -276,7 +278,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
                                 {skillCategories.map(skill => (
                                     <div key={skill}>
                                         <label className="font-medium">{skill}</label>
-                                        <BubbleRating 
+                                        <BubbleRating
                                             score={editableEmployee.skills?.[skill] || 0}
                                             onScoreChange={(score) => handleSkillChange(skill, score)}
                                             currentTheme={currentTheme}
@@ -297,8 +299,8 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
                             </div>
                             <div className="space-y-4">
                                 {(editableEmployee.disciplineSkillsets || []).map(discipline => (
-                                    <div 
-                                        key={discipline.name} 
+                                    <div
+                                        key={discipline.name}
                                         draggable
                                         onDragStart={(e) => handleDragStart(e, discipline.name)}
                                         onDragOver={(e) => handleDragOver(e, discipline.name)}
@@ -373,13 +375,13 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [dragState, setDragState] = useState(null);
     const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
     const [draggedRowId, setDraggedRowId] = useState(null); // State for drag-and-drop reordering
-    
+
     const [firestoreHours, setFirestoreHours] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const debouncedChanges = useDebounce(pendingChanges, 1000);
 
     const displayHours = useMemo(() => {
-        const merged = JSON.parse(JSON.stringify(firestoreHours)); 
+        const merged = JSON.parse(JSON.stringify(firestoreHours));
         for (const rowId in pendingChanges) {
             if (!merged[rowId]) merged[rowId] = {};
             for (const week in pendingChanges[rowId]) {
@@ -408,7 +410,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     };
 
     const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
-    
+
     useEffect(() => {
         setLoading(true);
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
@@ -428,7 +430,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     hoursData[doc.id] = doc.data();
                 }
             });
-            setFirestoreHours(hoursData); 
+            setFirestoreHours(hoursData);
             setLoading(false);
         });
 
@@ -461,7 +463,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
     const handleHoursChange = (rowId, week, hours) => {
         const numericValue = hours === '' ? '' : Number(hours);
-        
+
         setPendingChanges(prev => {
             const newChanges = JSON.parse(JSON.stringify(prev));
             if (!newChanges[rowId]) newChanges[rowId] = {};
@@ -469,12 +471,12 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             return newChanges;
         });
     };
-    
+
     const handleDescriptionChange = async (rowId, newDescription) => {
-        const updatedRows = timelineRows.map(row => 
+        const updatedRows = timelineRows.map(row =>
             row.id === rowId ? { ...row, description: newDescription } : row
         );
-        setTimelineRows(updatedRows); 
+        setTimelineRows(updatedRows);
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
         await setDoc(configRef, { rows: updatedRows }, { merge: true });
     };
@@ -506,10 +508,10 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 
     const handleMouseEnter = (rowId, week) => {
         if (!dragState || dragState.startRowId !== rowId) return;
-        
+
         const startIndex = weekDates.indexOf(dragState.startWeek);
         const currentIndex = weekDates.indexOf(week);
-        
+
         const newSelection = {};
         const min = Math.min(startIndex, currentIndex);
         const max = Math.max(startIndex, currentIndex);
@@ -524,7 +526,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const handleMouseUp = useCallback(() => {
         if (!dragState) return;
         const { startRowId, fillValue, selection } = dragState;
-        
+
         const changesForDB = {};
 
         Object.keys(selection).forEach(weekKey => {
@@ -548,7 +550,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             window.removeEventListener('mouseup', handleMouseUp);
         };
     }, [handleMouseUp]);
-    
+
     const handlePaste = (event, startRowId, startWeekDate) => {
         event.preventDefault();
         const pasteData = event.clipboardData.getData('text');
@@ -590,22 +592,27 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             return newDate;
         });
     };
-    
+
     const handleClearForecast = async () => {
         const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`);
         const querySnapshot = await getDocs(weeklyHoursRef);
-        
+
         const batch = writeBatch(db);
 
         querySnapshot.forEach((doc) => {
-            batch.delete(doc.ref);
+            // Don't delete the _config document
+            if (doc.id !== '_config') {
+                 batch.delete(doc.ref);
+            }
         });
+        // Clear the rows in the _config document
+         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+         batch.set(configRef, { rows: [] });
+
 
         try {
             await batch.commit();
-            setTimelineRows([]);
-            setFirestoreHours({});
-            setPendingChanges({});
+            // State updates will happen via the onSnapshot listeners
             showToast("Forecast data for this project has been cleared.", "success");
         } catch (error) {
             console.error("Error clearing forecast data: ", error);
@@ -620,39 +627,39 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         e.dataTransfer.setData('text/plain', rowId);
         e.dataTransfer.effectAllowed = 'move';
     };
-    
+
     const handleDragOver = (e) => {
         e.preventDefault(); // This is necessary to allow dropping
     };
-    
+
     const handleDragEnd = () => {
         setDraggedRowId(null);
     };
-    
+
     const handleDrop = async (e, dropTargetRowId) => {
         e.preventDefault();
         const draggedId = e.dataTransfer.getData('text/plain');
-        
+
         if (draggedId === dropTargetRowId) {
             setDraggedRowId(null);
             return;
         }
-    
+
         const reorderedRows = [...timelineRows];
         const draggedItem = reorderedRows.find(row => row.id === draggedId);
         const targetIndex = reorderedRows.findIndex(row => row.id === dropTargetRowId);
         const draggedIndex = reorderedRows.findIndex(row => row.id === draggedId);
-    
+
         if (!draggedItem || targetIndex === -1 || draggedIndex === -1) return;
-    
+
         // Remove from old position and insert at new position
         reorderedRows.splice(draggedIndex, 1);
         reorderedRows.splice(targetIndex, 0, draggedItem);
-        
+
         // Update state for optimistic UI update
         setTimelineRows(reorderedRows);
         setDraggedRowId(null);
-    
+
         // Update Firestore with the new order
         const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
         await setDoc(configRef, { rows: reorderedRows }, { merge: true });
@@ -696,7 +703,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                         </thead>
                         <tbody>
                             {timelineRows.map(row => (
-                                <tr 
+                                <tr
                                     key={row.id}
                                     draggable
                                     onDragStart={(e) => handleDragStart(e, row.id)}
@@ -729,8 +736,8 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                         const isSelected = dragState?.startRowId === row.id && dragState?.selection[week];
                                         const displayValue = displayHours[row.id]?.[week];
                                         return (
-                                        <td key={`${row.id}-${week}`} 
-                                            className={`p-0 border relative ${currentTheme.borderColor}`} 
+                                        <td key={`${row.id}-${week}`}
+                                            className={`p-0 border relative ${currentTheme.borderColor}`}
                                             onMouseEnter={() => handleMouseEnter(row.id, week)}
                                             onPaste={(e) => handlePaste(e, row.id, week)}
                                         >
@@ -741,14 +748,14 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                                 disabled={loading}
                                                 className={`w-full h-full p-1 text-center bg-transparent focus:bg-blue-200 focus:text-black outline-none no-arrows ${currentTheme.inputText} ${isSelected ? 'bg-blue-300/50' : ''}`}
                                             />
-                                            <div 
+                                            <div
                                                 className="absolute bottom-0 right-0 w-2 h-2 bg-blue-600 cursor-crosshair"
                                                 onMouseDown={(e) => {
                                                     e.preventDefault(); e.stopPropagation();
                                                     const valueToFill = displayValue || 0;
-                                                    setDragState({ 
+                                                    setDragState({
                                                         startRowId: row.id,
-                                                        startWeek: week, 
+                                                        startWeek: week,
                                                         fillValue: valueToFill,
                                                         selection: { [week]: true }
                                                     });
@@ -767,7 +774,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                                                 <option value="">Select a trade...</option>
                                                 {disciplineOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={newDescription}
                                                 onChange={(e) => setNewDescription(e.target.value)}
@@ -795,9 +802,10 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 };
 
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
+    // ... (rest of AdminConsole state remains the same) ...
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
-    
+
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [editingProjectData, setEditingProjectData] = useState(null);
@@ -809,16 +817,17 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [confirmAction, setConfirmAction] = useState(null);
     const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
     const [projectSearchTerm, setProjectSearchTerm] = useState('');
-    
+
     const [unionLocals, setUnionLocals] = useState([]);
     const [newUnionLocalName, setNewUnionLocalName] = useState('');
     const [editingUnionLocal, setEditingUnionLocal] = useState(null);
     const [showUnionManagement, setShowUnionManagement] = useState(false);
 
+
     // Fetch and manage Union Locals
     useEffect(() => {
         const unionLocalsRef = collection(db, `artifacts/${appId}/public/data/unionLocals`);
-        
+
         const checkForInitialData = async () => {
             const querySnapshot = await getDocs(unionLocalsRef);
             if (querySnapshot.empty) {
@@ -828,11 +837,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     { name: 'SMART Local 55' },
                     { name: 'SMART Local 16' }
                 ];
-                const batch = [];
+                const batchOps = [];
                 initialLocals.forEach(local => {
-                    batch.push(addDoc(unionLocalsRef, local));
+                    batchOps.push(addDoc(unionLocalsRef, local));
                 });
-                await Promise.all(batch);
+                await Promise.all(batchOps);
             }
         };
 
@@ -845,10 +854,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 
         return () => unsubscribe();
     }, [db, appId]);
-    
-    // ** THE FIX IS HERE **
-    // This effect adds a listener to close any modals/popups in this console
-    // when the 'close-overlays' event is dispatched from App.js.
+
+
     useEffect(() => {
         const handleClose = () => {
             setEditingEmployee(null);
@@ -922,7 +929,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         if (!employeeSearchTerm) return sorted;
 
         const lowercasedTerm = employeeSearchTerm.toLowerCase();
-        return sorted.filter(e => 
+        return sorted.filter(e =>
             e.firstName.toLowerCase().includes(lowercasedTerm) ||
             e.lastName.toLowerCase().includes(lowercasedTerm) ||
             e.employeeId.includes(lowercasedTerm) ||
@@ -942,11 +949,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 }
                 return a.projectId.localeCompare(b.projectId, undefined, { numeric: true });
             });
-        
+
         if (!projectSearchTerm) return sorted;
 
         const lowercasedTerm = projectSearchTerm.toLowerCase();
-        return sorted.filter(p => 
+        return sorted.filter(p =>
             p.name.toLowerCase().includes(lowercasedTerm) ||
             p.projectId.toLowerCase().includes(lowercasedTerm)
         );
@@ -957,14 +964,17 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         if (!db) return;
         if (type === 'employee') {
             if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.employeeId) {
-                console.error('Please fill all employee fields.');
+                console.error('Please fill all required employee fields.');
+                showToast('First Name, Last Name, and Employee ID are required.', 'error');
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, wage: Number(newEmployee.wage) || 0, percentAboveScale: Number(newEmployee.percentAboveScale) || 0, skills: {}, disciplineSkillsets: {} });
             setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
+            showToast("Employee added.", "success");
         } else if (type === 'project') {
             if (!newProject.name || !newProject.projectId) {
-                console.error('Please fill all project fields.');
+                console.error('Please fill Project Name and Project ID.');
+                showToast('Project Name and Project ID are required.', 'error');
                 return;
             }
             const payload = {
@@ -977,24 +987,81 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             };
             await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), payload);
             setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+             showToast("Project added.", "success");
         }
     };
 
+    // --- UPDATED: handleDelete function ---
     const handleDelete = async (type, id) => {
         const collectionName = type === 'employee' ? 'detailers' : 'projects';
-        await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
-        setConfirmAction(null);
+        const docRef = doc(db, `artifacts/${appId}/public/data/${collectionName}`, id);
+        const batch = writeBatch(db); // Use batch for multi-document operations
+
+        try {
+            // 1. Delete the main document
+            batch.delete(docRef);
+
+            // 2. If deleting a project, delete related data
+            if (type === 'project') {
+                // Delete associated assignments
+                const assignmentsRef = collection(db, `artifacts/${appId}/public/data/assignments`);
+                const assignmentsQuery = query(assignmentsRef, where("projectId", "==", id));
+                const assignmentsSnapshot = await getDocs(assignmentsQuery);
+                assignmentsSnapshot.forEach((doc) => batch.delete(doc.ref));
+
+                // Delete projectActivities document
+                const activitiesRef = doc(db, `artifacts/${appId}/public/data/projectActivities`, id);
+                batch.delete(activitiesRef); // It's okay if this doesn't exist, batch delete won't fail
+
+                // Delete weeklyHours subcollection documents
+                const weeklyHoursRef = collection(db, `artifacts/${appId}/public/data/projects/${id}/weeklyHours`);
+                const weeklyHoursSnapshot = await getDocs(weeklyHoursRef);
+                weeklyHoursSnapshot.forEach((doc) => batch.delete(doc.ref));
+            }
+            // 3. If deleting an employee, delete related assignments
+            else if (type === 'employee') {
+                 const assignmentsRef = collection(db, `artifacts/${appId}/public/data/assignments`);
+                 const assignmentsQuery = query(assignmentsRef, where("detailerId", "==", id));
+                 const assignmentsSnapshot = await getDocs(assignmentsQuery);
+                 assignmentsSnapshot.forEach((doc) => batch.delete(doc.ref));
+            }
+
+            // 4. Commit the batch
+            await batch.commit();
+
+            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} and associated data deleted successfully.`, "success");
+
+            // Reset UI state (moved inside try, after successful commit)
+            if (type === 'employee' && editingEmployee?.id === id) { // Check if editingEmployee exists
+                 setEditingEmployee(null); // Deselect if the deleted employee was being edited
+            }
+             if (type === 'project' && editingProjectId === id) {
+                 setEditingProjectId(null); // Close editor if deleting the edited project
+                 setEditingProjectData(null);
+             }
+             if (type === 'project' && expandedProjectId === id) {
+                 setExpandedProjectId(null); // Close timeline if deleting the expanded project
+             }
+
+        } catch (error) {
+            console.error(`Error deleting ${type}:`, error);
+            showToast(`Failed to delete ${type}. Error: ${error.message}`, "error");
+        } finally {
+             // --- FIX: Ensure confirmAction is reset in finally block ---
+             setConfirmAction(null);
+        }
     };
-    
+    // --- END UPDATE ---
+
     const confirmDelete = (type, item) => {
         const name = type === 'employee' ? `${item.firstName} ${item.lastName}` : item.name;
         setConfirmAction({
             title: `Delete ${type}`,
-            message: `Are you sure you want to permanently delete ${name}? This action cannot be undone.`,
+            message: `Are you sure you want to permanently delete ${name}? This will also delete all associated assignments and project-specific data (activities, forecasts). This action cannot be undone.`,
             action: () => handleDelete(type, item.id)
         });
     };
-    
+
     const handleEditProject = (project) => {
         setEditingProjectId(project.id);
         setEditingProjectData({ status: "Controlling", ...project });
@@ -1004,38 +1071,51 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         if (!editingProjectData) return;
         const { id, ...data } = editingProjectData;
         const projectRef = doc(db, `artifacts/${appId}/public/data/projects`, id);
-        await updateDoc(projectRef, {
-            ...data,
-            initialBudget: Number(data.initialBudget),
-            blendedRate: Number(data.blendedRate),
-            vdcBlendedRate: Number(data.vdcBlendedRate),
-            contingency: Number(data.contingency),
-            archived: data.status === "Archive",
-        });
-        setEditingProjectId(null);
-        setEditingProjectData(null);
+        try {
+            await updateDoc(projectRef, {
+                ...data,
+                initialBudget: Number(data.initialBudget) || 0,
+                blendedRate: Number(data.blendedRate) || 0,
+                vdcBlendedRate: Number(data.vdcBlendedRate) || 0,
+                contingency: Number(data.contingency) || 0,
+                archived: data.status === "Archive",
+            });
+            setEditingProjectId(null);
+            setEditingProjectData(null);
+            showToast("Project updated.", "success");
+        } catch (error) {
+             console.error("Error updating project:", error);
+             showToast("Failed to update project.", "error");
+        }
     };
+
 
     const handleUpdateEmployee = async (employeeData) => {
         const { id, ...data } = employeeData;
         const employeeRef = doc(db, `artifacts/${appId}/public/data/detailers`, id);
-        await updateDoc(employeeRef, {...data, wage: Number(data.wage) || 0, percentAboveScale: Number(data.percentAboveScale) || 0});
+        try {
+            await updateDoc(employeeRef, {...data, wage: Number(data.wage) || 0, percentAboveScale: Number(data.percentAboveScale) || 0});
+            showToast("Employee details saved.", "success");
+        } catch (error) {
+             console.error("Error updating employee:", error);
+             showToast("Failed to save employee details.", "error");
+        }
     };
-    
+
     const handleEditDataChange = (e, type) => {
         const { name, value } = e.target;
         if (type === 'project') {
             setEditingProjectData(prev => ({ ...prev, [name]: value }));
         }
     };
-    
+
     const isEditing = editingEmployee || editingProjectId;
 
     return (
         <TutorialHighlight tutorialKey="admin">
             <div className="p-4">
                 {editingEmployee && (
-                    <EditEmployeeModal 
+                    <EditEmployeeModal
                         employee={editingEmployee}
                         onSave={handleUpdateEmployee}
                         onClose={() => setEditingEmployee(null)}
@@ -1048,6 +1128,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     onClose={() => setConfirmAction(null)}
                     onConfirm={() => {
                         if(confirmAction?.action) confirmAction.action();
+                        // setConfirmAction(null); // Moved to finally block in handleDelete
                     }}
                     title={confirmAction?.title}
                     currentTheme={currentTheme}
@@ -1067,14 +1148,17 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             transition={{ duration: 0.2 }}
                         >
                             <div className={`p-4 ${currentTheme.consoleBg} h-full`}>
-                                <div 
-                                    className="cursor-pointer mb-4" 
+                                <div
+                                    className="cursor-pointer mb-4"
                                     onClick={() => setExpandedProjectId(null)}
                                 >
                                     <h2 className="text-2xl font-bold text-blue-500 hover:underline">&larr; Back to All Projects</h2>
+                                    {/* --- FIX: Added optional chaining for safety --- */}
                                     <p className="text-lg font-semibold">{projects.find(p => p.id === expandedProjectId)?.name} ({projects.find(p => p.id === expandedProjectId)?.projectId})</p>
+                                    {/* --- END FIX --- */}
                                 </div>
-                                <WeeklyTimeline 
+                                <WeeklyTimeline
+                                     // --- FIX: Added optional chaining ---
                                     project={projects.find(p => p.id === expandedProjectId)}
                                     db={db}
                                     appId={appId}
@@ -1120,7 +1204,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             <input type="text" placeholder="Search projects..." value={projectSearchTerm} onChange={(e) => setProjectSearchTerm(e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                                             {projectStatuses.map(status => (
                                                 <Tooltip key={status} text={statusDescriptions[status]}>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleStatusFilterToggle(status)}
                                                         className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                                     >
@@ -1133,8 +1217,10 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover"> 
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4 overflow-y-auto h-[calc(100vh-250px)] hide-scrollbar-on-hover">
+                                {/* Employee Section */}
                                 <div>
+                                    {/* Add Employee Form */}
                                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
                                         <button onClick={() => handleToggleCollapse('addEmployee')} className="w-full flex justify-between items-center font-semibold mb-2">
                                             <h3>Add New Employee</h3>
@@ -1146,7 +1232,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             <TutorialHighlight tutorialKey="addEmployeeFields">
                                             <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
                                                 <div className="space-y-2 mb-4">
-                                                    <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+                                                    {/* ... (input fields remain the same) ... */}
+                                                     <input value={newEmployee.firstName} onChange={e => setNewEmployee({...newEmployee, firstName: e.target.value})} placeholder="First Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
@@ -1157,6 +1244,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                     <input value={newEmployee.employeeId} onChange={e => setNewEmployee({...newEmployee, employeeId: e.target.value})} placeholder="Employee ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <input type="number" value={newEmployee.wage} onChange={e => setNewEmployee({...newEmployee, wage: e.target.value})} placeholder="Wage/hr" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <input type="number" value={newEmployee.percentAboveScale} onChange={e => setNewEmployee({...newEmployee, percentAboveScale: e.target.value})} placeholder="% Above Scale" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
+
+                                                    {/* Union Local Management */}
                                                     <TutorialHighlight tutorialKey="manageUnionLocals">
                                                         <div className="flex items-center gap-2">
                                                             <select value={newEmployee.unionLocal} onChange={e => setNewEmployee({...newEmployee, unionLocal: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
@@ -1182,7 +1271,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                                     return (
                                                                         <div key={local.id} className={`flex justify-between items-center p-2 rounded-md ${bgColor}`}>
                                                                             {editingUnionLocal?.id === local.id ? (
-                                                                                <input 
+                                                                                <input
                                                                                     type="text"
                                                                                     value={editingUnionLocal.name}
                                                                                     onChange={(e) => setEditingUnionLocal({...editingUnionLocal, name: e.target.value})}
@@ -1215,6 +1304,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             </TutorialHighlight>
                                         )}
                                     </div>
+                                    {/* Employee List */}
                                     <TutorialHighlight tutorialKey="editEmployeeDetails">
                                         <div className="space-y-2">
                                             {filteredEmployees.map((e, index) => {
@@ -1241,7 +1331,9 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                     </TutorialHighlight>
                                 </div>
 
+                                {/* Project Section */}
                                 <div>
+                                    {/* Add Project Form */}
                                     <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4`}>
                                         <button onClick={() => handleToggleCollapse('addProject')} className="w-full flex justify-between items-center font-semibold mb-2">
                                             <h3>Add New Project</h3>
@@ -1253,6 +1345,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             <TutorialHighlight tutorialKey="addProjectFields">
                                             <div className={`mt-2 pt-4 border-t ${currentTheme.borderColor} ${isEditing ? 'opacity-50' : ''}`}>
                                                 <div className="space-y-2 mb-4">
+                                                    {/* ... (input fields remain the same) ... */}
                                                     <input value={newProject.name} onChange={e => setNewProject({...newProject, name: e.target.value})} placeholder="Project Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
@@ -1271,6 +1364,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                             </TutorialHighlight>
                                         )}
                                     </div>
+                                    {/* Project List */}
                                     <TutorialHighlight tutorialKey="editProjectDetails">
                                         <div className="space-y-2 mb-8">
                                             {filteredProjects.map((p, index) => {
@@ -1280,7 +1374,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                     <div key={p.id} className={`${bgColor} p-3 border ${currentTheme.borderColor} rounded-md shadow-sm`}>
                                                     {editingProjectId === p.id ? (
                                                         <div className="space-y-2">
-                                                            <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
+                                                            {/* ... (editing input fields remain the same) ... */}
+                                                             <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                             <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                             <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                                                 {projectStatuses.map(status => (<option key={status} value={status}>{status}</option>))}
@@ -1322,3 +1417,4 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 };
 
 export default AdminConsole;
+

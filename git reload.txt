@@ -1,5 +1,5 @@
 git add .
-git commit -m "Updated Tutorial"
+git commit -m "Fixed Team Console"
 git push origin main
 
 
