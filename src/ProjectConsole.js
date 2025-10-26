@@ -277,14 +277,16 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 {filteredProjects.map((p, index) => {
                     const isExpanded = expandedProjectId === p.id;
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-                    // Get current filters safely, default to all disciplines if not set
-                    const allDisciplinesForProject = projectDisciplines[p.id] || [];
                     
-                    // FIX: Check if the property exists. If it does, use its value (even if it's an empty array).
-                    // Default to all trades only if the filter key hasn't been set for this project yet.
-                    const currentActiveTrades = projectTradeFilters.hasOwnProperty(p.id)
-                        ? projectTradeFilters[p.id] // Use the stored filter array, even if it's []
-                        : allDisciplinesForProject.map(d => d.key); // Default to all only if key doesn't exist
+                    // --- FIX: Check for data readiness ---
+                    // 1. Get the disciplines (or undefined if not loaded)
+                    const allDisciplinesForProject = projectDisciplines[p.id]; 
+                    // 2. Check if filters are set for this project
+                    const filtersAreSet = projectTradeFilters.hasOwnProperty(p.id);
+                    // 3. The data is "ready" only if all three conditions are met
+                    const dataIsReady = isExpanded && allDisciplinesForProject && filtersAreSet;
+                    
+                    // We no longer need 'currentActiveTrades' here, we'll pass the definite state
 
                     return (
                         <TutorialHighlight tutorialKey="projectCard" key={p.id}>
@@ -307,7 +309,8 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
                                 {/* Expanded Project Detail View */}
                                 <AnimatePresence>
-                                {isExpanded && (
+                                {/* FIX: Use the 'dataIsReady' flag here */}
+                                {dataIsReady && (
                                     <motion.div
                                         key={`detail-${p.id}`}
                                         initial={{ opacity: 0, height: 0 }}
@@ -326,8 +329,9 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                             appId={appId}
                                             showToast={showToast}
                                             // Pass down state and handlers for trade filters
-                                            activeTrades={currentActiveTrades}
-                                            allDisciplines={allDisciplinesForProject} // Pass fetched disciplines
+                                            // FIX: Pass the guaranteed, ready state data
+                                            activeTrades={projectTradeFilters[p.id]}
+                                            allDisciplines={allDisciplinesForProject} 
                                             onTradeFilterToggle={handleTradeFilterToggleForProject}
                                             onSelectAllTrades={handleSelectAllTradesForProject}
                                             // Pass down state for charge code manager visibility
@@ -346,6 +350,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 };
 
 export default ProjectConsole;
+
 
 
 
