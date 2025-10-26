@@ -787,7 +787,10 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             displayColumns: [
                 { 
                     header: 'Project Name', 
-                    accessor: item => allData.projects?.find(p => p.id === item.id)?.name || item.id 
+                    accessor: item => {
+                        const projectId = item.projectId || item.id;
+                        return allData.projects?.find(p => p.id === projectId)?.name || projectId;
+                    } 
                 }
             ]
         },
@@ -1013,7 +1016,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                         </div>
                     </TutorialHighlight>
                     {loading ? <p>Loading data...</p> : (
-                        <div className="flex-grow overflow-auto hide-scrollbar-on-hover">
+                        <div className="flex-grow overflow-auto min-h-0" style={{ maxHeight: 'calc(100vh - 250px)', scrollbarWidth: 'auto', scrollbarColor: 'rgba(156, 163, 175, 0.7) transparent' }}>
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                                     <tr>

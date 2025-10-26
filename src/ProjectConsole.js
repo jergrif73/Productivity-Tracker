@@ -1,179 +1,247 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TutorialHighlight } from './App';
 import ProjectDetailView from './ProjectDetailView.js';
-import { doc, getDoc } from 'firebase/firestore'; // Import getDoc
+// Removed unused deleteDoc import, kept updateDoc and doc
+import { doc, getDoc } from 'firebase/firestore';
 
 const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
-    // --- NEW STATE ---
-    // Store active trades per project ID. e.g., { "project123": ["piping", "duct"], "project456": ["vdc"] }
     const [projectTradeFilters, setProjectTradeFilters] = useState({});
-    // State to hold fetched disciplines per project
     const [projectDisciplines, setProjectDisciplines] = useState({});
+    const [showChargeCodeManager, setShowChargeCodeManager] = useState(false);
 
-    // --- NEW: Function to fetch disciplines for a project ---
-    // Wrapped fetchDisciplines in useCallback
+    // Keyboard shortcut listener for Charge Code Manager and Escape
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            // Check for Ctrl+Alt+Shift+C
+            if (event.ctrlKey && event.altKey && event.shiftKey && event.code === 'KeyC') {
+                event.preventDefault();
+                if (accessLevel === 'taskmaster') {
+                    if (expandedProjectId) { // Only toggle if a project is expanded
+                        setShowChargeCodeManager(prev => !prev);
+                        showToast(`Charge Code Manager ${!showChargeCodeManager ? 'shown' : 'hidden'}.`, 'info');
+                    } else {
+                        showToast("Expand a project first to manage charge codes.", "warning");
+                    }
+                } else {
+                     showToast("Charge Code management requires Taskmaster access.", "warning");
+                }
+            }
+            // Check for Escape key to hide the manager
+            if (event.key === 'Escape') {
+                setShowChargeCodeManager(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    // Include showChargeCodeManager in dependencies to update toast message correctly
+    }, [accessLevel, expandedProjectId, showToast, showChargeCodeManager]);
+
+    // Fetch disciplines for a project - MODIFIED: No longer sets state, just returns data
     const fetchDisciplines = useCallback(async (projectId) => {
-        // Check local state first
         if (projectDisciplines[projectId]) {
+            console.log("Using cached disciplines for project", projectId, ":", projectDisciplines[projectId]);
             return projectDisciplines[projectId];
         }
-        // Fetch if not in local state
         try {
+            // Use projectActivities collection now
             const docRef = doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
+                // Get disciplines from the projectActivities document
                 const disciplines = data?.actionTrackerDisciplines || [];
-                setProjectDisciplines(prev => ({ ...prev, [projectId]: disciplines }));
+                console.log("Fetched disciplines for project", projectId, ":", disciplines);
+                // Return disciplines, but DO NOT set state here.
                 return disciplines;
             } else {
-                 setProjectDisciplines(prev => ({ ...prev, [projectId]: [] })); // Set empty if doc doesn't exist
+                console.warn("No projectActivities document found for project", projectId);
                 return [];
             }
         } catch (error) {
             console.error("Error fetching project disciplines:", error);
-            setProjectDisciplines(prev => ({ ...prev, [projectId]: [] })); // Set empty on error
             return [];
         }
-    }, [db, appId, projectDisciplines]); // Added dependencies for useCallback
+    }, [db, appId, projectDisciplines]); // Keep dependencies
 
-
-    useEffect(() => {
+    // Handle initial project filter from navigation - MODIFIED: Sets all states
+     useEffect(() => {
         const handleInitialFilter = async () => {
             if (initialProjectConsoleFilter && projects.length > 0) {
                 const projectToExpand = projects.find(p => p.id === initialProjectConsoleFilter);
 
                 if (projectToExpand) {
                     setFilters(prev => ({ ...prev, query: projectToExpand.name || projectToExpand.projectId }));
-                    setExpandedProjectId(projectToExpand.id);
-                    // Fetch disciplines and initialize filters if not already set
-                    const disciplines = await fetchDisciplines(projectToExpand.id); // Use useCallback version
+                    
+                    // --- FIX: Set all states from here ---
+                    // 1. Await disciplines
+                    const disciplines = await fetchDisciplines(projectToExpand.id);
+                    
+                    // 2. Set disciplines state
+                    setProjectDisciplines(prev => ({ ...prev, [projectToExpand.id]: disciplines }));
+
+                    // 3. Set filters state
                     setProjectTradeFilters(prevFilters => {
-                        if (!prevFilters[projectToExpand.id]) {
-                            // Initialize with all disciplines selected
+                        if (!prevFilters.hasOwnProperty(projectToExpand.id)) {
                             return { ...prevFilters, [projectToExpand.id]: disciplines.map(d => d.key) };
                         }
                         return prevFilters;
                     });
+                    
+                    // 4. Hide charge code manager
+                    setShowChargeCodeManager(false);
+
+                    // 5. NOW expand
+                    setExpandedProjectId(projectToExpand.id);
                 }
-                setInitialProjectConsoleFilter(null);
+                setInitialProjectConsoleFilter(null); // Clear the initial filter trigger
             }
         };
         handleInitialFilter();
-    // Added fetchDisciplines to dependency array
+    // Added fetchDisciplines dependency
     }, [initialProjectConsoleFilter, projects, setInitialProjectConsoleFilter, fetchDisciplines]);
 
-
+    // Update search query when expanding a project
     useEffect(() => {
         if (expandedProjectId) {
             const currentProject = projects.find(p => p.id === expandedProjectId);
+            // Update query only if it doesn't already match name or ID
             if (currentProject && filters.query !== currentProject.name && filters.query !== currentProject.projectId) {
-                setFilters(prev => ({ ...prev, query: currentProject.name }));
+                setFilters(prev => ({ ...prev, query: currentProject.name || currentProject.projectId }));
             }
         }
     }, [expandedProjectId, projects, filters.query]);
 
 
-    const handleProjectClick = async (projectId) => { // Made async
-        setExpandedProjectId(prevId => {
-            if (prevId === projectId) {
-                // Collapsing: Keep filters, just clear search query if it matches
-                const project = projects.find(p => p.id === projectId);
-                 if (project && (filters.query === project.name || filters.query === project.projectId)) {
-                    setFilters(prev => ({ ...prev, query: '' }));
-                }
-                return null;
-            } else {
-                // Expanding a new one
-                const newProject = projects.find(p => p.id === projectId);
-                setFilters(prev => ({ ...prev, query: newProject ? newProject.name : '' }));
-                 // Fetch disciplines and initialize filters for this project if not already set
-                 fetchDisciplines(projectId).then(disciplines => { // Use useCallback version
-                    setProjectTradeFilters(prevFilters => {
-                        if (!prevFilters[projectId]) {
-                             // Initialize with all disciplines selected
-                            return { ...prevFilters, [projectId]: disciplines.map(d => d.key) };
-                        }
-                        return prevFilters;
-                    });
-                 });
-                return projectId;
+    // Handle clicking a project card to expand/collapse - MODIFIED: Sets all states
+    const handleProjectClick = useCallback(async (projectId) => { // <-- Made the handler async
+        if (expandedProjectId === projectId) {
+            // Collapsing: clear search if it matches, hide charge manager
+            const project = projects.find(p => p.id === projectId);
+             if (project && (filters.query === project.name || filters.query === project.projectId)) {
+                setFilters(prev => ({ ...prev, query: '' }));
             }
-        });
-    };
+            setShowChargeCodeManager(false); // Hide manager on collapse
+            setExpandedProjectId(null); // Collapse
+        } else {
+            // Expanding: set search, fetch disciplines, init filters if needed, hide manager
+            const newProject = projects.find(p => p.id === projectId);
+            setFilters(prev => ({ ...prev, query: newProject ? (newProject.name || newProject.projectId) : '' }));
+            
+            // --- FIX: Set all states from here ---
+            // 1. Await the fetch for disciplines (this will use cache if available)
+            const disciplines = await fetchDisciplines(projectId);
+            
+            // 2. Set disciplines state
+            setProjectDisciplines(prev => ({ ...prev, [projectId]: disciplines }));
 
-    // --- NEW HANDLERS ---
-    const handleTradeFilterToggleForProject = (projectId, tradeKey) => {
-        // Disciplines should be loaded by the time this is called
+            // 3. Set the trade filters state
+            setProjectTradeFilters(prevFilters => {
+                if (!prevFilters.hasOwnProperty(projectId)) { // Use hasOwnProperty
+                    return { ...prevFilters, [projectId]: disciplines.map(d => d.key) };
+                }
+                return prevFilters;
+            });
+
+            // 4. Now that filter state is set, expand the project
+            setShowChargeCodeManager(false); // Ensure manager is hidden
+            setExpandedProjectId(projectId); // Expand *after* filters are set
+        }
+    }, [projects, filters.query, fetchDisciplines, expandedProjectId]); // Removed projectDisciplines
+
+    // Toggle a specific trade filter for an expanded project
+    const handleTradeFilterToggleForProject = useCallback((projectId, tradeKey) => {
         const allDisciplines = projectDisciplines[projectId] || [];
         setProjectTradeFilters(prevFilters => {
-            const currentTrades = prevFilters[projectId] || allDisciplines.map(d => d.key); // Default to all if not set
-
+            // Use hasOwnProperty to safely check for an empty array []
+            const currentTrades = prevFilters.hasOwnProperty(projectId) 
+                ? prevFilters[projectId]
+                : allDisciplines.map(d => d.key);
             const newTradesSet = new Set(currentTrades);
             if (newTradesSet.has(tradeKey)) {
                 newTradesSet.delete(tradeKey);
             } else {
                 newTradesSet.add(tradeKey);
             }
-            return {
-                ...prevFilters,
-                [projectId]: Array.from(newTradesSet),
-            };
+            return { ...prevFilters, [projectId]: Array.from(newTradesSet) };
         });
-    };
+    }, [projectDisciplines]); // projectDisciplines is a dependency
 
-    const handleSelectAllTradesForProject = (projectId) => {
-         // Disciplines should be loaded by the time this is called
-        const allDisciplines = projectDisciplines[projectId] || [];
+    // Select/Deselect all trades for an expanded project
+    const handleSelectAllTradesForProject = useCallback((projectId, disciplinesFromChild) => {
+        const allDisciplines = disciplinesFromChild || []; // <-- FIX: Use the list passed from the child
         setProjectTradeFilters(prevFilters => {
-            const currentTrades = prevFilters[projectId] || [];
+            const currentTrades = prevFilters.hasOwnProperty(projectId) 
+                ? prevFilters[projectId] 
+                : allDisciplines.map(d => d.key); // Default to all if not set
+            
             const allKeys = allDisciplines.map(d => d.key);
-            const areAllSelected = currentTrades.length === allKeys.length && allKeys.length > 0 && allKeys.every(key => currentTrades.includes(key));
-
-            return {
-                ...prevFilters,
-                [projectId]: areAllSelected ? [] : allKeys,
-            };
+            
+            // Check if all keys from the definitive list are currently in the active filters
+            const allKeysSet = new Set(allKeys);
+            const currentTradesSet = new Set(currentTrades);
+            
+            let allSelectedCheck = allKeys.length > 0; // Must have at least one discipline
+            for (const key of allKeysSet) {
+                if (!currentTradesSet.has(key)) {
+                    allSelectedCheck = false;
+                    break;
+                }
+            }
+            
+            const areAllSelected = allSelectedCheck && allKeysSet.size === currentTradesSet.size;
+            
+            return { ...prevFilters, [projectId]: areAllSelected ? [] : allKeys };
         });
-    };
-    // --- END NEW HANDLERS ---
+    }, []); // <-- FIX: Removed projectDisciplines dependency
 
-
+    // Filter projects based on search, detailer, and date range
     const filteredProjects = useMemo(() => {
-        // ... (filtering logic remains the same)
         return projects
-            .filter(p => !p.archived)
+            .filter(p => !p.archived) // Exclude archived projects
             .filter(p => {
                 const { query, detailerId, startDate, endDate } = filters;
                 const searchLower = query.toLowerCase();
 
-                const nameMatch = p.name.toLowerCase().includes(searchLower);
-                const idMatch = p.projectId.toLowerCase().includes(searchLower);
+                // Match name or ID
+                const nameMatch = (p.name || '').toLowerCase().includes(searchLower);
+                const idMatch = (p.projectId || '').toLowerCase().includes(searchLower);
 
+                // Check assignments for detailer match
                 const projectAssignments = assignments.filter(a => a.projectId === p.id);
-
                 const detailerMatch = !detailerId || projectAssignments.some(a => a.detailerId === detailerId);
 
+                // Check assignments for date range overlap
                 const dateMatch = (!startDate && !endDate) || projectAssignments.some(a => {
-                    const assignStart = new Date(a.startDate);
-                    const assignEnd = new Date(a.endDate);
-                    const filterStart = startDate ? new Date(startDate) : null;
-                    const filterEnd = endDate ? new Date(endDate) : null;
+                    // Ensure dates are valid Date objects before comparing
+                    const assignStart = a.startDate ? new Date(a.startDate + 'T00:00:00') : null; // Add T00:00:00 for correct local date
+                    const assignEnd = a.endDate ? new Date(a.endDate + 'T00:00:00') : null;
+                    const filterStart = startDate ? new Date(startDate + 'T00:00:00') : null;
+                    const filterEnd = endDate ? new Date(endDate + 'T00:00:00') : null;
+
+                    // Skip comparison if assignment dates are invalid
+                    if (!assignStart || !assignEnd || isNaN(assignStart.getTime()) || isNaN(assignEnd.getTime())) {
+                        return false;
+                    }
 
                     if (filterStart && filterEnd) return assignStart <= filterEnd && assignEnd >= filterStart;
                     if (filterStart) return assignEnd >= filterStart;
                     if (filterEnd) return assignStart <= filterEnd;
-                    return true;
+                    return true; // No date filter applied
                 });
 
                 return (nameMatch || idMatch) && detailerMatch && dateMatch;
             })
-            .sort((a, b) => a.projectId.localeCompare(b.projectId, undefined, { numeric: true }));
+            // Sort by project ID numerically
+            .sort((a, b) => (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true }));
     }, [projects, assignments, filters]);
 
+    // Handle changes in the filter inputs
     const handleFilterChange = (e) => {
         const { name, value } = e.target;
         setFilters(prev => ({ ...prev, [name]: value }));
@@ -181,7 +249,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
     return (
         <div className="h-full flex flex-col p-4 gap-4">
-            {/* Filter UI remains the same */}
+            {/* Filter UI Section */}
             <TutorialHighlight tutorialKey="projectFilters">
             <div className={`flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-md`}>
                 <h2 className={`text-xl font-bold mb-4 ${currentTheme.textColor}`}>Project Overview & Filters</h2>
@@ -196,23 +264,27 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                     />
                     <select name="detailerId" value={filters.detailerId} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                         <option value="">Filter by Detailer...</option>
-                        {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
+                        {detailers.sort((a,b) => a.lastName.localeCompare(b.lastName)).map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                     </select>
                     <input type="date" name="startDate" value={filters.startDate} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                     <input type="date" name="endDate" value={filters.endDate} onChange={handleFilterChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
                 </div>
             </div>
             </TutorialHighlight>
+
+            {/* Project List Section */}
             <div className="flex-grow overflow-y-auto space-y-4 pr-4 hide-scrollbar-on-hover">
                 {filteredProjects.map((p, index) => {
                     const isExpanded = expandedProjectId === p.id;
                     const bgColor = index % 2 === 0 ? currentTheme.cardBg : currentTheme.altRowBg;
-
-                    // --- Determine current filters for this project ---
-                    // Default to empty array if not yet initialized while fetching
-                    const currentActiveTrades = projectTradeFilters[p.id] || [];
+                    // Get current filters safely, default to all disciplines if not set
                     const allDisciplinesForProject = projectDisciplines[p.id] || [];
-                    // ---
+                    
+                    // FIX: Check if the property exists. If it does, use its value (even if it's an empty array).
+                    // Default to all trades only if the filter key hasn't been set for this project yet.
+                    const currentActiveTrades = projectTradeFilters.hasOwnProperty(p.id)
+                        ? projectTradeFilters[p.id] // Use the stored filter array, even if it's []
+                        : allDisciplinesForProject.map(d => d.key); // Default to all only if key doesn't exist
 
                     return (
                         <TutorialHighlight tutorialKey="projectCard" key={p.id}>
@@ -220,18 +292,20 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                 layout
                                 className={`${bgColor} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}
                             >
+                                {/* Project Header (Clickable to expand/collapse) */}
                                 <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleProjectClick(p.id)}>
                                     <div>
                                         <h3 className="text-lg font-semibold">{p.name}</h3>
                                         <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
                                     </div>
-                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </svg>
                                     </motion.div>
                                 </motion.div>
 
+                                {/* Expanded Project Detail View */}
                                 <AnimatePresence>
                                 {isExpanded && (
                                     <motion.div
@@ -241,21 +315,23 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                         exit={{ opacity: 0, height: 0 }}
                                         transition={{ duration: 0.3, ease: "easeInOut" }}
                                         className="overflow-hidden"
-                                        onClick={e => e.stopPropagation()}
+                                        onClick={e => e.stopPropagation()} // Prevent clicks inside details from collapsing
                                     >
                                         <ProjectDetailView
                                             db={db}
                                             project={p}
-                                            projectId={p.id}
+                                            projectId={p.id} // Pass projectId explicitly
                                             accessLevel={accessLevel}
                                             currentTheme={currentTheme}
                                             appId={appId}
                                             showToast={showToast}
-                                            // --- PASS DOWN STATE AND HANDLERS ---
+                                            // Pass down state and handlers for trade filters
                                             activeTrades={currentActiveTrades}
-                                            allDisciplines={allDisciplinesForProject} // Pass all disciplines
+                                            allDisciplines={allDisciplinesForProject} // Pass fetched disciplines
                                             onTradeFilterToggle={handleTradeFilterToggleForProject}
                                             onSelectAllTrades={handleSelectAllTradesForProject}
+                                            // Pass down state for charge code manager visibility
+                                            showChargeCodeManager={showChargeCodeManager}
                                         />
                                     </motion.div>
                                 )}
@@ -270,4 +346,9 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 };
 
 export default ProjectConsole;
+
+
+
+
+
 
