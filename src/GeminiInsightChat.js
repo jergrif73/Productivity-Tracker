@@ -32,6 +32,17 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
     const handleSendMessage = async () => {
         if (!userInput.trim() || isLoading) return;
 
+        // Check if API key exists
+        if (!geminiApiKey || geminiApiKey.trim() === '') {
+            const errorMessage = "⚠️ No Gemini API key configured. Please add your API key in the Admin Console settings.";
+            setMessages(prev => [...prev, 
+                { role: 'user', text: userInput },
+                { role: 'model', text: errorMessage }
+            ]);
+            setUserInput('');
+            return;
+        }
+
         const newUserMessage = { role: 'user', text: userInput };
         setMessages(prev => [...prev, newUserMessage]);
         const currentInput = userInput;
@@ -42,24 +53,41 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
         // If this is the first message, prepend the system context
         if (chatHistoryRef.current.length === 0) {
             let dataSample;
-            if (reportContext.type === 'employee-details' && reportContext.data[0] && typeof reportContext.data[0] === 'object' && !Array.isArray(reportContext.data[0])) {
+            let formattedHeaders = '';
+
+            // Handle different report types
+            if (reportContext.type === 'full-project-report') {
+                // For full project reports, create a structured summary
+                const data = reportContext.data;
+                dataSample = `
+                    Project: ${data.project?.name || 'N/A'} (${data.project?.projectId || 'N/A'})
+                    Budget: $${data.financialSummary?.currentBudget?.toLocaleString() || '0'}
+                    Allocated Hours: ${data.financialSummary?.allocatedHours?.toFixed(2) || '0'}
+                    Spent to Date: $${data.financialSummary?.spentToDate?.toLocaleString() || '0'}
+                    Earned Value: $${data.financialSummary?.earnedValue?.toLocaleString() || '0'}
+                    Projected Final Cost: $${data.financialSummary?.projectedFinalCost?.toLocaleString() || '0'}
+                    Variance: $${data.financialSummary?.variance?.toLocaleString() || '0'}
+                    Productivity: ${data.financialSummary?.productivity?.toFixed(2) || '0'}
+                    Number of Action Tracker Items: ${data.actionTrackerSummary?.length || 0}
+                `;
+                formattedHeaders = 'Financial Summary, Action Tracker Summary, Budget Impact Log, Activity Values';
+            } else if (reportContext.type === 'employee-details' && reportContext.data[0] && typeof reportContext.data[0] === 'object' && !Array.isArray(reportContext.data[0])) {
                 dataSample = reportContext.data.slice(0, 20).map(row => 
                     `${row.attribute}: ${row.values.map(v => v.value).join(', ')}`
                 ).join('; ');
-            } else {
+                formattedHeaders = reportContext.headers.map(h => (typeof h === 'object' && h.name) ? h.name : h).join(', ');
+            } else if (Array.isArray(reportContext.data)) {
                 dataSample = reportContext.data.slice(0, 20).map(row => row.join(', ')).join('; ');
+                formattedHeaders = reportContext.headers.map(h => (typeof h === 'object' && h.name) ? h.name : h).join(', ');
+            } else {
+                dataSample = 'No data available';
+                formattedHeaders = 'N/A';
             }
-
-            // *** FIX STARTS HERE ***
-            // The headers for 'employee-details' are objects {id, name}. We need to extract the name.
-            // This now handles both string headers and object headers.
-            const formattedHeaders = reportContext.headers.map(h => (typeof h === 'object' && h.name) ? h.name : h).join(', ');
-            // *** FIX ENDS HERE ***
 
             const jobFamilyContext = JSON.stringify(jobFamilyData);
 
             prompt = `
-                CONTEXT: You are an expert analyst for a workforce productivity application. The user has generated a report of type "${reportContext.type}". The columns are: ${formattedHeaders}. Here is a sample of the data (rows separated by ';'):
+                CONTEXT: You are an expert analyst for a workforce productivity application. The user has generated a report of type "${reportContext.type}". ${formattedHeaders ? `The columns are: ${formattedHeaders}.` : ''} Here is a sample of the data:
                 ${dataSample}
 
                 Additionally, here is the job family data, which defines various positions, their responsibilities, and skills:
@@ -75,37 +103,79 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
 
         chatHistoryRef.current.push({ role: 'user', parts: [{ text: prompt }] });
         
-        try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: chatHistoryRef.current })
-            });
+        // Try multiple model versions in case one is deprecated
+        const modelsToTry = [
+            'gemini-2.0-flash-exp',
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-flash',
+            'gemini-pro'
+        ];
+        
+        let lastError = null;
+        let success = false;
 
-            if (!response.ok) {
-                const errorBody = await response.json();
-                console.error("API Error Body:", errorBody);
-                throw new Error(`API request failed with status ${response.status}`);
+        for (const modelName of modelsToTry) {
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: chatHistoryRef.current })
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({ error: 'Unknown error' }));
+                    console.error(`API Error for model ${modelName}:`, errorBody);
+                    lastError = errorBody;
+                    
+                    // If it's a 404, try next model. Otherwise, throw.
+                    if (response.status === 404) {
+                        continue;
+                    }
+                    throw new Error(`API request failed with status ${response.status}: ${JSON.stringify(errorBody)}`);
+                }
+
+                const result = await response.json();
+                if (!result.candidates || result.candidates.length === 0) {
+                    throw new Error("No response candidates from API.");
+                }
+                const modelResponse = result.candidates[0].content.parts[0].text;
+                
+                const newModelMessage = { role: 'model', text: modelResponse };
+                setMessages(prev => [...prev, newModelMessage]);
+
+                chatHistoryRef.current.push({ role: 'model', parts: [{ text: modelResponse }] });
+                success = true;
+                break; // Success! Exit the loop
+
+            } catch (err) {
+                console.error(`Gemini API error with model ${modelName}:`, err);
+                lastError = err;
+                // Continue to next model
             }
-
-            const result = await response.json();
-            if (!result.candidates || result.candidates.length === 0) {
-                 throw new Error("No response candidates from API.");
-            }
-            const modelResponse = result.candidates[0].content.parts[0].text;
-            
-            const newModelMessage = { role: 'model', text: modelResponse };
-            setMessages(prev => [...prev, newModelMessage]);
-
-            chatHistoryRef.current.push({ role: 'model', parts: [{ text: modelResponse }] });
-
-        } catch (err) {
-            console.error("Gemini API error:", err);
-            const errorMessage = "My apologies, I seem to be having trouble connecting. Please check the API key and configuration.";
-            setMessages(prev => [...prev, {role: 'model', text: errorMessage}]);
-        } finally {
-            setIsLoading(false);
         }
+
+        if (!success) {
+            console.error("All Gemini models failed. Last error:", lastError);
+            let errorMessage = "⚠️ **Unable to connect to Gemini API**\n\n";
+            
+            // Provide more specific error info if available
+            if (lastError && lastError.error && lastError.error.message) {
+                errorMessage += `**Error:** ${lastError.error.message}\n\n`;
+            } else if (lastError && lastError.message) {
+                errorMessage += `**Error:** ${lastError.message}\n\n`;
+            }
+            
+            errorMessage += "**Possible solutions:**\n";
+            errorMessage += "* Verify your Gemini API key is valid and active\n";
+            errorMessage += "* Check that billing is enabled for your Google Cloud project\n";
+            errorMessage += "* Ensure the API key has proper permissions\n";
+            errorMessage += "* Check the browser console (F12) for detailed error messages\n\n";
+            errorMessage += "Get your API key at: [Google AI Studio](https://makersuite.google.com/app/apikey)";
+            
+            setMessages(prev => [...prev, {role: 'model', text: errorMessage}]);
+        }
+        
+        setIsLoading(false);
     };
 
     if (!isVisible) return null;

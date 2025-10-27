@@ -582,8 +582,12 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         
         setReportHeaders(headers);
 
+        // FIX: Set reportContext for full-project-report too so Ctrl+Alt+Shift+G works
         if (isTabularReport) {
             setReportContext({ data, headers, type: reportType });
+        } else if (reportType === 'full-project-report' && data) {
+            // Set context for full project report to enable Gemini AI keyboard shortcut
+            setReportContext({ data, headers: [], type: reportType });
         } else {
             setReportContext(null);
         }
