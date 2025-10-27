@@ -1029,6 +1029,38 @@ const ProjectDetailView = ({
                         }
                     }
                     
+                    // MIGRATION: Auto-populate actionTrackerDisciplines from activity keys if empty
+                    if (data.activities && Object.keys(data.activities).length > 0) {
+                        if (!data.actionTrackerDisciplines || data.actionTrackerDisciplines.length === 0) {
+                            console.log("🔧 MIGRATION: actionTrackerDisciplines is empty but activities exist. Auto-populating...");
+                            
+                            const standardLabels = {
+                                'sheetmetal': 'Sheet Metal / HVAC',
+                                'piping': 'Mechanical Piping',
+                                'plumbing': 'Plumbing',
+                                'management': 'Management',
+                                'vdc': 'VDC'
+                            };
+                            
+                            const activityKeys = Object.keys(data.activities);
+                            const newDisciplines = activityKeys.map(key => ({
+                                key: key,
+                                label: standardLabels[key] || key.charAt(0).toUpperCase() + key.slice(1)
+                            }));
+                            
+                            console.log("🔧 Auto-populated disciplines:", newDisciplines);
+                            data.actionTrackerDisciplines = newDisciplines;
+                            
+                            // Save to Firestore
+                            setDoc(docRef, { actionTrackerDisciplines: newDisciplines }, { merge: true }).then(() => {
+                                console.log("✅ actionTrackerDisciplines saved successfully");
+                                showToast("Discipline tracking initialized", "success");
+                            }).catch(err => {
+                                console.error("❌ Error saving actionTrackerDisciplines:", err);
+                            });
+                        }
+                    }
+                    
                     setProjectData(data);
                     // Initialize collapsed state for activity groups
                     const activities = data.activities || {};
@@ -1196,19 +1228,32 @@ const ProjectDetailView = ({
     const handleDeleteActivity = useCallback((group, index) => { const acts = JSON.parse(JSON.stringify(projectData?.activities || {})); if (acts[group]?.[index]) { acts[group].splice(index, 1); handleSaveData({ activities: acts }); } }, [projectData, handleSaveData]);
     const handleDeleteActivityFromActionTracker = useCallback((activityId) => { const acts = JSON.parse(JSON.stringify(projectData?.activities || {})); let removed = false; Object.keys(acts).forEach(k => { const len = acts[k].length; acts[k] = acts[k].filter(a => a.id !== activityId); if(acts[k].length < len) removed = true; }); if (removed) { handleSaveData({ activities: acts }); showToast("Activity removed.", "success"); } }, [projectData, handleSaveData, showToast]);
     const handleSetRateType = useCallback((groupKey, rateType) => { handleSaveData({ rateTypes: { ...(projectData?.rateTypes || {}), [groupKey]: rateType } }); }, [projectData, handleSaveData]);
-    const handleAddActivityGroup = useCallback(() => { 
-        console.log("handleAddActivityGroup called with newActivityGroup:", newActivityGroup);
-        console.log("Current projectData?.activities:", projectData?.activities);
-        console.log("allDisciplines:", allDisciplines);
+    const handleAddActivityGroup = useCallback(async () => { 
+        console.log("=== handleAddActivityGroup START ===");
+        console.log("newActivityGroup:", newActivityGroup);
+        console.log("projectData?.activities:", projectData?.activities);
+        console.log("projectData?.actionTrackerDisciplines:", projectData?.actionTrackerDisciplines);
+        console.log("allDisciplines prop:", allDisciplines);
         
-        if (!newActivityGroup || projectData?.activities?.[newActivityGroup]) { 
-            console.warn("Invalid selection or group already exists");
-            showToast("Invalid selection or group exists.", "warning"); 
+        if (!newActivityGroup) {
+            console.error("No activity group selected");
+            showToast("Please select a discipline first.", "warning");
+            return;
+        }
+        
+        if (projectData?.activities?.[newActivityGroup]) { 
+            console.warn("Group already exists:", newActivityGroup);
+            showToast("This discipline section already exists.", "warning"); 
             return; 
         } 
         
-        // Try to find details in allDisciplines first, then fall back to standard disciplines
-        let details = (allDisciplines || []).find(d => d.key === newActivityGroup);
+        // CRITICAL FIX: Use projectData.actionTrackerDisciplines as source of truth
+        const disciplinesSource = projectData?.actionTrackerDisciplines || allDisciplines || [];
+        console.log("Using disciplinesSource:", disciplinesSource);
+        
+        // Try to find details in the source disciplines first
+        let details = disciplinesSource.find(d => d.key === newActivityGroup);
+        console.log("Found in disciplinesSource:", details);
         
         if (!details) {
             // Check if it's a standard discipline
@@ -1220,13 +1265,12 @@ const ProjectDetailView = ({
                 { key: 'vdc', label: 'VDC' }
             ];
             details = standardDisciplines.find(d => d.key === newActivityGroup);
+            console.log("Found in standardDisciplines:", details);
         }
-        
-        console.log("Found discipline details:", details);
         
         if (!details) { 
             console.error(`No discipline details found for key: ${newActivityGroup}`);
-            showToast(`Error finding details for ${newActivityGroup}.`, "error"); 
+            showToast(`Error: Could not find discipline "${newActivityGroup}".`, "error"); 
             return; 
         } 
         
@@ -1235,16 +1279,27 @@ const ProjectDetailView = ({
         console.log("Discipline exists in actionTrackerDisciplines?", exists);
         
         const data = { activities: { ...(projectData?.activities || {}), [newActivityGroup]: [] } }; 
-        if (!exists) data.actionTrackerDisciplines = [...current, { key: details.key, label: details.label }]; 
-        
-        console.log("Saving data:", data);
-        handleSaveData(data); 
-        setNewActivityGroup(''); 
-        showToast(`Section "${details.label}" added.`, "success"); 
-        
         if (!exists) {
-            console.log("Calling onSelectAllTrades with:", data.actionTrackerDisciplines);
-            onSelectAllTrades(projectId, data.actionTrackerDisciplines); 
+            data.actionTrackerDisciplines = [...current, { key: details.key, label: details.label }];
+            console.log("Will add to actionTrackerDisciplines:", { key: details.key, label: details.label });
+        }
+        
+        console.log("Saving data to Firestore:", data);
+        try {
+            await handleSaveData(data);
+            console.log("Save successful");
+            setNewActivityGroup(''); 
+            showToast(`Section "${details.label}" added.`, "success"); 
+            
+            if (!exists) {
+                console.log("Calling onSelectAllTrades with:", data.actionTrackerDisciplines);
+                onSelectAllTrades(projectId, data.actionTrackerDisciplines); 
+            }
+            console.log("=== handleAddActivityGroup END (success) ===");
+        } catch (error) {
+            console.error("Error in handleAddActivityGroup:", error);
+            showToast("Failed to add discipline section.", "error");
+            console.log("=== handleAddActivityGroup END (error) ===");
         }
     }, [newActivityGroup, projectData, allDisciplines, handleSaveData, showToast, onSelectAllTrades, projectId]);
     const handleDeleteActivityGroup = useCallback((groupKey) => { if (!window.confirm(`Delete "${groupKey}" section and all its activities? This cannot be undone.`)) return; const { [groupKey]: _, ...restActs } = projectData?.activities || {}; const { [groupKey]: __, ...restRates } = projectData?.rateTypes || {}; const newDisciplines = (projectData?.actionTrackerDisciplines || []).filter(d => d.key !== groupKey); handleSaveData({ activities: restActs, rateTypes: restRates, actionTrackerDisciplines: newDisciplines }); onTradeFilterToggle(projectId, groupKey); showToast(`Section "${groupKey}" deleted.`, 'success'); }, [projectData, handleSaveData, onTradeFilterToggle, projectId, showToast]);
@@ -1383,9 +1438,23 @@ const ProjectDetailView = ({
     }, [allDisciplines]); // Keep dependency as ESLint suggests reviewing it
 
     const availableDisciplinesToAdd = useMemo(() => {
+        // CRITICAL FIX: Use projectData.actionTrackerDisciplines as the source of truth
+        // This updates via Firestore listener when disciplines are added
+        // Fall back to allDisciplines prop only if projectData hasn't loaded yet
+        const disciplinesSource = projectData?.actionTrackerDisciplines || allDisciplines || [];
+        
+        console.log("=== availableDisciplinesToAdd Debug ===");
+        console.log("projectData.actionTrackerDisciplines:", projectData?.actionTrackerDisciplines);
+        console.log("allDisciplines prop:", allDisciplines);
+        console.log("Using disciplinesSource:", disciplinesSource);
+        console.log("Current projectData.activities keys:", Object.keys(projectData?.activities || {}));
+        
         // If we have custom disciplines, filter out ones already added
-        if ((allDisciplines || []).length > 0) {
-            return (allDisciplines || []).filter(d => !projectData?.activities || !projectData.activities[d.key]);
+        if (disciplinesSource.length > 0) {
+            const available = disciplinesSource.filter(d => !projectData?.activities || !projectData.activities[d.key]);
+            console.log("Available custom disciplines to add:", available);
+            console.log("=== End Debug ===");
+            return available;
         }
         
         // Otherwise, provide standard disciplines that haven't been added yet
@@ -1397,8 +1466,11 @@ const ProjectDetailView = ({
             { key: 'vdc', label: 'VDC' }
         ];
         
-        return standardDisciplines.filter(d => !projectData?.activities || !projectData.activities[d.key]);
-    }, [allDisciplines, projectData?.activities]); // Correct dependencies
+        const available = standardDisciplines.filter(d => !projectData?.activities || !projectData.activities[d.key]);
+        console.log("Available standard disciplines to add:", available);
+        console.log("=== End Debug ===");
+        return available;
+    }, [projectData?.actionTrackerDisciplines, projectData?.activities, allDisciplines]);
 
     // Expanded active trades: includes both custom keys and standard keys that map to active customs
     const expandedActiveTrades = useMemo(() => {
@@ -1756,11 +1828,42 @@ const ProjectDetailView = ({
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
                                      <div className="flex items-center gap-2">
-                                        <select value={newActivityGroup} onChange={(e) => setNewActivityGroup(e.target.value)} className={`text-xs p-1 rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                            <option value="">Add Discipline Section...</option>
-                                            {availableDisciplinesToAdd.map(d => (<option key={d.key} value={d.key}>{d.label}</option>))}
-                                        </select>
-                                        <button onClick={handleAddActivityGroup} className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`} disabled={!newActivityGroup}>Add</button>
+                                        {availableDisciplinesToAdd.length === 0 ? (
+                                            <div className="text-sm text-gray-400 italic">
+                                                All standard disciplines added. Add custom disciplines via Action Tracker Settings below.
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <select 
+                                                    value={newActivityGroup} 
+                                                    onChange={(e) => {
+                                                        console.log("Dropdown changed to:", e.target.value);
+                                                        setNewActivityGroup(e.target.value);
+                                                    }} 
+                                                    className={`text-xs p-1 rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                                >
+                                                    <option value="">Add Discipline Section...</option>
+                                                    {(() => {
+                                                        console.log("Rendering dropdown with availableDisciplinesToAdd:", availableDisciplinesToAdd);
+                                                        return availableDisciplinesToAdd.map(d => {
+                                                            console.log("  - Option:", d.key, d.label);
+                                                            return <option key={d.key} value={d.key}>{d.label}</option>;
+                                                        });
+                                                    })()}
+                                                </select>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => {
+                                                        console.log("Add button clicked, newActivityGroup:", newActivityGroup);
+                                                        handleAddActivityGroup();
+                                                    }} 
+                                                    className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`} 
+                                                    disabled={!newActivityGroup}
+                                                >
+                                                    Add
+                                                </button>
+                                            </>
+                                        )}
                                      </div>
                                 </div>
                                 {/* Activity Tables */}
@@ -1857,5 +1960,3 @@ const ProjectDetailView = ({
 };
 
 export default ProjectDetailView;
-
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TutorialHighlight } from './App';
 import ProjectDetailView from './ProjectDetailView.js';
@@ -11,6 +11,9 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     const [projectTradeFilters, setProjectTradeFilters] = useState({});
     const [projectDisciplines, setProjectDisciplines] = useState({});
     const [showChargeCodeManager, setShowChargeCodeManager] = useState(false);
+    
+    // Use a ref for caching to avoid dependency issues
+    const disciplinesCacheRef = useRef({});
 
     // Keyboard shortcut listener for Charge Code Manager and Escape
     useEffect(() => {
@@ -42,11 +45,12 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     // Include showChargeCodeManager in dependencies to update toast message correctly
     }, [accessLevel, expandedProjectId, showToast, showChargeCodeManager]);
 
-    // Fetch disciplines for a project - MODIFIED: No longer sets state, just returns data
+    // Fetch disciplines for a project - Uses ref for caching to avoid dependency issues
     const fetchDisciplines = useCallback(async (projectId) => {
-        if (projectDisciplines[projectId]) {
-            console.log("Using cached disciplines for project", projectId, ":", projectDisciplines[projectId]);
-            return projectDisciplines[projectId];
+        // Check cache in ref first
+        if (disciplinesCacheRef.current[projectId]) {
+            console.log("Using cached disciplines for project", projectId, ":", disciplinesCacheRef.current[projectId]);
+            return disciplinesCacheRef.current[projectId];
         }
         try {
             // Use projectActivities collection now
@@ -55,9 +59,33 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 // Get disciplines from the projectActivities document
-                const disciplines = data?.actionTrackerDisciplines || [];
+                let disciplines = data?.actionTrackerDisciplines || [];
+                
+                // AUTO-POPULATE: If actionTrackerDisciplines is empty but activities exist, auto-populate
+                if (disciplines.length === 0 && data.activities && Object.keys(data.activities).length > 0) {
+                    console.log("🔧 AUTO-POPULATE: actionTrackerDisciplines is empty but activities exist");
+                    
+                    const standardLabels = {
+                        'sheetmetal': 'Sheet Metal / HVAC',
+                        'piping': 'Mechanical Piping',
+                        'plumbing': 'Plumbing',
+                        'management': 'Management',
+                        'vdc': 'VDC'
+                    };
+                    
+                    const activityKeys = Object.keys(data.activities);
+                    disciplines = activityKeys.map(key => ({
+                        key: key,
+                        label: standardLabels[key] || key.charAt(0).toUpperCase() + key.slice(1)
+                    }));
+                    
+                    console.log("🔧 Auto-populated disciplines in ProjectConsole:", disciplines);
+                }
+                
                 console.log("Fetched disciplines for project", projectId, ":", disciplines);
-                // Return disciplines, but DO NOT set state here.
+                // Cache in ref
+                disciplinesCacheRef.current[projectId] = disciplines;
+                // Return disciplines
                 return disciplines;
             } else {
                 console.warn("No projectActivities document found for project", projectId);
@@ -67,7 +95,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             console.error("Error fetching project disciplines:", error);
             return [];
         }
-    }, [db, appId, projectDisciplines]); // Keep dependencies
+    }, [db, appId]); // Removed projectDisciplines from dependencies
 
     // Handle initial project filter from navigation - MODIFIED: Sets all states
      useEffect(() => {
@@ -156,7 +184,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
     // Toggle a specific trade filter for an expanded project
     const handleTradeFilterToggleForProject = useCallback((projectId, tradeKey) => {
-        const allDisciplines = projectDisciplines[projectId] || [];
+        const allDisciplines = projectDisciplines[projectId] || disciplinesCacheRef.current[projectId] || [];
         setProjectTradeFilters(prevFilters => {
             // Use hasOwnProperty to safely check for an empty array []
             const currentTrades = prevFilters.hasOwnProperty(projectId) 
@@ -170,11 +198,18 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             }
             return { ...prevFilters, [projectId]: Array.from(newTradesSet) };
         });
-    }, [projectDisciplines]); // projectDisciplines is a dependency
+    }, [projectDisciplines]); // Keep projectDisciplines for now to trigger re-renders
 
     // Select/Deselect all trades for an expanded project
     const handleSelectAllTradesForProject = useCallback((projectId, disciplinesFromChild) => {
-        const allDisciplines = disciplinesFromChild || []; // <-- FIX: Use the list passed from the child
+        const allDisciplines = disciplinesFromChild || [];
+        
+        // Update both state and ref cache when disciplines are provided
+        if (disciplinesFromChild && disciplinesFromChild.length > 0) {
+            disciplinesCacheRef.current[projectId] = disciplinesFromChild;
+            setProjectDisciplines(prev => ({ ...prev, [projectId]: disciplinesFromChild }));
+        }
+        
         setProjectTradeFilters(prevFilters => {
             const currentTrades = prevFilters.hasOwnProperty(projectId) 
                 ? prevFilters[projectId] 
@@ -198,7 +233,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             
             return { ...prevFilters, [projectId]: areAllSelected ? [] : allKeys };
         });
-    }, []); // <-- FIX: Removed projectDisciplines dependency
+    }, []); // No dependencies needed since we're using the ref
 
     // Filter projects based on search, detailer, and date range
     const filteredProjects = useMemo(() => {
@@ -350,10 +385,3 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 };
 
 export default ProjectConsole;
-
-
-
-
-
-
-

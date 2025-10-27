@@ -96,7 +96,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
         "Project Constructability Lead", "Project Constructability Lead, Sr.",
         "Trade Constructability Lead", "Constructability Manager"
     ];
-    
+
     useEffect(() => {
         if (employee) {
             let skills = employee.disciplineSkillsets;
@@ -115,7 +115,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
             skills: { ...prev.skills, [skillName]: score }
         }));
     };
-    
+
     const handleAddDiscipline = () => {
         if (newDiscipline && editableEmployee) {
             const currentDisciplines = editableEmployee.disciplineSkillsets || [];
@@ -128,18 +128,18 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
             }
         }
     };
-    
+
     const handleRemoveDiscipline = (disciplineToRemove) => {
         setEditableEmployee(prev => ({
             ...prev,
             disciplineSkillsets: (prev.disciplineSkillsets || []).filter(d => d.name !== disciplineToRemove)
         }));
     };
-    
+
     const handleDisciplineRatingChange = (name, score) => {
         setEditableEmployee(prev => ({
             ...prev,
-            disciplineSkillsets: (prev.disciplineSkillsets || []).map(d => 
+            disciplineSkillsets: (prev.disciplineSkillsets || []).map(d =>
                 d.name === name ? { ...d, score } : d
             )
         }));
@@ -187,10 +187,10 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
             setDragOverDiscipline(null);
             return;
         }
-        
+
         const [removed] = skillsetsArray.splice(draggedIndex, 1);
         skillsetsArray.splice(targetIndex, 0, removed);
-        
+
         setEditableEmployee(prev => ({
             ...prev,
             disciplineSkillsets: skillsetsArray
@@ -257,7 +257,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
                                 {skillCategories.map(skill => (
                                     <div key={skill}>
                                         <label className="font-medium">{skill}</label>
-                                        <BubbleRating 
+                                        <BubbleRating
                                             score={editableEmployee.skills?.[skill] || 0}
                                             onScoreChange={(score) => handleSkillChange(skill, score)}
                                             currentTheme={currentTheme}
@@ -278,8 +278,8 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
                             </div>
                             <div className="space-y-4">
                                 {(editableEmployee.disciplineSkillsets || []).map(discipline => (
-                                    <div 
-                                        key={discipline.name} 
+                                    <div
+                                        key={discipline.name}
                                         draggable
                                         onDragStart={(e) => handleDragStart(e, discipline.name)}
                                         onDragOver={(e) => handleDragOver(e, discipline.name)}
@@ -477,7 +477,7 @@ const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
     const handleAddListItem = (field) => {
         setEditableItem(prev => ({ ...prev, [field]: [...(editableItem[field] || []), ''] }));
     };
-    
+
     const handleRemoveListItem = (field, index) => {
         const newList = [...(editableItem[field] || [])];
         newList.splice(index, 1);
@@ -508,7 +508,7 @@ const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
             <div className="flex-grow overflow-auto hide-scrollbar-on-hover pr-2 space-y-4">
                 <div>
                     <label className="block text-sm font-medium mb-1">Position Title</label>
-                    <input 
+                    <input
                         type="text"
                         value={editableItem.title}
                         onChange={(e) => handleChange('title', e.target.value)}
@@ -552,7 +552,7 @@ const ProjectActivitiesEditor = ({ item, collectionName, onBack, onSave, current
         const uniqueActivities = Array.from(activityMap.values());
 
         const regroupedActivities = uniqueActivities.reduce((acc, act) => {
-            const trade = Object.keys(item.activities).find(trade => 
+            const trade = Object.keys(item.activities).find(trade =>
                 item.activities[trade].some(a => a.description === act.description)
             ) || 'general';
             if (!acc[trade]) acc[trade] = [];
@@ -562,7 +562,7 @@ const ProjectActivitiesEditor = ({ item, collectionName, onBack, onSave, current
 
         setEditableItem(prev => ({ ...prev, activities: regroupedActivities }));
     };
-    
+
     const handleRemoveDuplicateDisciplines = () => {
         const disciplines = editableItem.actionTrackerDisciplines || [];
         if (disciplines.length === 0) return;
@@ -728,7 +728,9 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             }, err => console.error(`Error fetching ${name}:`, err));
         });
 
+        // Set loading to false after setting up listeners
         setLoading(false);
+
 
         return () => {
             unsubscribers.forEach(unsub => unsub());
@@ -780,21 +782,23 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             ]
         },
         'taskLanes': { columns: [{ header: 'Name', accessor: 'name', type: 'text' }, { header: 'Order', accessor: 'order', type: 'number' }] },
-        'jobFamilyData': { customEditor: JobFamilyDataEditor }, 
+        'jobFamilyData': { customEditor: JobFamilyDataEditor },
         'unionLocals': { columns: [{ header: 'Name', accessor: 'name', type: 'text' }] },
         'projectActivities': {
             customEditor: ProjectActivitiesEditor,
             displayColumns: [
-                { 
-                    header: 'Project Name', 
+                {
+                    header: 'Project Name',
+                    // --- FIX: Correct accessor for projectActivities ---
                     accessor: item => {
-                        const projectId = item.projectId || item.id;
-                        return allData.projects?.find(p => p.id === projectId)?.name || projectId;
-                    } 
+                        // The item.id *is* the projectId for this collection
+                        return allData.projects?.find(p => p.id === item.id)?.name || item.id; // Use item.id for lookup
+                    }
+                    // --- END FIX ---
                 }
             ]
         },
-    }), [allData]);
+    }), [allData]); // Added allData dependency
 
     const handleSelectCollection = (name) => {
         setSelectedCollection(name);
@@ -844,7 +848,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             console.error("Error updating document:", error);
         }
     };
-    
+
     // Header click sorting
     const requestSort = (key) => {
         let direction = 'ascending';
@@ -865,7 +869,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         const currentData = allData[selectedCollection] || [];
         const config = collectionConfig[selectedCollection];
         if (!config) return [];
-        
+
         let data = [...currentData];
 
         const displayColumnsForFiltering = config.displayColumns || config.columns;
@@ -873,22 +877,24 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
             data = data.filter(item => {
-                return displayColumnsForFiltering.some(col => {
+                // --- FIX: Ensure displayColumnsForFiltering is defined before using .some ---
+                return displayColumnsForFiltering && displayColumnsForFiltering.some(col => {
+                // --- END FIX ---
                     const value = typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor];
                     return String(value).toLowerCase().includes(lowercasedTerm);
                 });
             });
         }
-        
+
         // --- NEW SORTING LOGIC ---
         if (sortBy) { // Prioritize button-based sorting
             if (selectedCollection === 'detailers') {
-                data.sort((a, b) => a[sortBy].localeCompare(b[sortBy]));
+                data.sort((a, b) => (a[sortBy] || '').localeCompare(b[sortBy] || '')); // Added safety checks for undefined
             } else if (selectedCollection === 'projects') {
                 if (sortBy === 'projectId') {
-                    data.sort((a, b) => a.projectId.localeCompare(b.projectId, undefined, { numeric: true }));
+                    data.sort((a, b) => (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true })); // Added safety checks
                 } else { // sortBy === 'name'
-                    data.sort((a, b) => a.name.localeCompare(b.name));
+                    data.sort((a, b) => (a.name || '').localeCompare(b.name || '')); // Added safety checks
                 }
             }
         } else if (sortConfig.key && displayColumnsForFiltering) { // Fallback to header-click sorting
@@ -898,8 +904,13 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                     const aValue = typeof sortColumn.accessor === 'function' ? sortColumn.accessor(a) : a[sortColumn.accessor];
                     const bValue = typeof sortColumn.accessor === 'function' ? sortColumn.accessor(b) : b[sortColumn.accessor];
 
-                    if (aValue < bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
-                    if (aValue > bValue) return sortConfig.direction === 'ascending' ? 1 : -1;
+                    // --- FIX: Handle potential undefined/null values during comparison ---
+                    const valA = aValue ?? ''; // Default to empty string if null/undefined
+                    const valB = bValue ?? ''; // Default to empty string if null/undefined
+
+                    if (valA < valB) return sortConfig.direction === 'ascending' ? -1 : 1;
+                    if (valA > valB) return sortConfig.direction === 'ascending' ? 1 : -1;
+                    // --- END FIX ---
                     return 0;
                 });
             }
@@ -912,6 +923,46 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
     const config = collectionConfig[selectedCollection];
     const EditorComponent = editingItem?.collectionName ? collectionConfig[editingItem.collectionName]?.customEditor : null;
 
+    // --- FIX: Moved useMemo for displayColumns *before* the conditional return ---
+    const displayColumns = useMemo(() => {
+        const currentConfig = collectionConfig[selectedCollection];
+        if (!currentConfig) return [];
+
+        // If displayColumns is explicitly defined, use it
+        if (currentConfig.displayColumns) return currentConfig.displayColumns;
+
+        // If customEditor exists but no displayColumns, provide defaults based on collection
+        if (currentConfig.customEditor) {
+            switch (selectedCollection) {
+                case 'projects':
+                    return [{ header: 'Project Name', accessor: 'name' }, { header: 'Project ID', accessor: 'projectId' }];
+                case 'jobFamilyData':
+                    return [{ header: 'Title', accessor: 'title' }];
+                case 'projectActivities': // Added this case
+                     return [{
+                        header: 'Project Name',
+                        accessor: item => allData.projects?.find(p => p.id === item.id)?.name || item.id
+                    }];
+                case 'detailers': // Added detailers default if needed
+                    return [
+                        { header: 'First Name', accessor: 'firstName' },
+                        { header: 'Last Name', accessor: 'lastName' },
+                        { header: 'Title', accessor: 'title' },
+                        { header: 'Employee ID', accessor: 'employeeId' },
+                    ];
+                default:
+                    // Fallback if custom editor has no explicit displayColumns or default case
+                    return currentConfig.columns || [];
+            }
+        }
+
+        // Otherwise, use the standard 'columns' definition
+        return currentConfig.columns || [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedCollection, collectionConfig, allData.projects]); // Ensure dependencies are correct
+    // --- END FIX ---
+
+    // Conditional return for the editor component
     if (editingItem && EditorComponent) {
         return (
              <div className="p-4 h-full flex flex-col gap-4">
@@ -927,12 +978,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         )
     }
 
-    const displayColumns = config?.customEditor && !config.displayColumns ? {
-        'projects': [{ header: 'Project Name', accessor: 'name' }, { header: 'Project ID', accessor: 'projectId' }],
-        'jobFamilyData': [{ header: 'Title', accessor: 'title' }]
-    }[selectedCollection] : (config?.displayColumns || config?.columns);
-
-
+    // Main component return
     return (
         <TutorialHighlight tutorialKey="database">
             <div className="p-4 h-full flex flex-col gap-4">
@@ -1005,7 +1051,8 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                         <button onClick={() => handleSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
                                     </div>
                                 )}
-                                {!config?.customEditor && (
+                                {/* Ensure config exists before checking customEditor */}
+                                {config && !config.customEditor && (
                                     <TutorialHighlight tutorialKey="addDeleteData">
                                         <button onClick={() => setEditingItem({ item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                                             Add New {selectedCollection.slice(0, -1)}
@@ -1034,7 +1081,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                         <tr key={item.id} className={`hover:${currentTheme.altRowBg}`}>
                                         {displayColumns?.map(col => (
                                                 <td key={`${item.id}-${col.header}`} className={`p-2 border ${currentTheme.borderColor} max-w-xs truncate`}>
-                                                    {typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]}
+                                                    {col.accessor ? (typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]) : ''}
                                                 </td>
                                             ))}
                                             <td className={`p-2 border ${currentTheme.borderColor} text-center`}>
@@ -1043,7 +1090,8 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                                         <button onClick={() => setEditingItem({ collectionName: selectedCollection, item: item })} className="text-blue-400 hover:underline">Edit</button>
                                                     </TutorialHighlight>
                                                     <TutorialHighlight tutorialKey={index === 0 ? "addDeleteData" : ""}>
-                                                        <button onClick={() => confirmDelete(selectedCollection, item.id, (typeof displayColumns[0]?.accessor === 'function' ? displayColumns[0].accessor(item) : item[displayColumns[0]?.accessor]) || item.id)} className="text-red-500 hover:text-red-700">Delete</button>
+                                                         {/* Ensure displayColumns exists before trying to access it */}
+                                                        <button onClick={() => confirmDelete(selectedCollection, item.id, (displayColumns && displayColumns.length > 0 && displayColumns[0]?.accessor ? (typeof displayColumns[0].accessor === 'function' ? displayColumns[0].accessor(item) : item[displayColumns[0].accessor]) : item.id))} className="text-red-500 hover:text-red-700">Delete</button>
                                                     </TutorialHighlight>
                                                 </div>
                                             </td>
@@ -1060,3 +1108,4 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
 };
 
 export default DatabaseConsole;
+
