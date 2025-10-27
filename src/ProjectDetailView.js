@@ -1178,7 +1178,23 @@ const ProjectDetailView = ({
     const handleDeleteMain = useCallback((mainId) => { handleSaveData({ mainItems: (projectData?.mainItems || []).filter(m => m.id !== mainId) }); }, [projectData, handleSaveData]);
     const handleReorderMains = useCallback((reorderedMains) => { handleSaveData({ mainItems: reorderedMains.map((main, index) => ({ ...main, order: index })) }); }, [handleSaveData]);
     const handleToggleCollapse = useCallback((id) => { setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] })); }, []);
-    const handleAddActionTrackerDiscipline = useCallback((newDiscipline) => { const disciplines = [...(projectData?.actionTrackerDisciplines || []), newDiscipline]; handleSaveData({ actionTrackerDisciplines: disciplines }); onSelectAllTrades(projectId, disciplines); }, [projectData, handleSaveData, onSelectAllTrades, projectId]);
+    const handleAddActionTrackerDiscipline = useCallback((newDiscipline) => { 
+        const disciplines = [...(projectData?.actionTrackerDisciplines || []), newDiscipline]; 
+        const updatedActivities = { ...(projectData?.activities || {}), [newDiscipline.key]: [] }; 
+        const updatedRateTypes = { ...(projectData?.rateTypes || {}), [newDiscipline.key]: 'Detailing Rate' }; 
+        handleSaveData({ 
+            actionTrackerDisciplines: disciplines, 
+            activities: updatedActivities, 
+            rateTypes: updatedRateTypes 
+        }); 
+        // Initialize collapsed state for the new discipline group
+        setCollapsedSections(prev => ({
+            ...prev,
+            [`group_${newDiscipline.key}`]: true // Default collapsed
+        }));
+        onSelectAllTrades(projectId, disciplines); 
+        showToast(`Discipline "${newDiscipline.label}" added. You can now add activities to it.`, 'success');
+    }, [projectData, handleSaveData, onSelectAllTrades, projectId, showToast]);
     const handleDeleteActionTrackerDiscipline = useCallback((disciplineKey) => { const disciplines = (projectData?.actionTrackerDisciplines || []).filter(d => d.key !== disciplineKey); handleSaveData({ actionTrackerDisciplines: disciplines }); onTradeFilterToggle(projectId, disciplineKey); }, [projectData, handleSaveData, onTradeFilterToggle, projectId]);
     const handleUpdateActionTrackerPercentage = useCallback((mainId, trade, field, value) => { const data = JSON.parse(JSON.stringify(projectData?.actionTrackerData || {})); if (!data[mainId]) data[mainId] = {}; if (!data[mainId][trade]) data[mainId][trade] = {}; data[mainId][trade][field] = value; handleSaveData({ actionTrackerData: data }); }, [projectData, handleSaveData]);
     const handleUpdateActivityCompletion = useCallback((mainId, trade, activityId, newPercentage) => {

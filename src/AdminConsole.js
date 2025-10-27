@@ -985,9 +985,96 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 contingency: Number(newProject.contingency),
                 archived: newProject.status === "Archive",
             };
-            await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), payload);
+            
+            // Create the project document and get its ID
+            const projectDocRef = await addDoc(collection(db, `artifacts/${appId}/public/data/projects`), payload);
+            const newProjectId = projectDocRef.id;
+            
+            // Initialize projectActivities document with standard activities
+            const standardChargeCodes = [
+                { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
+                { description: "MH Spooling", chargeCode: "9615261" },
+                { description: "MH Deliverables", chargeCode: "9615361" },
+                { description: "MH Internal Changes", chargeCode: "9615461" },
+                { description: "MH External Changes", chargeCode: "9615561" },
+                { description: "MP  Modeling / Coordinating", chargeCode: "9616161" },
+                { description: "MP Spooling", chargeCode: "9616261" },
+                { description: "MP Deliverables", chargeCode: "9616361" },
+                { description: "MP Internal Changes", chargeCode: "9616461" },
+                { description: "MP External Changes ", chargeCode: "9616561" },
+                { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
+                { description: "PL Spooling", chargeCode: "9618261" },
+                { description: "PL Deliverables", chargeCode: "9618361" },
+                { description: "PL Internal Changes", chargeCode: "9618461" },
+                { description: "PL External Changes", chargeCode: "9618561" },
+                { description: "Detailing Management", chargeCode: "9619161" },
+                { description: "Project Content Development", chargeCode: "9619261" },
+                { description: "Project VDC Admin", chargeCode: "9630062" },
+                { description: "Project Setup", chargeCode: "9630162" },
+                { description: "Project Data Management", chargeCode: "9630262" },
+                { description: "Project Closeout", chargeCode: "9630562" },
+                { description: "Project Coordination Management​", chargeCode: "9630762" }
+            ];
+            
+            // Normalize function
+            const normalizeDesc = (str = '') => {
+                return String(str)
+                    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            };
+            
+            // Create activities with normalized descriptions
+            const standardActivities = standardChargeCodes.map(item => ({
+                id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
+                description: normalizeDesc(item.description),
+                chargeCode: item.chargeCode,
+                estimatedHours: 0,
+                hoursUsed: 0,
+                percentComplete: 0,
+                subsets: []
+            }));
+            
+            // Group activities by discipline
+            const groupedActivities = {
+                sheetmetal: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
+                piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
+                plumbing: standardActivities.filter(act => /^PL\s*/i.test(act.description)),
+                management: standardActivities.filter(act => 
+                    ['Detailing Management', 'Project Content Development', 'Project Coordination Management'].some(
+                        keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
+                    )
+                ),
+                vdc: standardActivities.filter(act => 
+                    ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'].some(
+                        keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
+                    )
+                )
+            };
+            
+            // Create default disciplines
+            const defaultDisciplines = [
+                { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
+                { key: 'piping', label: 'Mechanical Piping' },
+                { key: 'plumbing', label: 'Plumbing' },
+                { key: 'management', label: 'Management' },
+                { key: 'vdc', label: 'VDC' }
+            ];
+            
+            // Create the projectActivities document
+            const projectActivitiesData = {
+                activities: groupedActivities,
+                actionTrackerDisciplines: defaultDisciplines,
+                actionTrackerData: {},
+                budgetImpacts: [],
+                mainItems: [],
+                projectWideActivities: []
+            };
+            
+            await setDoc(doc(db, `artifacts/${appId}/public/data/projectActivities`, newProjectId), projectActivitiesData);
+            
             setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
-             showToast("Project added.", "success");
+            showToast("Project added with standard activities.", "success");
         }
     };
 
@@ -1417,4 +1504,3 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
 };
 
 export default AdminConsole;
-
