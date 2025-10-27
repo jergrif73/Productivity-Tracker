@@ -747,7 +747,16 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                 { header: 'Employee ID', accessor: 'employeeId' },
              ]
         },
-        'projects': { customEditor: ProjectEditor },
+        'projects': { 
+            customEditor: ProjectEditor,
+            displayColumns: [
+                { header: 'Name', accessor: 'name' },
+                { header: 'Project ID', accessor: 'projectId' },
+                { header: 'Status', accessor: 'status' },
+                { header: 'Initial Budget', accessor: item => `$${Number(item.initialBudget || 0).toLocaleString()}` },
+                { header: 'Blended Rate', accessor: item => `$${Number(item.blendedRate || 0).toFixed(2)}/hr` },
+            ]
+        },
         'assignments': {
             displayColumns: [
                 { header: 'Employee', accessor: item => { const d = allData.detailers?.find(d => d.id === item.detailerId); return d ? `${d.firstName} ${d.lastName}` : item.detailerId || 'Unknown' } },
@@ -782,7 +791,15 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             ]
         },
         'taskLanes': { columns: [{ header: 'Name', accessor: 'name', type: 'text' }, { header: 'Order', accessor: 'order', type: 'number' }] },
-        'jobFamilyData': { customEditor: JobFamilyDataEditor },
+        'jobFamilyData': { 
+            customEditor: JobFamilyDataEditor,
+            displayColumns: [
+                { header: 'Title', accessor: 'title' },
+                { header: 'Primary Responsibilities', accessor: item => item.primaryResponsibilities?.length || 0 },
+                { header: 'Knowledge & Skills', accessor: item => item.knowledgeAndSkills?.length || 0 },
+                { header: 'Years Experience', accessor: item => item.yearsOfExperiencePreferred?.[0] || 'N/A' },
+            ]
+        },
         'unionLocals': { columns: [{ header: 'Name', accessor: 'name', type: 'text' }] },
         'projectActivities': {
             customEditor: ProjectActivitiesEditor,
@@ -1063,7 +1080,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                         </div>
                     </TutorialHighlight>
                     {loading ? <p>Loading data...</p> : (
-                        <div className="flex-grow overflow-auto min-h-0" style={{ maxHeight: 'calc(100vh - 250px)', scrollbarWidth: 'auto', scrollbarColor: 'rgba(156, 163, 175, 0.7) transparent' }}>
+                        <div className="flex-grow overflow-auto min-h-0 hide-scrollbar-on-hover" style={{ maxHeight: 'calc(100vh - 300px)' }}>
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                                     <tr>
@@ -1108,4 +1125,3 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
 };
 
 export default DatabaseConsole;
-
