@@ -59,16 +59,36 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
             if (reportContext.type === 'full-project-report') {
                 // For full project reports, create a structured summary
                 const data = reportContext.data;
+                const fs = data?.financialSummary || {};
+                
+                // Debug: Log the data being received
+                console.log('Gemini - Full Report Data:', data);
+                console.log('Gemini - Financial Summary:', fs);
+                
+                // Helper function to safely format currency
+                const formatCurrency = (val) => {
+                    const num = Number(val);
+                    return isNaN(num) ? '0' : num.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+                };
+                
+                // Helper function to safely format numbers
+                const formatNumber = (val, decimals = 2) => {
+                    const num = Number(val);
+                    return isNaN(num) ? '0' : num.toFixed(decimals);
+                };
+                
                 dataSample = `
                     Project: ${data.project?.name || 'N/A'} (${data.project?.projectId || 'N/A'})
-                    Budget: $${data.financialSummary?.currentBudget?.toLocaleString() || '0'}
-                    Allocated Hours: ${data.financialSummary?.allocatedHours?.toFixed(2) || '0'}
-                    Spent to Date: $${data.financialSummary?.spentToDate?.toLocaleString() || '0'}
-                    Earned Value: $${data.financialSummary?.earnedValue?.toLocaleString() || '0'}
-                    Projected Final Cost: $${data.financialSummary?.projectedFinalCost?.toLocaleString() || '0'}
-                    Variance: $${data.financialSummary?.variance?.toLocaleString() || '0'}
-                    Productivity: ${data.financialSummary?.productivity?.toFixed(2) || '0'}
+                    Current Budget: ${formatCurrency(fs.currentBudget)}
+                    Allocated Hours: ${formatNumber(fs.allocatedHours)}
+                    Spent to Date: ${formatCurrency(fs.spentToDate)}
+                    Earned Value: ${formatCurrency(fs.earnedValue)}
+                    Cost to Complete: ${formatCurrency(fs.costToComplete)}
+                    Projected Final Cost: ${formatCurrency(fs.projectedFinalCost)}
+                    Variance: ${formatCurrency(fs.variance)}
+                    Productivity: ${formatNumber(fs.productivity)}
                     Number of Action Tracker Items: ${data.actionTrackerSummary?.length || 0}
+                    Number of Budget Impacts: ${data.activitiesDoc?.budgetImpacts?.length || 0}
                 `;
                 formattedHeaders = 'Financial Summary, Action Tracker Summary, Budget Impact Log, Activity Values';
             } else if (reportContext.type === 'employee-details' && reportContext.data[0] && typeof reportContext.data[0] === 'object' && !Array.isArray(reportContext.data[0])) {

@@ -4,10 +4,18 @@ import * as d3 from 'd3';
 import { collection, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
 import JobFamilyEditor from './JobFamilyEditor'; // Standard default import
 import { jobFamilyData as initialJobFamilyData } from './job-family-data';
-import { TutorialHighlight } from './App';
+
+// Helper to replace BIM with VDC in skill names
+const mapBimToVdc = (skillName) => {
+    if (!skillName) return skillName;
+    if (skillName === 'BIM') return 'VDC';
+    if (skillName === 'BIM Knowledge') return 'VDC Knowledge';
+    return skillName;
+};
 
 const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, hideJobFamilyDisplay = false }) => { // Added hideJobFamilyDisplay prop
     const svgRef = useRef(null);
+    // eslint-disable-next-line no-unused-vars
     const [selectedJob, setSelectedJob] = useState(''); // This state will no longer directly drive display if hideJobFamilyDisplay is true
     const [jobFamilyData, setJobFamilyData] = useState({});
     const [isEditorOpen, setIsEditorOpen] = useState(false); // This state is now only for the internal JobFamilyEditor modal if it's still used here.
@@ -168,7 +176,7 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
             .attr("transform", d => `translate(0, ${y(d) + y.bandwidth() / 2})`);
 
         yAxis.append("text")
-            .text(d => d)
+            .text(d => mapBimToVdc(d))
             .attr("x", -15)
             .attr("text-anchor", "end")
             .style("font-size", "11px")
@@ -187,7 +195,7 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
             .style("stroke-width", 1)
             .on("mouseover", function(event, d) {
                 tooltip.transition().duration(200).style("opacity", .9);
-                tooltip.html(`<strong>${d.employee}</strong><br/>${d.skill}: <strong>${d.score}</strong>`)
+                tooltip.html(`<strong>${d.employee}</strong><br/>${mapBimToVdc(d.skill)}: <strong>${d.score}</strong>`)
                     .style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY - 28) + "px");
                 d3.select(this).style("stroke-width", 2.5).style("stroke", "black");

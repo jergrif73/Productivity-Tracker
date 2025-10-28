@@ -999,6 +999,31 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
     return (
         <TutorialHighlight tutorialKey="database">
             <div className="p-4 h-full flex flex-col gap-4">
+                {/* Custom CSS for scrollbar */}
+                <style>
+                    {`
+                    .database-scrollable::-webkit-scrollbar {
+                        width: 10px;
+                        height: 10px;
+                    }
+                    .database-scrollable::-webkit-scrollbar-thumb {
+                        background-color: rgba(156, 163, 175, 0.6);
+                        border-radius: 5px;
+                    }
+                    .database-scrollable::-webkit-scrollbar-thumb:hover {
+                        background-color: rgba(156, 163, 175, 0.9);
+                    }
+                    .database-scrollable::-webkit-scrollbar-track {
+                        background: rgba(0, 0, 0, 0.1);
+                        border-radius: 5px;
+                    }
+                    /* For Firefox */
+                    .database-scrollable {
+                        scrollbar-width: thin;
+                        scrollbar-color: rgba(156, 163, 175, 0.6) rgba(0, 0, 0, 0.1);
+                    }
+                    `}
+                </style>
                 <ConfirmationModal
                     isOpen={!!itemToDelete}
                     onClose={() => setItemToDelete(null)}
@@ -1080,7 +1105,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                         </div>
                     </TutorialHighlight>
                     {loading ? <p>Loading data...</p> : (
-                        <div className="flex-grow overflow-auto min-h-0 hide-scrollbar-on-hover" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+                        <div className="flex-grow overflow-auto min-h-0 database-scrollable pb-8" style={{ maxHeight: 'calc(100vh - 350px)' }}>
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
                                     <tr>
@@ -1116,6 +1141,8 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                     ))}
                                 </tbody>
                             </table>
+                            {/* Extra space at bottom for better scrollability */}
+                            <div className="h-16"></div>
                         </div>
                     )}
                 </div>

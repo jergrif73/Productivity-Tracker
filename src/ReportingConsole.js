@@ -248,6 +248,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 };
     
                 setReportData(fullReportPayload);
+                data = fullReportPayload; // Store for reportContext
                 break;
 
             case 'project-health':
@@ -587,6 +588,8 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             setReportContext({ data, headers, type: reportType });
         } else if (reportType === 'full-project-report' && data) {
             // Set context for full project report to enable Gemini AI keyboard shortcut
+            console.log('Setting reportContext for full-project-report with data:', data);
+            console.log('Financial Summary:', data.financialSummary);
             setReportContext({ data, headers: [], type: reportType });
         } else {
             setReportContext(null);

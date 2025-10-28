@@ -4,6 +4,14 @@ import EmployeeSkillMatrix from './EmployeeSkillMatrix';
 import FullProjectReport from './FullProjectReport'; // Import the new component
 import * as d3 from 'd3';
 
+// Helper to replace BIM with VDC in skill names
+const mapBimToVdc = (skillName) => {
+    if (!skillName) return skillName;
+    if (skillName === 'BIM') return 'VDC';
+    if (skillName === 'BIM Knowledge') return 'VDC Knowledge';
+    return skillName;
+};
+
 // --- Helper Components ---
 
 const TransposedSkillsReport = ({ headers, data, currentTheme }) => {
@@ -155,7 +163,7 @@ const TransposedSkillsReport = ({ headers, data, currentTheme }) => {
                                     className={`p-1 font-semibold border-r border-gray-600 bg-gray-800 sticky left-0 z-10 text-left ${isSortableSkill ? 'cursor-pointer' : ''}`}
                                     onClick={() => isSortableSkill && requestColumnSort(skillRow.attribute)}
                                 >
-                                    {skillRow.attribute}
+                                    {mapBimToVdc(skillRow.attribute)}
                                     {getColumnSortIndicator(skillRow.attribute)}
                                 </th>
                                 {skillRow.values.map((cell, cellIndex) => (
@@ -354,6 +362,18 @@ const ReportDisplay = ({
         if (!reportData || !sortConfig.key) {
             return reportData;
         }
+        
+        // Don't try to sort employee-details or full-project-report - they have different structures
+        if (reportType === 'employee-details' || reportType === 'full-project-report') {
+            return reportData;
+        }
+        
+        // Ensure reportData is an array before sorting
+        if (!Array.isArray(reportData)) {
+            console.warn('reportData is not an array:', reportData);
+            return reportData;
+        }
+        
         const headerIndex = reportHeaders.indexOf(sortConfig.key);
         if (headerIndex === -1) {
             return reportData;
@@ -369,7 +389,7 @@ const ReportDisplay = ({
             }
         });
         return sorted;
-    }, [reportData, sortConfig, reportHeaders]);
+    }, [reportData, sortConfig, reportHeaders, reportType]);
 
     const renderChart = useCallback(() => {
         if (!chartData) return null;
@@ -388,7 +408,7 @@ const ReportDisplay = ({
             // Re-transpose data for CSV
             const csvHeaders = ['Skill', ...reportHeaders.map(h => h.name.replace('\n', ' '))];
             const csvData = reportData.map(skillRow => {
-                const row = [skillRow.attribute];
+                const row = [mapBimToVdc(skillRow.attribute)];
                 skillRow.values.forEach(cell => {
                     row.push(cell.value);
                 });

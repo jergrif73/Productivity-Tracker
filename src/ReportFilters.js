@@ -2,6 +2,14 @@ import React from 'react';
 import { TutorialHighlight } from './App';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Helper to replace BIM with VDC in skill names
+const mapBimToVdc = (skillName) => {
+    if (!skillName) return skillName;
+    if (skillName === 'BIM') return 'VDC';
+    if (skillName === 'BIM Knowledge') return 'VDC Knowledge';
+    return skillName;
+};
+
 // Helper for collapsible sections
 const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) => {
     const animationVariants = {
@@ -223,7 +231,7 @@ const ReportFilters = ({
                                             onChange={() => handleSkillCheckboxChange(skill)}
                                             className="mr-2"
                                         />
-                                        <label htmlFor={`skill-${skill}`} className={`${currentTheme.inputText}`}>{skill}</label>
+                                        <label htmlFor={`skill-${skill}`} className={`${currentTheme.inputText}`}>{mapBimToVdc(skill)}</label>
                                     </div>
                                 ))}
                             </div>
