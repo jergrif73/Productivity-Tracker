@@ -123,7 +123,7 @@ const FullProjectReport = ({ report, currentTheme }) => {
                     <table className="min-w-full">
                         <thead>
                              <tr>
-                                {['Activity', 'Charge Code', 'Est. Hrs', 'Budget', '% of Proj.', '% Comp.', 'Hrs Used', 'Earned', 'Actual', 'Proj. Hrs'].map(h => (
+                                {['Activity', 'Charge Code', 'Est. Hrs', 'Budget', '% of Proj.', '% Comp.', 'Actual Cost ($)', 'Earned ($)', 'Proj. Cost ($)'].map(h => (
                                     <th key={h} className="p-1 text-left font-semibold">{h}</th>
                                 ))}
                             </tr>
@@ -138,8 +138,8 @@ const FullProjectReport = ({ report, currentTheme }) => {
                                         const budget = (Number(act.estimatedHours) || 0) * rateToUse;
                                         const percentOfProject = financialSummary.allocatedHours > 0 ? ((Number(act.estimatedHours) || 0) / financialSummary.allocatedHours) * 100 : 0;
                                         const earnedValue = budget * (Number(act.percentComplete) / 100);
-                                        const actualCost = (Number(act.hoursUsed) || 0) * rateToUse;
-                                        const projected = (Number(act.percentComplete) || 0) > 0 ? ((Number(act.hoursUsed) || 0) / (Number(act.percentComplete) / 100)) : (Number(act.estimatedHours) || 0);
+                                        const actualCost = (Number(act.costToDate) || 0); // Use costToDate directly
+                                        const projectedCost = (Number(act.percentComplete) || 0) > 0 ? (actualCost / (Number(act.percentComplete) / 100)) : (Number(act.estimatedHours) > 0 ? budget : 0);
                                         return (
                                             <tr key={act.id} className="border-t border-gray-700">
                                                 <td className="p-1">{act.description}</td>
@@ -148,10 +148,10 @@ const FullProjectReport = ({ report, currentTheme }) => {
                                                 <td className="p-1">{formatCurrency(budget)}</td>
                                                 <td className="p-1">{percentOfProject.toFixed(2)}%</td>
                                                 <td className="p-1">{(Number(act.percentComplete) || 0).toFixed(2)}%</td>
-                                                <td className="p-1">{act.hoursUsed}</td>
-                                                <td className="p-1">{formatCurrency(earnedValue)}</td>
+                                                {/* <td className="p-1">{act.hoursUsed}</td> -- REMOVED -- */}
                                                 <td className="p-1">{formatCurrency(actualCost)}</td>
-                                                <td className="p-1">{projected.toFixed(2)}</td>
+                                                <td className="p-1">{formatCurrency(earnedValue)}</td>
+                                                <td className="p-1">{formatCurrency(projectedCost)}</td>
                                             </tr>
                                         );
                                     })}
@@ -167,4 +167,3 @@ const FullProjectReport = ({ report, currentTheme }) => {
 }
 
 export default FullProjectReport;
-

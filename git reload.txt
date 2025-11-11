@@ -1,5 +1,5 @@
 git add .
-git commit -m "Worked on Project Console again"
+git commit -m "Worked on Stuff"
 git push origin main
 
 

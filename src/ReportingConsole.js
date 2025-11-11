@@ -126,6 +126,12 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         });
         return map;
     }, [allProjectActivities]);
+    
+    // Helper function for reports
+    const formatCurrency = (value) => {
+        const numberValue = Number(value) || 0;
+        return numberValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    };
 
     // Filtered detailers for skill matrix (passed to ReportDisplay)
     const filteredDetailersForMatrix = useMemo(() => {
@@ -181,23 +187,23 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 const calculateTotals = (activitiesList) => {
                   return activitiesList.reduce((acc, activity) => {
                     const estHours = Number(activity?.estimatedHours || 0);
-                    const usedHours = Number(activity?.hoursUsed || 0);
+                    const costToDate = Number(activity?.costToDate || 0);
                     const percentComplete = Number(activity?.percentComplete || 0);
             
                     const useVdcRate = activity.description.toUpperCase().includes('VDC') || activity.description === "Project Setup";
                     const rateToUse = useVdcRate ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
             
-                    const projectedHours = percentComplete > 0 ? (usedHours / (percentComplete / 100)) : (estHours > 0 ? estHours : 0);
+                    const budget = (estHours * rateToUse); // Using raw budget for calcs
+                    const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
             
                     acc.estimated += estHours;
-                    acc.used += usedHours;
-                    acc.budget += estHours * rateToUse;
-                    acc.actualCost += usedHours * rateToUse;
-                    acc.earnedValue += (estHours * rateToUse) * (percentComplete / 100);
-                    acc.projectedCost += projectedHours * rateToUse;
+                    acc.budget += budget;
+                    acc.actualCost += costToDate;
+                    acc.earnedValue += budget * (percentComplete / 100);
+                    acc.projectedCost += projectedCost;
                     
                     return acc;
-                  }, { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projectedCost: 0 });
+                  }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projectedCost: 0 });
                 };
     
                 const activityTotals = calculateTotals(allActivities);
@@ -266,7 +272,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             
                         activityList.forEach(act => {
                             earnedValue += (Number(act.estimatedHours || 0) * rate * (Number(act.percentComplete || 0) / 100));
-                            actualCost += (Number(act.hoursUsed || 0) * rate);
+                            actualCost += (Number(act.costToDate || 0)); // Use costToDate directly
                         });
                     });
 
@@ -518,7 +524,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 break;
             
             case 'forecast-vs-actual':
-                headers = ["Project Name", "Project ID", "Forecasted Hours", "Assigned Hours", "Actual Burn (Hrs)", "Variance (Forecast - Actual)"];
+                headers = ["Project Name", "Project ID", "Forecasted Hours", "Assigned Hours", "Actual Cost ($)", "Variance (Forecast Hrs - Actual Cost)"];
                 let projectsToReport = projects.filter(p => !p.archived);
 
                 if (selectedProjectId) {
@@ -541,7 +547,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
 
 
                         const actualBurn = projectActivities 
-                            ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.hoursUsed) || 0), 0)
+                            ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.costToDate) || 0), 0)
                             : 0;
 
                         const assignedHours = assignments
@@ -559,15 +565,15 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                             ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.estimatedHours) || 0), 0)
                             : 0;
 
-                        const variance = forecastedHours - actualBurn;
+                        const variance = forecastedHours - actualBurn; // This is Hours - Dollars, as requested.
 
                         return [
                             p.name,
                             p.projectId,
                             forecastedHours.toFixed(2),
                             assignedHours.toFixed(2),
-                            actualBurn.toFixed(2),
-                            variance.toFixed(2)
+                            formatCurrency(actualBurn), // Format as currency
+                            variance.toFixed(2) // This is still Hrs - $
                         ];
                     });
                 isTabularReport = true;
