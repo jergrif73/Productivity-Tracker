@@ -19,8 +19,8 @@ import {
     ActionTrackerDisciplineManager,
     ActionTracker,
     CollapsibleActivityTable,
-    parseCSV, // Imported new helper
-    CSVImportModal // Imported new modal
+    parseCSV,
+    CSVReviewModal // Replaced CSVImportModal with CSVReviewModal
 } from './ProjectDetailViewComponents.js';
 
 
@@ -214,7 +214,7 @@ const ProjectDetailView = ({
         }
     }, [projectId, docRef, showToast]);
 
-    // --- CSV Import Handlers (NEW) ---
+    // --- CSV Import Handlers (Interactive) ---
     const handleCSVUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -223,7 +223,7 @@ const ProjectDetailView = ({
         reader.onload = (event) => {
             try {
                 const rows = parseCSV(event.target.result);
-                processCSVData(rows);
+                prepareCSVStaging(rows); // Replaced processCSVData with prepareCSVStaging
             } catch (err) {
                 showToast(err.message, 'error');
             }
@@ -232,13 +232,7 @@ const ProjectDetailView = ({
         e.target.value = null; // Reset input
     };
 
-    const processCSVData = (rows) => {
-        const changes = {
-            newActivities: [],
-            updates: [], // { group, index, activityData }
-            conflicts: [] // { group, index, description, currentHours, newHours, fullData }
-        };
-
+    const prepareCSVStaging = (rows) => {
         // Create a flat map of existing activities for easier lookup
         // Key: Normalized Description -> Value: { group, index, ...activity }
         const existingMap = new Map();
@@ -250,65 +244,85 @@ const ProjectDetailView = ({
             });
         }
 
-        rows.forEach(row => {
+        const staging = rows.map((row, i) => {
             const normDesc = normalizeDesc(row.description);
             const existing = existingMap.get(normDesc);
+            
+            let status = 'New';
+            let selection = { row: true, code: true, hours: true };
 
             if (existing) {
-                // Step 1: Activity Exists. Move to Step 2.
-                let updateNeeded = false;
-                const updatePayload = { ...existing }; // Clone to modify
-
-                // Step 2: Check Charge Code
-                // If it doesn't exist in the record, add it from CSV.
-                // If CSV charge code differs and existing is present? Logic says "If it doesn't, add to corresponding". 
-                // Implicitly, if existing has one, we skip step 2 logic and go to step 3.
-                // BUT, often users want to update codes. Let's strictly follow: "If it doesn't [exist in activity], add to corresponding"
-                if (!updatePayload.chargeCode && row.chargeCode) {
-                    updatePayload.chargeCode = row.chargeCode;
-                    updateNeeded = true;
+                // Robust numeric comparison to avoid false "Updates" from "120" vs 120
+                const currentHours = Number(existing.estimatedHours) || 0;
+                const newHours = Number(row.estimatedHours) || 0;
+                const hoursDiffers = newHours !== currentHours;
+                
+                const codeDiffers = row.chargeCode && row.chargeCode !== existing.chargeCode;
+                
+                if (codeDiffers || hoursDiffers) {
+                    status = 'Update';
+                    selection = { row: true, code: codeDiffers, hours: hoursDiffers };
+                } else {
+                    status = 'Match';
+                    selection = { row: false, code: false, hours: false };
                 }
+            }
 
-                // Step 3: Check Est Hours
-                const csvHours = Number(row.estimatedHours) || 0;
-                const currentHours = Number(updatePayload.estimatedHours) || 0;
+            return {
+                id: `stage_${i}`,
+                csvData: row,
+                existingData: existing || null,
+                status: status,
+                selection: selection
+            };
+        });
 
-                if (csvHours > 0) {
-                    if (currentHours > 0) {
-                         // Step 3a: Exists -> Prompt
-                         if (csvHours !== currentHours) {
-                             changes.conflicts.push({
-                                 description: row.description, // Use CSV casing for display
-                                 currentHours: currentHours,
-                                 newHours: csvHours,
-                                 // We need to pass the potentially updated charge code too
-                                 fullData: { ...updatePayload, estimatedHours: csvHours }
-                             });
-                             // Do not mark updateNeeded yet, wait for user resolution
-                             return; 
-                         }
-                    } else {
-                        // Step 3b: Doesn't exist -> Add to corresponding
-                        updatePayload.estimatedHours = csvHours;
-                        updateNeeded = true;
+        setCsvImportState({ pendingData: staging, showModal: true });
+    };
+
+    const applyCSVChanges = (reviewedRows) => {
+        const newActivitiesByGroup = { ...projectData.activities };
+        const disciplines = projectData.actionTrackerDisciplines || allDisciplines || [];
+        
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        // Separate New vs Updates
+        const newItemsToAdd = [];
+
+        reviewedRows.forEach(item => {
+            if (!item.selection.row) return; // Skip unchecked rows
+
+            if (item.existingData) {
+                // UPDATE Logic
+                const { group, index } = item.existingData;
+                
+                if (newActivitiesByGroup[group] && newActivitiesByGroup[group][index]) {
+                    const activity = { ...newActivitiesByGroup[group][index] };
+                    let changed = false;
+
+                    if (item.selection.code) {
+                        activity.chargeCode = item.csvData.chargeCode;
+                        changed = true;
+                    }
+                    if (item.selection.hours) {
+                        activity.estimatedHours = item.csvData.estimatedHours;
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        newActivitiesByGroup[group][index] = activity;
+                        updatedCount++;
                     }
                 }
-
-                if (updateNeeded) {
-                    changes.updates.push({ 
-                        group: existing.group, 
-                        index: existing.index, 
-                        activityData: updatePayload 
-                    });
-                }
-
             } else {
-                // Step 1b: Activity code doesn't exist -> Add to appropriate discipline
-                changes.newActivities.push({
+                // NEW Logic
+                // Only use values if specific cell checkboxes are checked (though usually for New rows, defaults are true)
+                newItemsToAdd.push({
                     id: `csv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    description: row.description,
-                    chargeCode: row.chargeCode || '',
-                    estimatedHours: Number(row.estimatedHours) || 0,
+                    description: item.csvData.description,
+                    chargeCode: item.selection.code ? item.csvData.chargeCode : '',
+                    estimatedHours: item.selection.hours ? Number(item.csvData.estimatedHours) : 0,
                     percentComplete: 0,
                     costToDate: 0,
                     subsets: []
@@ -316,74 +330,29 @@ const ProjectDetailView = ({
             }
         });
 
-        if (changes.conflicts.length > 0) {
-            setCsvImportState({ pendingData: changes, showModal: true });
-        } else {
-            // No conflicts, apply immediately
-            applyCSVChanges(changes);
-        }
-    };
-
-    const applyCSVChanges = (changes, overwriteConflicts = false) => {
-        const newActivitiesByGroup = { ...projectData.activities };
-        const disciplines = projectData.actionTrackerDisciplines || allDisciplines || [];
-
-        // 1. Apply Updates (non-conflicting)
-        changes.updates.forEach(update => {
-            if (newActivitiesByGroup[update.group] && newActivitiesByGroup[update.group][update.index]) {
-                newActivitiesByGroup[update.group][update.index] = update.activityData;
-            }
-        });
-
-        // 2. Apply Conflicts (if overwrite is true)
-        // If overwrite is FALSE, we might still need to apply Charge Code updates if they happened in Step 2 for these items?
-        // The conflict object carries 'fullData' which has the charge code update applied.
-        // If overwrite=false, we should strictly NOT update hours. But should we update code?
-        // Logic interpretation: Step 3 is gated. If user picks No to Step 3, we skip Step 3.
-        // But Step 2 happened before Step 3. 
-        // Let's assume 'No' means "Don't touch this record's hours", but we still want the charge code fix.
-        let appliedConflicts = 0;
-        changes.conflicts.forEach(conflict => {
-            // Note: conflict.fullData contains the necessary group and index information.
-            
-            if (newActivitiesByGroup[conflict.fullData.group] && newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index]) {
-                 if (overwriteConflicts) {
-                     newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index] = conflict.fullData;
-                     appliedConflicts++;
-                 } else {
-                     // If skipping hours overwrite, we check if we still need to update Charge Code
-                     // conflict.fullData has the NEW charge code. The activity in DB has OLD (or empty).
-                     // If the logic was "Step 2: If code doesn't exist, update it", we should persist that part.
-                     const original = newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index];
-                     if (!original.chargeCode && conflict.fullData.chargeCode) {
-                         newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index] = {
-                             ...original,
-                             chargeCode: conflict.fullData.chargeCode
-                         };
-                         appliedConflicts++; // Technically an update
-                     }
-                 }
-            }
-        });
-
-        // 3. Process New Activities (Step 1b)
-        // Use groupActivities helper to sort them into correct buckets
-        if (changes.newActivities.length > 0) {
-            const groupedNew = groupActivities(changes.newActivities, disciplines);
+        // Batch add new items
+        if (newItemsToAdd.length > 0) {
+            const groupedNew = groupActivities(newItemsToAdd, disciplines);
             Object.entries(groupedNew).forEach(([key, acts]) => {
                 if (!newActivitiesByGroup[key]) newActivitiesByGroup[key] = [];
-                // Filter out if for some reason duplicates exist in the new batch
+                // Double check duplicates just in case
                 const existingDescs = new Set(newActivitiesByGroup[key].map(a => normalizeDesc(a.description)));
                 acts.forEach(act => {
                     if (!existingDescs.has(normalizeDesc(act.description))) {
                         newActivitiesByGroup[key].push(act);
+                        addedCount++;
                     }
                 });
             });
         }
 
-        handleSaveData({ activities: newActivitiesByGroup });
-        showToast(`Imported: ${changes.newActivities.length} new, ${changes.updates.length + appliedConflicts} updated.`, "success");
+        if (addedCount > 0 || updatedCount > 0) {
+            handleSaveData({ activities: newActivitiesByGroup });
+            showToast(`Import Success: ${addedCount} added, ${updatedCount} updated.`, "success");
+        } else {
+            showToast("No changes applied.", "info");
+        }
+
         setCsvImportState({ pendingData: null, showModal: false });
     };
 
@@ -754,13 +723,13 @@ const ProjectDetailView = ({
                 {confirmAction?.message}
             </ConfirmationModal>
 
-            {/* CSV Import Modal */}
-            <CSVImportModal
+            {/* CSV Review Modal (NEW) */}
+            <CSVReviewModal
                 isOpen={csvImportState.showModal}
-                conflicts={csvImportState.pendingData?.conflicts || []}
+                stagingData={csvImportState.pendingData}
                 currentTheme={currentTheme}
                 onClose={() => setCsvImportState({ pendingData: null, showModal: false })}
-                onConfirm={(overwrite) => applyCSVChanges(csvImportState.pendingData, overwrite)}
+                onConfirm={applyCSVChanges}
             />
 
             {/* --- Charge Code Manager Section --- */}

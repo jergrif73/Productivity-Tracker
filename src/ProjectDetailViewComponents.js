@@ -23,7 +23,7 @@ export const normalizeDesc = (str = '') => {
     .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .toLowerCase(); // Ensure lowercase for comparison
+    .toLowerCase();
 };
 
 export const standardActivitiesToAdd = [
@@ -86,7 +86,6 @@ export const parseCSV = (text) => {
 };
 
 export const groupActivities = (activityArray, actionTrackerDisciplines) => {
-    // Initialize groups based on actionTrackerDisciplines
     const defaultGroups = {};
     (actionTrackerDisciplines || []).forEach(disc => {
         defaultGroups[disc.key] = [];
@@ -102,7 +101,6 @@ export const groupActivities = (activityArray, actionTrackerDisciplines) => {
 
         const disciplines = actionTrackerDisciplines || [];
         
-        // Discipline Matching Logic
         if (/^mh\s*/i.test(desc)) {
             const match = disciplines.find(d => d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet'));
             groupKeyToUse = match?.key || 'sheetmetal';
@@ -119,7 +117,6 @@ export const groupActivities = (activityArray, actionTrackerDisciplines) => {
             const match = disciplines.find(d => d.label.toLowerCase().includes('vdc'));
             groupKeyToUse = match?.key || 'vdc';
         } else {
-            // Fallback match by prefix
             const disciplineMatch = disciplines.find(d => desc.toUpperCase().startsWith(d.label.substring(0, 2).toUpperCase()));
             groupKeyToUse = disciplineMatch?.key;
         }
@@ -127,9 +124,8 @@ export const groupActivities = (activityArray, actionTrackerDisciplines) => {
         if (!groupKeyToUse) groupKeyToUse = 'uncategorized';
         if (!acc[groupKeyToUse]) acc[groupKeyToUse] = [];
 
-        // Check for duplicates within the group being built
         if (!acc[groupKeyToUse].some(existingAct => normalizeDesc(existingAct.description) === desc)) {
-            acc[groupKeyToUse].push({ ...act, description: act.description }); // Keep original casing
+            acc[groupKeyToUse].push({ ...act, description: act.description });
         }
 
         return acc;
@@ -168,51 +164,176 @@ export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children,
     );
 };
 
-export const CSVImportModal = ({ isOpen, onClose, onConfirm, conflicts, currentTheme }) => {
+// --- NEW Interactive CSV Review Modal ---
+export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, currentTheme }) => {
+    const [rows, setRows] = useState([]);
+
+    useEffect(() => {
+        if (stagingData) {
+            setRows(stagingData);
+        }
+    }, [stagingData]);
+
+    const handleRowToggle = (index) => {
+        setRows(prev => prev.map((r, i) => i === index ? { ...r, selection: { ...r.selection, row: !r.selection.row } } : r));
+    };
+
+    const handleCellToggle = (index, field) => {
+        setRows(prev => prev.map((r, i) => i === index ? { ...r, selection: { ...r.selection, [field]: !r.selection[field] } } : r));
+    };
+
+    const handleSelectAll = (select) => {
+        setRows(prev => prev.map(r => ({ ...r, selection: { ...r.selection, row: select } })));
+    };
+
     if (!isOpen) return null;
+
+    const DiffCell = ({ original, incoming, isSelected, onToggle }) => {
+        // Use strict equality with string conversion to catch '120' vs 120 as match without lint errors
+        const isDiff = String(original ?? '') !== String(incoming ?? '');
+        const isNew = (original === undefined || original === null || original === '') && (incoming !== undefined && incoming !== '' && incoming !== 0);
+        
+        // If it's a match, show plain text
+        if (!isDiff && !isNew) {
+            return (
+                <div className="flex items-center gap-2 opacity-60">
+                    <input 
+                        type="checkbox" 
+                        checked={isSelected} 
+                        onChange={onToggle}
+                        className="cursor-pointer opacity-50"
+                        title="Values match"
+                    />
+                    <span className="text-gray-400 font-mono">{original || incoming || '-'}</span>
+                </div>
+            );
+        }
+        
+        return (
+            <div className={`flex items-start gap-2 ${isSelected ? 'opacity-100' : 'opacity-50'} transition-opacity`}>
+                <input 
+                    type="checkbox" 
+                    checked={isSelected} 
+                    onChange={onToggle}
+                    className="mt-1 cursor-pointer"
+                />
+                <div className="flex flex-col text-xs font-mono">
+                    {original !== undefined && original !== null && original !== '' && (
+                        <div className="flex items-center gap-2 text-red-400/80 mb-0.5">
+                            <span className="uppercase text-[8px] font-bold tracking-wider bg-red-900/30 px-1 rounded">OLD</span>
+                            <span className="line-through decoration-red-500/50">{original}</span>
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2 text-green-400 font-bold">
+                        <span className="uppercase text-[8px] font-bold tracking-wider bg-green-900/30 px-1 rounded">NEW</span>
+                        <span>{incoming}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-center items-center backdrop-blur-md">
-            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-xl shadow-2xl w-full max-w-2xl border ${currentTheme.borderColor} flex flex-col max-h-[80vh]`}>
-                <h3 className="text-lg font-bold mb-2 text-yellow-400">Import Conflicts Found</h3>
-                <p className="text-sm mb-4 opacity-80">
-                    The following activities already exist and have different Estimated Hours assigned. 
-                    Do you want to <b>overwrite</b> them with the new values from the CSV?
-                </p>
+        <div className="fixed inset-0 bg-black bg-opacity-80 z-[100] flex justify-center items-center backdrop-blur-md">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-xl shadow-2xl w-full max-w-6xl border ${currentTheme.borderColor} flex flex-col max-h-[90vh]`}>
+                <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-700/50">
+                    <div>
+                        <h3 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            Review CSV Import
+                        </h3>
+                        <p className="text-sm opacity-60 mt-1">Review changes below. Select rows and specific cells to apply updates.</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => handleSelectAll(true)} className="text-xs px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition-colors">Select All Rows</button>
+                        <button onClick={() => handleSelectAll(false)} className="text-xs px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition-colors">Deselect All</button>
+                    </div>
+                </div>
                 
-                <div className="flex-grow overflow-y-auto mb-6 pr-2 bg-black/20 rounded p-2 border border-gray-700/50">
-                    <table className="w-full text-sm text-left">
-                        <thead>
-                            <tr className="text-xs uppercase opacity-50 border-b border-gray-600">
-                                <th className="p-2">Activity</th>
-                                <th className="p-2 text-right">Current Hrs</th>
-                                <th className="p-2 text-right">New CSV Hrs</th>
+                <div className="flex-grow overflow-y-auto mb-6 pr-2 bg-black/20 rounded p-1 border border-gray-700/50">
+                    <table className="w-full text-sm text-left border-separate border-spacing-0">
+                        <thead className="sticky top-0 bg-gray-800 z-10 shadow-sm">
+                            <tr className="text-xs uppercase text-gray-400">
+                                <th className="p-3 w-10 text-center border-b border-gray-700">#</th>
+                                <th className="p-3 border-b border-gray-700 w-1/3">Activity</th>
+                                <th className="p-3 border-b border-gray-700">Charge Code</th>
+                                <th className="p-3 border-b border-gray-700">Est. Hours</th>
+                                <th className="p-3 w-28 text-center border-b border-gray-700">Change Type</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {conflicts.map((c, i) => (
-                                <tr key={i} className="border-b border-gray-700/30 hover:bg-white/5">
-                                    <td className="p-2 truncate max-w-xs" title={c.description}>{c.description}</td>
-                                    <td className="p-2 text-right text-gray-400">{c.currentHours}</td>
-                                    <td className="p-2 text-right text-yellow-400 font-bold">{c.newHours}</td>
-                                </tr>
-                            ))}
+                            {rows.map((row, i) => {
+                                const isRowSelected = row.selection.row;
+                                return (
+                                    <tr key={i} className={`group hover:bg-white/5 transition-colors ${!isRowSelected ? 'opacity-50 grayscale-[0.5]' : ''}`}>
+                                        <td className="p-3 text-center border-b border-gray-800">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isRowSelected} 
+                                                onChange={() => handleRowToggle(i)}
+                                                className="w-4 h-4 cursor-pointer accent-blue-500"
+                                            />
+                                        </td>
+                                        <td className="p-3 font-medium border-b border-gray-800">
+                                            <div className="truncate max-w-sm" title={row.csvData.description}>
+                                                {row.csvData.description}
+                                            </div>
+                                            {row.existingData && (
+                                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                                    ID: {row.existingData.id} • Group: {row.existingData.group}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-3 border-b border-gray-800">
+                                            <DiffCell 
+                                                original={row.existingData?.chargeCode} 
+                                                incoming={row.csvData.chargeCode}
+                                                isSelected={row.selection.code && isRowSelected}
+                                                onToggle={() => handleCellToggle(i, 'code')}
+                                            />
+                                        </td>
+                                        <td className="p-3 border-b border-gray-800">
+                                            <DiffCell 
+                                                original={row.existingData?.estimatedHours} 
+                                                incoming={row.csvData.estimatedHours}
+                                                isSelected={row.selection.hours && isRowSelected}
+                                                onToggle={() => handleCellToggle(i, 'hours')}
+                                            />
+                                        </td>
+                                        <td className="p-3 text-center border-b border-gray-800">
+                                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide min-w-[80px]
+                                                ${row.status === 'New' ? 'bg-blue-900/50 text-blue-200 border border-blue-700/50' : 
+                                                  row.status === 'Update' ? 'bg-yellow-900/50 text-yellow-200 border border-yellow-700/50' : 
+                                                  'bg-gray-800 text-gray-400 border border-gray-700'}`}>
+                                                {row.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
 
-                <div className="flex justify-end gap-3">
-                    <button 
-                        onClick={() => onConfirm(false)} 
-                        className={`px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500 text-white transition-opacity`}
-                    >
-                        No, Skip Overwrite
-                    </button>
-                    <button 
-                        onClick={() => onConfirm(true)} 
-                        className="px-4 py-2 rounded-md bg-yellow-600 text-white hover:bg-yellow-500 transition-colors shadow-lg"
-                    >
-                        Yes, Overwrite All
-                    </button>
+                <div className="flex justify-between items-center pt-4">
+                    <div className="text-xs text-gray-400">
+                        <strong className="text-white">{rows.filter(r => r.selection.row).length}</strong> rows selected for import
+                    </div>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={onClose} 
+                            className={`px-5 py-2.5 rounded-lg border border-gray-600 hover:bg-gray-700 text-gray-300 transition-all font-medium text-sm`}
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={() => onConfirm(rows)} 
+                            className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg shadow-blue-900/30 transition-all font-bold text-sm flex items-center gap-2"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            Apply Changes
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
 git add .
-git commit -m "Updated to Cost to Date in the Project Console"
+git commit -m "Added Activities, codes and hours csv upload option to the project console"
 git push origin main
 
 
