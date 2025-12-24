@@ -1,5 +1,5 @@
 git add .
-git commit -m "Worked on Stuff"
+git commit -m "Updated to Cost to Date in the Project Console"
 git push origin main
 
 

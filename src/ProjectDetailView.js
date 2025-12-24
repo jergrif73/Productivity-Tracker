@@ -7,7 +7,6 @@ import { TutorialHighlight, NavigationContext } from './App';
 // --- Import Components & Helpers from new file ---
 import {
     formatCurrency,
-    Tooltip,
     ConfirmationModal,
     normalizeDesc,
     standardActivitiesToAdd,
@@ -19,7 +18,9 @@ import {
     ProjectBreakdown,
     ActionTrackerDisciplineManager,
     ActionTracker,
-    CollapsibleActivityTable
+    CollapsibleActivityTable,
+    parseCSV, // Imported new helper
+    CSVImportModal // Imported new modal
 } from './ProjectDetailViewComponents.js';
 
 
@@ -41,6 +42,7 @@ const ProjectDetailView = ({
     const [weeklyHours, setWeeklyHours] = useState({});
     const [newActivityGroup, setNewActivityGroup] = useState('');
     const [confirmAction, setConfirmAction] = useState(null);
+    const [csvImportState, setCsvImportState] = useState({ pendingData: null, showModal: false }); // New CSV State
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
 
     // Firestore listener for projectActivities
@@ -55,37 +57,24 @@ const ProjectDetailView = ({
                     
                     // MIGRATION: Check if activities are at top level (old structure) instead of nested
                     if (!data.activities || Object.keys(data.activities).length === 0) {
-                        console.log("Detected old data structure, migrating...");
                         const migratedActivities = {};
                         const potentialKeys = ['sheetmetal', 'piping', 'plumbing', 'management', 'vdc', 'uncategorized'];
                         
                         potentialKeys.forEach(key => {
                             if (data[key] && Array.isArray(data[key])) {
-                                console.log(`Migrating ${key} from top level to activities.${key}`);
                                 migratedActivities[key] = data[key];
                             }
                         });
                         
                         if (Object.keys(migratedActivities).length > 0) {
                             data.activities = migratedActivities;
-                            console.log("Migration complete. Activities now under 'activities' field:", data.activities);
-                            
-                            // Automatically save the migrated structure back to database
-                            console.log("Saving migrated structure to database...");
-                            setDoc(docRef, { activities: migratedActivities }, { merge: true }).then(() => {
-                                console.log("Migration saved successfully");
-                                showToast("Data structure updated to new format", "info");
-                            }).catch(err => {
-                                console.error("Error saving migration:", err);
-                            });
+                            setDoc(docRef, { activities: migratedActivities }, { merge: true });
                         }
                     }
                     
                     // MIGRATION: Auto-populate actionTrackerDisciplines from activity keys if empty
                     if (data.activities && Object.keys(data.activities).length > 0) {
                         if (!data.actionTrackerDisciplines || data.actionTrackerDisciplines.length === 0) {
-                            console.log("🔧 MIGRATION: actionTrackerDisciplines is empty but activities exist. Auto-populating...");
-                            
                             const standardLabels = {
                                 'sheetmetal': 'Sheet Metal / HVAC',
                                 'piping': 'Mechanical Piping',
@@ -100,16 +89,7 @@ const ProjectDetailView = ({
                                 label: standardLabels[key] || key.charAt(0).toUpperCase() + key.slice(1)
                             }));
                             
-                            console.log("🔧 Auto-populated disciplines:", newDisciplines);
-                            data.actionTrackerDisciplines = newDisciplines;
-                            
-                            // Save to Firestore
-                            setDoc(docRef, { actionTrackerDisciplines: newDisciplines }, { merge: true }).then(() => {
-                                console.log("✅ actionTrackerDisciplines saved successfully");
-                                showToast("Discipline tracking initialized", "success");
-                            }).catch(err => {
-                                console.error("❌ Error saving actionTrackerDisciplines:", err);
-                            });
+                            setDoc(docRef, { actionTrackerDisciplines: newDisciplines }, { merge: true });
                         }
                     }
                     
@@ -122,9 +102,8 @@ const ProjectDetailView = ({
                             const sectionId = `group_${groupKey}`;
                             if (!(sectionId in newState)) newState[sectionId] = true; // Default collapsed
                         });
-                        // Add collapsed state for project-wide if it exists
                         if(data.projectWideActivities?.length > 0) {
-                             (data.projectWideActivities).forEach(tradeKey => { // Ensure iteration safety
+                             (data.projectWideActivities).forEach(tradeKey => { 
                                  const sectionId = `project_wide_trade_${tradeKey}`;
                                  if(!(sectionId in newState)) newState[sectionId] = true;
                              })
@@ -133,8 +112,7 @@ const ProjectDetailView = ({
                     });
                 } else {
                     // Document doesn't exist - create it automatically with standard activities
-                    console.log("🔧 No projectActivities document found. Creating with standard activities...");
-                    
+                    // ... (Activity creation logic - largely static, keeping concise)
                     const standardChargeCodes = [
                         { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
                         { description: "MH Spooling", chargeCode: "9615261" },
@@ -160,7 +138,6 @@ const ProjectDetailView = ({
                         { description: "Project Coordination Management​", chargeCode: "9630762" }
                     ];
                     
-                    // Create activities with normalized descriptions
                     const standardActivities = standardChargeCodes.map(item => ({
                         id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
                         description: normalizeDesc(item.description),
@@ -171,24 +148,14 @@ const ProjectDetailView = ({
                         subsets: []
                     }));
                     
-                    // Group activities by discipline
-                    const groupedActivities = {
-                        sheetmetal: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
-                        piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
-                        plumbing: standardActivities.filter(act => /^PL\s*/i.test(act.description)),
-                        management: standardActivities.filter(act => 
-                            ['Detailing Management', 'Project Content Development', 'Project Coordination Management'].some(
-                                keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
-                            )
-                        ),
-                        vdc: standardActivities.filter(act => 
-                            ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'].some(
-                                keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
-                            )
-                        )
-                    };
+                    const groupedActivities = groupActivities(standardActivities, [
+                        { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
+                        { key: 'piping', label: 'Mechanical Piping' },
+                        { key: 'plumbing', label: 'Plumbing' },
+                        { key: 'management', label: 'Management' },
+                        { key: 'vdc', label: 'VDC' }
+                    ]);
                     
-                    // Create default disciplines
                     const defaultDisciplines = [
                         { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
                         { key: 'piping', label: 'Mechanical Piping' },
@@ -197,7 +164,6 @@ const ProjectDetailView = ({
                         { key: 'vdc', label: 'VDC' }
                     ];
                     
-                    // Create the projectActivities document
                     const projectActivitiesData = {
                         activities: groupedActivities,
                         actionTrackerDisciplines: defaultDisciplines,
@@ -207,14 +173,10 @@ const ProjectDetailView = ({
                         projectWideActivities: []
                     };
                     
-                    // Save to Firestore
                     setDoc(docRef, projectActivitiesData).then(() => {
-                        console.log("✅ ProjectActivities document created successfully");
                         showToast("Project initialized with standard activities", "success");
-                        // Data will be loaded by the snapshot listener automatically
                     }).catch(err => {
-                        console.error("❌ Error creating projectActivities document:", err);
-                        showToast("Error initializing project. Please refresh and try again.", "error");
+                        console.error("Error creating projectActivities:", err);
                         setProjectData(null);
                         setLoading(false);
                     });
@@ -224,12 +186,11 @@ const ProjectDetailView = ({
                 console.error("Error fetching project activities:", error);
                 setProjectData(null);
                 setLoading(false);
-                showToast("Error loading project details.", "error");
             });
         };
         setupListener();
         return () => unsubscribe();
-    }, [docRef, showToast]); // Re-run listener if docRef changes
+    }, [docRef, showToast]); 
 
     // Fetch Weekly Hours
     useEffect(() => {
@@ -238,7 +199,7 @@ const ProjectDetailView = ({
             const hoursData = {};
             snapshot.docs.forEach(doc => { if (doc.id !== '_config') hoursData[doc.id] = doc.data(); });
             setWeeklyHours(hoursData);
-        }, (error) => console.error("Error fetching weekly hours:", error));
+        });
         return () => unsubscribe();
     }, [projectId, db, appId]);
 
@@ -253,6 +214,179 @@ const ProjectDetailView = ({
         }
     }, [projectId, docRef, showToast]);
 
+    // --- CSV Import Handlers (NEW) ---
+    const handleCSVUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const rows = parseCSV(event.target.result);
+                processCSVData(rows);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = null; // Reset input
+    };
+
+    const processCSVData = (rows) => {
+        const changes = {
+            newActivities: [],
+            updates: [], // { group, index, activityData }
+            conflicts: [] // { group, index, description, currentHours, newHours, fullData }
+        };
+
+        // Create a flat map of existing activities for easier lookup
+        // Key: Normalized Description -> Value: { group, index, ...activity }
+        const existingMap = new Map();
+        if (projectData && projectData.activities) {
+            Object.entries(projectData.activities).forEach(([group, acts]) => {
+                acts.forEach((act, idx) => {
+                    existingMap.set(normalizeDesc(act.description), { group, index: idx, ...act });
+                });
+            });
+        }
+
+        rows.forEach(row => {
+            const normDesc = normalizeDesc(row.description);
+            const existing = existingMap.get(normDesc);
+
+            if (existing) {
+                // Step 1: Activity Exists. Move to Step 2.
+                let updateNeeded = false;
+                const updatePayload = { ...existing }; // Clone to modify
+
+                // Step 2: Check Charge Code
+                // If it doesn't exist in the record, add it from CSV.
+                // If CSV charge code differs and existing is present? Logic says "If it doesn't, add to corresponding". 
+                // Implicitly, if existing has one, we skip step 2 logic and go to step 3.
+                // BUT, often users want to update codes. Let's strictly follow: "If it doesn't [exist in activity], add to corresponding"
+                if (!updatePayload.chargeCode && row.chargeCode) {
+                    updatePayload.chargeCode = row.chargeCode;
+                    updateNeeded = true;
+                }
+
+                // Step 3: Check Est Hours
+                const csvHours = Number(row.estimatedHours) || 0;
+                const currentHours = Number(updatePayload.estimatedHours) || 0;
+
+                if (csvHours > 0) {
+                    if (currentHours > 0) {
+                         // Step 3a: Exists -> Prompt
+                         if (csvHours !== currentHours) {
+                             changes.conflicts.push({
+                                 description: row.description, // Use CSV casing for display
+                                 currentHours: currentHours,
+                                 newHours: csvHours,
+                                 // We need to pass the potentially updated charge code too
+                                 fullData: { ...updatePayload, estimatedHours: csvHours }
+                             });
+                             // Do not mark updateNeeded yet, wait for user resolution
+                             return; 
+                         }
+                    } else {
+                        // Step 3b: Doesn't exist -> Add to corresponding
+                        updatePayload.estimatedHours = csvHours;
+                        updateNeeded = true;
+                    }
+                }
+
+                if (updateNeeded) {
+                    changes.updates.push({ 
+                        group: existing.group, 
+                        index: existing.index, 
+                        activityData: updatePayload 
+                    });
+                }
+
+            } else {
+                // Step 1b: Activity code doesn't exist -> Add to appropriate discipline
+                changes.newActivities.push({
+                    id: `csv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    description: row.description,
+                    chargeCode: row.chargeCode || '',
+                    estimatedHours: Number(row.estimatedHours) || 0,
+                    percentComplete: 0,
+                    costToDate: 0,
+                    subsets: []
+                });
+            }
+        });
+
+        if (changes.conflicts.length > 0) {
+            setCsvImportState({ pendingData: changes, showModal: true });
+        } else {
+            // No conflicts, apply immediately
+            applyCSVChanges(changes);
+        }
+    };
+
+    const applyCSVChanges = (changes, overwriteConflicts = false) => {
+        const newActivitiesByGroup = { ...projectData.activities };
+        const disciplines = projectData.actionTrackerDisciplines || allDisciplines || [];
+
+        // 1. Apply Updates (non-conflicting)
+        changes.updates.forEach(update => {
+            if (newActivitiesByGroup[update.group] && newActivitiesByGroup[update.group][update.index]) {
+                newActivitiesByGroup[update.group][update.index] = update.activityData;
+            }
+        });
+
+        // 2. Apply Conflicts (if overwrite is true)
+        // If overwrite is FALSE, we might still need to apply Charge Code updates if they happened in Step 2 for these items?
+        // The conflict object carries 'fullData' which has the charge code update applied.
+        // If overwrite=false, we should strictly NOT update hours. But should we update code?
+        // Logic interpretation: Step 3 is gated. If user picks No to Step 3, we skip Step 3.
+        // But Step 2 happened before Step 3. 
+        // Let's assume 'No' means "Don't touch this record's hours", but we still want the charge code fix.
+        let appliedConflicts = 0;
+        changes.conflicts.forEach(conflict => {
+            // Note: conflict.fullData contains the necessary group and index information.
+            
+            if (newActivitiesByGroup[conflict.fullData.group] && newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index]) {
+                 if (overwriteConflicts) {
+                     newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index] = conflict.fullData;
+                     appliedConflicts++;
+                 } else {
+                     // If skipping hours overwrite, we check if we still need to update Charge Code
+                     // conflict.fullData has the NEW charge code. The activity in DB has OLD (or empty).
+                     // If the logic was "Step 2: If code doesn't exist, update it", we should persist that part.
+                     const original = newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index];
+                     if (!original.chargeCode && conflict.fullData.chargeCode) {
+                         newActivitiesByGroup[conflict.fullData.group][conflict.fullData.index] = {
+                             ...original,
+                             chargeCode: conflict.fullData.chargeCode
+                         };
+                         appliedConflicts++; // Technically an update
+                     }
+                 }
+            }
+        });
+
+        // 3. Process New Activities (Step 1b)
+        // Use groupActivities helper to sort them into correct buckets
+        if (changes.newActivities.length > 0) {
+            const groupedNew = groupActivities(changes.newActivities, disciplines);
+            Object.entries(groupedNew).forEach(([key, acts]) => {
+                if (!newActivitiesByGroup[key]) newActivitiesByGroup[key] = [];
+                // Filter out if for some reason duplicates exist in the new batch
+                const existingDescs = new Set(newActivitiesByGroup[key].map(a => normalizeDesc(a.description)));
+                acts.forEach(act => {
+                    if (!existingDescs.has(normalizeDesc(act.description))) {
+                        newActivitiesByGroup[key].push(act);
+                    }
+                });
+            });
+        }
+
+        handleSaveData({ activities: newActivitiesByGroup });
+        showToast(`Imported: ${changes.newActivities.length} new, ${changes.updates.length + appliedConflicts} updated.`, "success");
+        setCsvImportState({ pendingData: null, showModal: false });
+    };
+
     // --- Charge Code Management Handlers ---
     const handleAddStandardCodes = useCallback(async () => {
         if (!projectData || !projectData.activities) {
@@ -262,22 +396,16 @@ const ProjectDetailView = ({
         }
         const currentDisciplines = projectData.actionTrackerDisciplines || allDisciplines || [];
         const existingActivities = Object.values(projectData.activities).flat();
-        // Normalize existing descriptions before creating the Set
         const existingDescriptions = new Set(existingActivities.map(act => normalizeDesc(act.description)));
-        // standardActivitiesToAdd already has normalized descriptions
-        const activitiesToActuallyAdd = standardActivitiesToAdd.filter(stdAct => !existingDescriptions.has(stdAct.description));
+        const activitiesToActuallyAdd = standardActivitiesToAdd.filter(stdAct => !existingDescriptions.has(normalizeDesc(stdAct.description)));
 
         if (activitiesToActuallyAdd.length === 0) {
             showToast("All standard activities already exist.", "info");
             setConfirmAction(null);
             return;
         }
-        // Ensure activities being merged also have normalized descriptions
-        const mergedActivities = [...existingActivities.map(a => ({...a, description: normalizeDesc(a.description)})), ...activitiesToActuallyAdd];
-        const regroupedActivities = groupActivities(mergedActivities, currentDisciplines); // groupActivities now handles normalization internally too
-
-        // Log the structure before saving
-        console.log("Regrouped Activities to save:", regroupedActivities);
+        const mergedActivities = [...existingActivities, ...activitiesToActuallyAdd];
+        const regroupedActivities = groupActivities(mergedActivities, currentDisciplines);
 
         try {
             await updateDoc(docRef, { activities: regroupedActivities });
@@ -288,7 +416,7 @@ const ProjectDetailView = ({
         } finally {
             setConfirmAction(null);
         }
-    }, [projectData, allDisciplines, docRef, showToast]); // Dependencies updated
+    }, [projectData, allDisciplines, docRef, showToast]); 
 
     const handleDeleteAllActivities = useCallback(async () => {
         try {
@@ -300,13 +428,13 @@ const ProjectDetailView = ({
         } finally {
             setConfirmAction(null);
         }
-    }, [docRef, showToast]); // Dependencies updated
+    }, [docRef, showToast]);
 
     // Confirmation Triggers
     const confirmAddCodes = useCallback(() => { setConfirmAction({ title: "Confirm Add Standard Activities", message: "This will add any standard activities from the charge code list that are currently missing from this project. Existing activities will remain.", action: handleAddStandardCodes }); }, [handleAddStandardCodes]);
     const confirmDeleteAll = useCallback(() => { setConfirmAction({ title: "Confirm Delete All Activities", message: "This will permanently delete ALL activities currently defined for this project. This cannot be undone.", action: handleDeleteAllActivities }); }, [handleDeleteAllActivities]);
 
-    // --- Other Handlers (Budget, Mains, Action Tracker, Activities) - Use useCallback ---
+    // --- Other Handlers (Budget, Mains, Action Tracker, Activities) ---
     const handleAddImpact = useCallback((impact) => { handleSaveData({ budgetImpacts: [...(projectData?.budgetImpacts || []), impact] }); }, [projectData, handleSaveData]);
     const handleDeleteImpact = useCallback((impactId) => { handleSaveData({ budgetImpacts: (projectData?.budgetImpacts || []).filter(i => i.id !== impactId) }); }, [projectData, handleSaveData]);
     const handleAddMain = useCallback((main) => { handleSaveData({ mainItems: [...(projectData?.mainItems || []), main] }); }, [projectData, handleSaveData]);
@@ -323,13 +451,9 @@ const ProjectDetailView = ({
             activities: updatedActivities, 
             rateTypes: updatedRateTypes 
         }); 
-        // Initialize collapsed state for the new discipline group
-        setCollapsedSections(prev => ({
-            ...prev,
-            [`group_${newDiscipline.key}`]: true // Default collapsed
-        }));
+        setCollapsedSections(prev => ({ ...prev, [`group_${newDiscipline.key}`]: true }));
         onSelectAllTrades(projectId, disciplines); 
-        showToast(`Discipline "${newDiscipline.label}" added. You can now add activities to it.`, 'success');
+        showToast(`Discipline "${newDiscipline.label}" added.`, 'success');
     }, [projectData, handleSaveData, onSelectAllTrades, projectId, showToast]);
     const handleDeleteActionTrackerDiscipline = useCallback((disciplineKey) => { const disciplines = (projectData?.actionTrackerDisciplines || []).filter(d => d.key !== disciplineKey); handleSaveData({ actionTrackerDisciplines: disciplines }); onTradeFilterToggle(projectId, disciplineKey); }, [projectData, handleSaveData, onTradeFilterToggle, projectId]);
     const handleUpdateActionTrackerPercentage = useCallback((mainId, trade, field, value) => { const data = JSON.parse(JSON.stringify(projectData?.actionTrackerData || {})); if (!data[mainId]) data[mainId] = {}; if (!data[mainId][trade]) data[mainId][trade] = {}; data[mainId][trade][field] = value; handleSaveData({ actionTrackerData: data }); }, [projectData, handleSaveData]);
@@ -348,7 +472,7 @@ const ProjectDetailView = ({
                 if (actIndex !== -1) { updatedActivities[trade][actIndex].percentComplete = newPercentage === '' ? 0 : Number(newPercentage); activityModified = true; }
             }
         } else {
-            if (!mainId) return; // Need mainId for non-project-wide
+            if (!mainId) return;
             if (!localActionData[mainId]) localActionData[mainId] = {};
             if (!localActionData[mainId][trade]) localActionData[mainId][trade] = {};
             if (!localActionData[mainId][trade].activities) localActionData[mainId][trade].activities = {};
@@ -381,34 +505,18 @@ const ProjectDetailView = ({
     const handleDeleteActivityFromActionTracker = useCallback((activityId) => { const acts = JSON.parse(JSON.stringify(projectData?.activities || {})); let removed = false; Object.keys(acts).forEach(k => { const len = acts[k].length; acts[k] = acts[k].filter(a => a.id !== activityId); if(acts[k].length < len) removed = true; }); if (removed) { handleSaveData({ activities: acts }); showToast("Activity removed.", "success"); } }, [projectData, handleSaveData, showToast]);
     const handleSetRateType = useCallback((groupKey, rateType) => { handleSaveData({ rateTypes: { ...(projectData?.rateTypes || {}), [groupKey]: rateType } }); }, [projectData, handleSaveData]);
     const handleAddActivityGroup = useCallback(async () => { 
-        console.log("=== handleAddActivityGroup START ===");
-        console.log("newActivityGroup:", newActivityGroup);
-        console.log("projectData?.activities:", projectData?.activities);
-        console.log("projectData?.actionTrackerDisciplines:", projectData?.actionTrackerDisciplines);
-        console.log("allDisciplines prop:", allDisciplines);
-        
         if (!newActivityGroup) {
-            console.error("No activity group selected");
             showToast("Please select a discipline first.", "warning");
             return;
         }
-        
         if (projectData?.activities?.[newActivityGroup]) { 
-            console.warn("Group already exists:", newActivityGroup);
             showToast("This discipline section already exists.", "warning"); 
             return; 
         } 
         
-        // CRITICAL FIX: Use projectData.actionTrackerDisciplines as source of truth
         const disciplinesSource = projectData?.actionTrackerDisciplines || allDisciplines || [];
-        console.log("Using disciplinesSource:", disciplinesSource);
-        
-        // Try to find details in the source disciplines first
         let details = disciplinesSource.find(d => d.key === newActivityGroup);
-        console.log("Found in disciplinesSource:", details);
-        
         if (!details) {
-            // Check if it's a standard discipline
             const standardDisciplines = [
                 { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
                 { key: 'piping', label: 'Mechanical Piping' },
@@ -417,47 +525,36 @@ const ProjectDetailView = ({
                 { key: 'vdc', label: 'VDC' }
             ];
             details = standardDisciplines.find(d => d.key === newActivityGroup);
-            console.log("Found in standardDisciplines:", details);
         }
         
         if (!details) { 
-            console.error(`No discipline details found for key: ${newActivityGroup}`);
             showToast(`Error: Could not find discipline "${newActivityGroup}".`, "error"); 
             return; 
         } 
         
         const current = projectData?.actionTrackerDisciplines || []; 
         const exists = current.some(d => d.key === newActivityGroup); 
-        console.log("Discipline exists in actionTrackerDisciplines?", exists);
         
         const data = { activities: { ...(projectData?.activities || {}), [newActivityGroup]: [] } }; 
         if (!exists) {
             data.actionTrackerDisciplines = [...current, { key: details.key, label: details.label }];
-            console.log("Will add to actionTrackerDisciplines:", { key: details.key, label: details.label });
         }
         
-        console.log("Saving data to Firestore:", data);
         try {
             await handleSaveData(data);
-            console.log("Save successful");
             setNewActivityGroup(''); 
             showToast(`Section "${details.label}" added.`, "success"); 
-            
             if (!exists) {
-                console.log("Calling onSelectAllTrades with:", data.actionTrackerDisciplines);
                 onSelectAllTrades(projectId, data.actionTrackerDisciplines); 
             }
-            console.log("=== handleAddActivityGroup END (success) ===");
         } catch (error) {
             console.error("Error in handleAddActivityGroup:", error);
             showToast("Failed to add discipline section.", "error");
-            console.log("=== handleAddActivityGroup END (error) ===");
         }
     }, [newActivityGroup, projectData, allDisciplines, handleSaveData, showToast, onSelectAllTrades, projectId]);
     
     const handleRemoveDuplicateActivities = useCallback(() => { if (!projectData?.activities) { showToast("No activities.", "info"); return; } const flat = Object.values(projectData.activities).flat(); const map = new Map(); flat.forEach(a => { const k = normalizeDesc(a.description); if (map.has(k)) { const e = map.get(k); e.estimatedHours = (Number(e.estimatedHours)||0)+(Number(a.estimatedHours)||0); e.costToDate = (Number(e.costToDate)||0)+(Number(a.costToDate)||0); if(!e.chargeCode && a.chargeCode) e.chargeCode = a.chargeCode; } else map.set(k, {...a, description: k, estimatedHours: Number(a.estimatedHours)||0, costToDate: Number(a.costToDate)||0 }); }); const unique = Array.from(map.values()); const removed = flat.length - unique.length; if (removed > 0) { const regrouped = groupActivities(unique, projectData.actionTrackerDisciplines || allDisciplines); handleSaveData({ activities: regrouped }); showToast(`${removed} duplicates merged.`, "success"); } else showToast("No duplicates found.", "info"); }, [projectData, allDisciplines, handleSaveData, showToast]);
 
-    // --- FIX: Add missing function definitions ---
     const handleDeleteActivityGroup = useCallback((groupKey) => { 
         if (!window.confirm(`Delete "${groupKey}" section and all its activities? This cannot be undone.`)) return; 
         const { [groupKey]: _, ...restActs } = projectData?.activities || {}; 
@@ -480,36 +577,32 @@ const ProjectDetailView = ({
         const newWide = current.includes(groupKey) ? current.filter(k => k !== groupKey) : [...current, groupKey]; 
         handleSaveData({ projectWideActivities: newWide }); 
     }, [projectData, handleSaveData]);
-    // --- END FIX ---
 
-    // Calculation Memos (Dependency arrays adjusted based on ESLint feedback and necessity)
+    // Calculation Memos 
     const calculateGroupTotals = useCallback((activities, proj, rateType) => {
         return (activities || []).reduce((acc, activity) => {
             const estHours = Number(activity?.estimatedHours || 0);
             const costToDate = Number(activity?.costToDate || 0);
             const percentComplete = Number(activity?.percentComplete || 0);
-            // proj dependency is needed here for rates
             const rateToUse = rateType === 'VDC Rate' ? (proj.vdcBlendedRate || proj.blendedRate || 0) : (proj.blendedRate || 0);
             
             const budget = Math.ceil((estHours * rateToUse) / 5) * 5;
             const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
 
             acc.estimated += estHours;
-            // acc.used is removed
             acc.budget += budget;
             acc.actualCost += costToDate;
             acc.earnedValue += budget * (percentComplete / 100);
-            acc.projected += projectedCost; // Sum projected cost
+            acc.projected += projectedCost; 
             return acc;
-        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, percentComplete: 0 }); // Removed 'used'
-    }, []); // proj removed, passed as argument
+        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, percentComplete: 0 }); 
+    }, []); 
 
     const activityTotals = useMemo(() => {
-        // Calculation depends on projectData.activities, projectData.rateTypes, and project rates
         if (!projectData?.activities || !project) return { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 };
         const allActivitiesFlat = Object.entries(projectData.activities).flatMap(([groupKey, acts]) => {
             const rateType = projectData.rateTypes?.[groupKey] || 'Detailing Rate';
-            return (acts || []).map(act => ({ ...act, rateType })); // Safety check for acts
+            return (acts || []).map(act => ({ ...act, rateType })); 
         });
         return allActivitiesFlat.reduce((acc, activity) => {
              const estHours = Number(activity?.estimatedHours || 0);
@@ -521,23 +614,21 @@ const ProjectDetailView = ({
              const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
 
              acc.estimated += estHours;
-             // acc.used is removed
              acc.totalActualCost += costToDate;
              acc.totalEarnedValue += budget * (percentComplete / 100);
              acc.totalProjectedCost += projectedCost;
              return acc;
-        }, { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 }); // Removed 'used'
-    }, [projectData?.activities, projectData?.rateTypes, project]); // Keep dependencies
+        }, { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 }); 
+    }, [projectData?.activities, projectData?.rateTypes, project]); 
 
     const groupTotals = useMemo(() => {
-        // Depends on projectData.activities, projectData.rateTypes, project rates, and calculateGroupTotals
         if (!projectData?.activities || !project) return {};
         return Object.fromEntries(
             Object.entries(projectData.activities).map(([groupKey, acts]) => {
                 const rateType = projectData.rateTypes?.[groupKey] || 'Detailing Rate';
-                const totals = calculateGroupTotals(acts, project, rateType); // Pass project
+                const totals = calculateGroupTotals(acts, project, rateType); 
                 const totalBudgetForGroup = totals.budget;
-                const weightedPercentComplete = (acts || []).reduce((acc, act) => { // Safety check
+                const weightedPercentComplete = (acts || []).reduce((acc, act) => { 
                     const estHours = Number(act.estimatedHours) || 0;
                     const percent = Number(act.percentComplete) || 0;
                     const rate = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate) : project.blendedRate;
@@ -548,26 +639,20 @@ const ProjectDetailView = ({
                 return [groupKey, totals];
             })
         );
-    }, [projectData?.activities, projectData?.rateTypes, project, calculateGroupTotals]); // Keep dependencies
+    }, [projectData?.activities, projectData?.rateTypes, project, calculateGroupTotals]); 
 
     const currentBudget = useMemo(() => {
-        // Only depends on project.initialBudget and projectData.budgetImpacts
         return (project?.initialBudget || 0) + (projectData?.budgetImpacts || []).reduce((sum, impact) => sum + impact.amount, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [project?.initialBudget, projectData?.budgetImpacts]); // Keep dependencies as ESLint suggests reviewing them
+    }, [project?.initialBudget, projectData?.budgetImpacts]); 
 
     const sortedMainItems = useMemo(() => {
-        // Only depends on projectData.mainItems
         return [...(projectData?.mainItems || [])].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [projectData?.mainItems]); // Keep dependency as ESLint suggests reviewing it
+    }, [projectData?.mainItems]); 
 
-    // Map standard discipline keys to custom disciplines (bidirectional)
     const standardToCustomMapping = useMemo(() => {
         const mapping = {};
         const disciplines = allDisciplines || [];
         
-        // Map standard keys to custom discipline keys
         const ductDiscipline = disciplines.find(d => d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet'));
         const pipingDiscipline = disciplines.find(d => d.label.toLowerCase().includes('piping') || d.label.toLowerCase().includes('pipe'));
         const plumbingDiscipline = disciplines.find(d => d.label.toLowerCase().includes('plumb'));
@@ -580,7 +665,6 @@ const ProjectDetailView = ({
         if (managementDiscipline) mapping['management'] = managementDiscipline.key;
         if (vdcDiscipline) mapping['vdc'] = vdcDiscipline.key;
         
-        // Add default labels for standard keys
         mapping['sheetmetal_label'] = 'Sheet Metal / HVAC';
         mapping['piping_label'] = 'Mechanical Piping';
         mapping['plumbing_label'] = 'Plumbing';
@@ -588,13 +672,11 @@ const ProjectDetailView = ({
         mapping['vdc_label'] = 'VDC';
         mapping['uncategorized_label'] = 'Uncategorized';
         
-        console.log("Standard to Custom Mapping:", mapping);
         return mapping;
     }, [allDisciplines]);
 
     const tradeColorMapping = useMemo(() => {
         const mapping = {};
-        // Map colors based on custom disciplines
         (allDisciplines || []).forEach(d => {
              if (d.label.toLowerCase().includes('pip')) mapping[d.key] = { bg: 'bg-green-500/70', text: 'text-white' };
              else if (d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet')) mapping[d.key] = { bg: 'bg-yellow-400/70', text: 'text-black' };
@@ -603,9 +685,8 @@ const ProjectDetailView = ({
              else if (d.label.toLowerCase().includes('vdc')) mapping[d.key] = { bg: 'bg-indigo-600/70', text: 'text-white' };
              else if (d.label.toLowerCase().includes('struct')) mapping[d.key] = { bg: 'bg-amber-700/70', text: 'text-white' };
              else if (d.label.toLowerCase().includes('gis')) mapping[d.key] = { bg: 'bg-teal-500/70', text: 'text-white' };
-             else mapping[d.key] = { bg: 'bg-gray-500/70', text: 'text-white' }; // Default
+             else mapping[d.key] = { bg: 'bg-gray-500/70', text: 'text-white' }; 
         });
-        // Also map colors for standard keys
         mapping['sheetmetal'] = { bg: 'bg-yellow-400/70', text: 'text-black' };
         mapping['piping'] = { bg: 'bg-green-500/70', text: 'text-white' };
         mapping['plumbing'] = { bg: 'bg-blue-500/70', text: 'text-white' };
@@ -613,30 +694,15 @@ const ProjectDetailView = ({
         mapping['vdc'] = { bg: 'bg-indigo-600/70', text: 'text-white' };
         mapping['uncategorized'] = { bg: 'bg-gray-600/70', text: 'text-white' };
         return mapping;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allDisciplines]); // Keep dependency as ESLint suggests reviewing it
+    }, [allDisciplines]);
 
     const availableDisciplinesToAdd = useMemo(() => {
-        // CRITICAL FIX: Use projectData.actionTrackerDisciplines as the source of truth
-        // This updates via Firestore listener when disciplines are added
-        // Fall back to allDisciplines prop only if projectData hasn't loaded yet
         const disciplinesSource = projectData?.actionTrackerDisciplines || allDisciplines || [];
         
-        console.log("=== availableDisciplinesToAdd Debug ===");
-        console.log("projectData.actionTrackerDisciplines:", projectData?.actionTrackerDisciplines);
-        console.log("allDisciplines prop:", allDisciplines);
-        console.log("Using disciplinesSource:", disciplinesSource);
-        console.log("Current projectData.activities keys:", Object.keys(projectData?.activities || {}));
-        
-        // If we have custom disciplines, filter out ones already added
         if (disciplinesSource.length > 0) {
-            const available = disciplinesSource.filter(d => !projectData?.activities || !projectData.activities[d.key]);
-            console.log("Available custom disciplines to add:", available);
-            console.log("=== End Debug ===");
-            return available;
+            return disciplinesSource.filter(d => !projectData?.activities || !projectData.activities[d.key]);
         }
         
-        // Otherwise, provide standard disciplines that haven't been added yet
         const standardDisciplines = [
             { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
             { key: 'piping', label: 'Mechanical Piping' },
@@ -645,52 +711,32 @@ const ProjectDetailView = ({
             { key: 'vdc', label: 'VDC' }
         ];
         
-        const available = standardDisciplines.filter(d => !projectData?.activities || !projectData.activities[d.key]);
-        console.log("Available standard disciplines to add:", available);
-        console.log("=== End Debug ===");
-        return available;
+        return standardDisciplines.filter(d => !projectData?.activities || !projectData.activities[d.key]);
     }, [projectData?.actionTrackerDisciplines, projectData?.activities, allDisciplines]);
 
-    // Expanded active trades: includes both custom keys and standard keys that map to active customs
     const expandedActiveTrades = useMemo(() => {
-        console.log("=== expandedActiveTrades Debug ===");
-        console.log("activeTrades prop:", activeTrades);
-        console.log("standardToCustomMapping:", standardToCustomMapping);
-        
         const expanded = new Set(activeTrades || []);
-        // For each standard key, check if its mapped custom discipline is active
         Object.entries(standardToCustomMapping).forEach(([standardKey, customKey]) => {
             if (activeTrades.includes(customKey)) {
-                console.log(`Adding standard key ${standardKey} because custom key ${customKey} is active`);
                 expanded.add(standardKey);
             }
         });
-        
-        const result = Array.from(expanded);
-        console.log("Final expandedActiveTrades:", result);
-        console.log("=== End expandedActiveTrades Debug ===");
-        return result;
+        return Array.from(expanded);
     }, [activeTrades, standardToCustomMapping]);
 
     const grandTotals = useMemo(() => {
-        // Sum ALL activity groups that exist in projectData.activities, not just filtered ones
-        console.log("Calculating grand totals for all groups");
         const allKeys = Object.keys(projectData?.activities || {});
-        console.log("All activity keys for totals:", allKeys);
-        
         return Object.entries(groupTotals).reduce((acc, [key, totals]) => {
-            // Include all groups, not just expandedActiveTrades
             if (allKeys.includes(key)) {
                  acc.estimated += totals.estimated;
-                 // acc.used is removed
                  acc.budget += totals.budget;
                  acc.earnedValue += totals.earnedValue;
                  acc.actualCost += totals.actualCost;
-                 acc.projected += totals.projected; // Sum of projected COST
+                 acc.projected += totals.projected; 
             }
             return acc;
-        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0 }); // Removed 'used'
-    }, [groupTotals, projectData?.activities]); // Updated dependencies
+        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0 }); 
+    }, [groupTotals, projectData?.activities]); 
 
     // --- Render logic ---
     if (loading) return <div className="p-4 text-center">Loading Project Details...</div>;
@@ -707,6 +753,15 @@ const ProjectDetailView = ({
             >
                 {confirmAction?.message}
             </ConfirmationModal>
+
+            {/* CSV Import Modal */}
+            <CSVImportModal
+                isOpen={csvImportState.showModal}
+                conflicts={csvImportState.pendingData?.conflicts || []}
+                currentTheme={currentTheme}
+                onClose={() => setCsvImportState({ pendingData: null, showModal: false })}
+                onConfirm={(overwrite) => applyCSVChanges(csvImportState.pendingData, overwrite)}
+            />
 
             {/* --- Charge Code Manager Section --- */}
             {showChargeCodeManager && accessLevel === 'taskmaster' && (
@@ -743,21 +798,15 @@ const ProjectDetailView = ({
                     <h4 className="text-sm font-semibold mb-2 text-center">Activity & Action Tracker Filters</h4>
                     <div className="flex items-center justify-center gap-2 flex-wrap">
                         {(() => {
-                            // Use allDisciplines if available, otherwise generate from actual activity groups
                             let disciplinesToShow = allDisciplines || [];
                             
                             if (disciplinesToShow.length === 0 && projectData?.activities) {
-                                // Generate disciplines from actual activity keys
                                 const activityKeys = Object.keys(projectData.activities);
-                                console.log("Generating filter buttons from activity keys:", activityKeys);
-                                
                                 disciplinesToShow = activityKeys.map(key => ({
                                     key: key,
                                     label: standardToCustomMapping[`${key}_label`] || key
                                 }));
                             }
-                            
-                            console.log("Disciplines to show in filters:", disciplinesToShow);
                             
                             return disciplinesToShow.map(d => (
                                 <button
@@ -774,12 +823,8 @@ const ProjectDetailView = ({
                             ));
                         })()}
                         {(() => {
-                            // --- FIX: Robust check for available disciplines ---
-                            
-                            // 1. Start with allDisciplines prop
                             let disciplinesForButton = allDisciplines || [];
                             
-                            // 2. If prop is empty, try to build from projectData.activities
                             if (disciplinesForButton.length === 0 && projectData?.activities) {
                                 const activityKeys = Object.keys(projectData.activities);
                                 disciplinesForButton = activityKeys.map(key => ({
@@ -788,19 +833,16 @@ const ProjectDetailView = ({
                                 }));
                             }
                             
-                            // 3. If still no disciplines, don't render the button
                             if (disciplinesForButton.length === 0) {
                                 return null;
                             }
                             
-                            // 4. Now perform the check with the guaranteed list
                             const allKeys = disciplinesForButton.map(d => d.key);
                             const areAllSelected = activeTrades.length === allKeys.length && allKeys.every(key => activeTrades.includes(key));
-                            // --- END FIX ---
                             
                             return (
                                 <button
-                                    onClick={() => onSelectAllTrades(projectId, disciplinesForButton)} // Pass the list used for the check
+                                    onClick={() => onSelectAllTrades(projectId, disciplinesForButton)} 
                                     className={`px-3 py-1 text-xs rounded-full transition-colors ${
                                         areAllSelected
                                             ? 'bg-green-600 text-white'
@@ -825,7 +867,6 @@ const ProjectDetailView = ({
                         {accessLevel === 'taskmaster' && (
                             <TutorialHighlight tutorialKey="financialForecast">
                                 <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                                    {/* Financial Forecast Collapse Button & Content */}
                                     <button onClick={() => handleToggleCollapse('financialForecast')} className="w-full text-left font-bold flex justify-between items-center mb-2">
                                         <h3 className="text-lg font-semibold">Financial Forecast</h3>
                                         <motion.svg animate={{ rotate: collapsedSections.financialForecast ? 0 : 180 }} xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></motion.svg>
@@ -842,7 +883,6 @@ const ProjectDetailView = ({
                         )}
                         <TutorialHighlight tutorialKey="budgetImpactLog">
                             <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-                                {/* Budget Impact Log Collapse Button & Content */}
                                 <button onClick={() => handleToggleCollapse('budgetLog')} className="w-full text-left font-bold flex justify-between items-center mb-2">
                                     <h3 className="text-lg font-semibold">Budget Impact Log</h3>
                                     <motion.svg animate={{ rotate: collapsedSections.budgetLog ? 0 : 180 }} xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></motion.svg>
@@ -967,11 +1007,9 @@ const ProjectDetailView = ({
                                             actionTrackerData={projectData?.actionTrackerData || {}}
                                             currentTheme={currentTheme}
                                             actionTrackerDisciplines={(() => {
-                                                // Use allDisciplines if available, otherwise generate from activities
                                                 if ((allDisciplines || []).length > 0) {
                                                     return allDisciplines;
                                                 }
-                                                // Generate disciplines from activity keys
                                                 if (projectData?.activities) {
                                                     const activityKeys = Object.keys(projectData.activities);
                                                     return activityKeys.map(key => ({
@@ -1007,35 +1045,35 @@ const ProjectDetailView = ({
                                 <div className="flex justify-between items-center mb-2">
                                     <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
                                      <div className="flex items-center gap-2">
+                                         {/* CSV Import Button */}
+                                         <label className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} cursor-pointer flex items-center gap-1 hover:opacity-80 transition-opacity`}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                            Import CSV
+                                            <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+                                         </label>
+                                         <span className="text-gray-500">|</span>
+
                                         {availableDisciplinesToAdd.length === 0 ? (
                                             <div className="text-sm text-gray-400 italic">
-                                                All standard disciplines added. Add custom disciplines via Action Tracker Settings below.
+                                                All disciplines added.
                                             </div>
                                         ) : (
                                             <>
                                                 <select 
                                                     value={newActivityGroup} 
                                                     onChange={(e) => {
-                                                        console.log("Dropdown changed to:", e.target.value);
                                                         setNewActivityGroup(e.target.value);
                                                     }} 
                                                     className={`text-xs p-1 rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                 >
                                                     <option value="">Add Discipline Section...</option>
-                                                    {(() => {
-                                                        console.log("Rendering dropdown with availableDisciplinesToAdd:", availableDisciplinesToAdd);
-                                                        return availableDisciplinesToAdd.map(d => {
-                                                            console.log("  - Option:", d.key, d.label);
-                                                            return <option key={d.key} value={d.key}>{d.label}</option>;
-                                                        });
-                                                    })()}
+                                                    {availableDisciplinesToAdd.map(d => (
+                                                        <option key={d.key} value={d.key}>{d.label}</option>
+                                                    ))}
                                                 </select>
                                                 <button 
                                                     type="button" 
-                                                    onClick={() => {
-                                                        console.log("Add button clicked, newActivityGroup:", newActivityGroup);
-                                                        handleAddActivityGroup();
-                                                    }} 
+                                                    onClick={() => handleAddActivityGroup()} 
                                                     className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`} 
                                                     disabled={!newActivityGroup}
                                                 >
@@ -1048,35 +1086,18 @@ const ProjectDetailView = ({
                                 {/* Activity Tables */}
                                 <div className="space-y-1">
                                     {(() => {
-                                        console.log("=== Activity Breakdown Debug ===");
-                                        console.log("projectData.activities:", projectData.activities);
-                                        console.log("expandedActiveTrades:", expandedActiveTrades); // This holds the keys that should be visible
-                                        console.log("allDisciplines:", allDisciplines);
-                                        
                                         const entries = Object.entries(projectData.activities || {});
-                                        console.log("All activity group keys:", entries.map(([key]) => key));
-                                        
-                                        // --- FIX: Filter the entries based on expandedActiveTrades ---
                                         const filtered = entries.filter(([groupKey]) => expandedActiveTrades.includes(groupKey));
-                                        console.log("Filtered activity groups to display:", filtered.map(([key]) => key));
-                                        // --- END FIX ---
                                         
-                                        console.log("=== End Debug ===");
-                                        
-                                        return filtered // Use the new 'filtered' variable here
+                                        return filtered 
                                             .sort(([groupA], [groupB]) => {
-                                                // Get label for groupA
                                                 const customLabelA = (allDisciplines || []).find(d => d.key === groupA)?.label;
                                                 const labelA = customLabelA || standardToCustomMapping[`${groupA}_label`] || groupA;
-                                                
-                                                // Get label for groupB
                                                 const customLabelB = (allDisciplines || []).find(d => d.key === groupB)?.label;
                                                 const labelB = customLabelB || standardToCustomMapping[`${groupB}_label`] || groupB;
-                                                
                                                 return labelA.localeCompare(labelB);
                                             })
                                             .map(([groupKey, acts]) => {
-                                                 // Get label - check custom disciplines first, then standard label mappings
                                                  const customLabel = (allDisciplines || []).find(d => d.key === groupKey)?.label;
                                                  const groupLabel = customLabel || standardToCustomMapping[`${groupKey}_label`] || groupKey;
                                                  
@@ -1114,22 +1135,19 @@ const ProjectDetailView = ({
                                 </div>
                                 {/* Grand Totals */}
                                 <TutorialHighlight tutorialKey="activityGrandTotals">
-                                    {/* --- MODIFICATION START: Changed grid-cols-10 to grid-cols-9 and removed grandTotals.used --- */}
                                     <div className={`w-full p-2 text-left font-bold flex justify-between items-center mt-2 ${currentTheme.altRowBg}`}>
                                         <div className="flex-grow grid grid-cols-9 text-xs font-bold">
                                              <span>Grand Totals</span>
-                                             <span></span> {/* Charge Code */}
+                                             <span></span> 
                                              <span className="text-center">{grandTotals.estimated.toFixed(2)}</span>
                                              <span className="text-center">{formatCurrency(grandTotals.budget)}</span>
-                                             <span></span> {/* % of Proj */}
-                                             <span className="text-center">--</span> {/* % Comp */}
-                                             {/* <span className="text-center">{grandTotals.used.toFixed(2)}</span> -- REMOVED -- */}
+                                             <span></span> 
+                                             <span className="text-center">--</span> 
                                              <span className="text-center">{formatCurrency(grandTotals.earnedValue)}</span>
                                              <span className="text-center">{formatCurrency(grandTotals.actualCost)}</span>
                                              <span className="text-center">{formatCurrency(grandTotals.projected)}</span>
                                         </div>
                                     </div>
-                                    {/* --- MODIFICATION END --- */}
                                 </TutorialHighlight>
                             </div>
                         </TutorialHighlight>

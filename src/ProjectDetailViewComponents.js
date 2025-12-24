@@ -1,58 +1,32 @@
-import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
-// Import necessary Firestore functions
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TutorialHighlight } from './App';
 
-// --- Helper Functions & Components (ConfirmationModal, Tooltip, formatCurrency) ---
+// --- Constants & Helpers ---
+
+export const animationVariants = {
+    open: { opacity: 1, height: 'auto', transition: { duration: 0.3 } },
+    collapsed: { opacity: 0, height: 0, transition: { duration: 0.3 } },
+    hidden: { opacity: 0, height: 0 },
+    visible: { opacity: 1, height: 'auto', transition: { duration: 0.3, ease: "easeInOut" } },
+    exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
+};
 
 export const formatCurrency = (value) => {
     const numberValue = Number(value) || 0;
     return numberValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 };
 
-export const Tooltip = ({ text, children }) => {
-    const [visible, setVisible] = useState(false);
-    return (
-        <div className="relative flex items-center justify-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
-            {children}
-            {visible && text && ( // Added check for non-empty text
-                <div className="absolute bottom-full mb-2 w-max max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md z-20 shadow-lg border border-gray-700">
-                    <p className="font-mono whitespace-pre-wrap">{text}</p>
-                </div>
-            )}
-        </div>
-    );
-};
-
-export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex justify-center items-center">
-            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
-                <h3 className="text-lg font-bold mb-4">{title}</h3>
-                <div className={`mb-6 ${currentTheme.subtleText}`}>{children}</div>
-                <div className="flex justify-end gap-4">
-                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:bg-opacity-80`}>Cancel</button>
-                    <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Confirm</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- Normalization Helper ---
-export function normalizeDesc(str = '') {
+export const normalizeDesc = (str = '') => {
   return String(str)
-    // strip common zero‑width/invisible characters
     .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
-    // collapse all whitespace runs to a single space
     .replace(/\s+/g, ' ')
-    .trim();
-}
+    .trim()
+    .toLowerCase(); // Ensure lowercase for comparison
+};
 
-// --- Standard Activities Definition (Based on the new CSV) ---
-export const standardChargeCodes = [
+export const standardActivitiesToAdd = [
     { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
     { description: "MH Spooling", chargeCode: "9615261" },
     { description: "MH Deliverables", chargeCode: "9615361" },
@@ -74,22 +48,43 @@ export const standardChargeCodes = [
     { description: "Project Setup", chargeCode: "9630162" },
     { description: "Project Data Management", chargeCode: "9630262" },
     { description: "Project Closeout", chargeCode: "9630562" },
-    { description: "Project Coordination Management​", chargeCode: "9630762" } // Includes zero-width space
+    { description: "Project Coordination Management", chargeCode: "9630762" }
 ];
 
-// Apply normalization when creating the standard list
-export const standardActivitiesToAdd = standardChargeCodes.map(item => ({
-    id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
-    description: normalizeDesc(item.description), // Normalize here
-    chargeCode: item.chargeCode,
-    estimatedHours: 0,
-    hoursUsed: 0,
-    percentComplete: 0,
-    subsets: []
-}));
+export const parseCSV = (text) => {
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length === 0) return [];
+    
+    // Simple header normalization
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+    
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+    
+    const descIdx = getIndex(['activity', 'description', 'task']);
+    const codeIdx = getIndex(['charge', 'code']);
+    const hoursIdx = getIndex(['est', 'hours', 'budget']);
+    
+    if (descIdx === -1) throw new Error("CSV must have a column named 'Description' or 'Activity'");
+    
+    return lines.slice(1).map(line => {
+        // Regex to split by comma but ignore commas inside quotes
+        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+        
+        let hours = 0;
+        if (hoursIdx !== -1 && values[hoursIdx]) {
+            // Robust parsing: Remove '$', ',', and spaces to handle formats like "$1,200.00"
+            const cleanHours = values[hoursIdx].replace(/[$,\s]/g, '');
+            hours = parseFloat(cleanHours) || 0;
+        }
 
-// --- Helper function to group activities ---
-// *** UPDATED groupActivities function ***
+        return {
+            description: values[descIdx] || '',
+            chargeCode: codeIdx !== -1 ? values[codeIdx] : '',
+            estimatedHours: hours
+        };
+    }).filter(row => row.description);
+};
+
 export const groupActivities = (activityArray, actionTrackerDisciplines) => {
     // Initialize groups based on actionTrackerDisciplines
     const defaultGroups = {};
@@ -97,108 +92,134 @@ export const groupActivities = (activityArray, actionTrackerDisciplines) => {
         defaultGroups[disc.key] = [];
     });
 
-    const managementKeywords = [
-        'Detailing Management',
-        'Project Content Development',
-        'Project Coordination Management'
-    ];
-    const vdcKeywords = [
-        'Project VDC Admin',
-        'Project Setup',
-        'Project Data Management',
-        'Project Closeout'
-    ];
+    const managementKeywords = ['Detailing Management', 'Project Content Development', 'Project Coordination Management'];
+    const vdcKeywords = ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'];
 
-    console.log("Grouping activities. Input count:", activityArray.length);
-    console.log("Available disciplines:", actionTrackerDisciplines);
-
-    const groupedResult = activityArray.reduce((acc, act) => {
+    return activityArray.reduce((acc, act) => {
         const descRaw = act.description ?? '';
         const desc = normalizeDesc(descRaw);
         let groupKeyToUse = null;
 
-        // Try to match to custom disciplines first
         const disciplines = actionTrackerDisciplines || [];
         
-        // 1. Check for MH prefix -> match to discipline with "Duct" or "Sheet" in label
-        if (/^MH\s*/i.test(desc)) {
-            const match = disciplines.find(d => 
-                d.label.toLowerCase().includes('duct') || 
-                d.label.toLowerCase().includes('sheet')
-            );
-            groupKeyToUse = match?.key || 'sheetmetal'; // Fallback to standard key
-        }
-        // 2. Check for MP prefix -> match to discipline with "Piping" or "Pipe" in label  
-        else if (/^MP\s*/i.test(desc)) {
-            const match = disciplines.find(d => 
-                d.label.toLowerCase().includes('piping') || 
-                d.label.toLowerCase().includes('pipe')
-            );
-            groupKeyToUse = match?.key || 'piping'; // Fallback to standard key
-        }
-        // 3. Check for PL prefix -> match to discipline with "Plumb" in label
-        else if (/^PL\s*/i.test(desc)) {
-            const match = disciplines.find(d => 
-                d.label.toLowerCase().includes('plumb')
-            );
-            groupKeyToUse = match?.key || 'plumbing'; // Fallback to standard key
-        }
-        // 4. Check Management keywords -> match to discipline with "Manage" in label
-        else if (managementKeywords.some(keyword => desc.toLowerCase().includes(keyword.toLowerCase()))) {
-            const match = disciplines.find(d => 
-                d.label.toLowerCase().includes('manage') ||
-                d.label.toLowerCase().includes('coord')
-            );
-            groupKeyToUse = match?.key || 'management'; // Fallback to standard key
-        }
-        // 5. Check VDC keywords -> match to discipline with "VDC" in label
-        else if (vdcKeywords.some(keyword => desc.toLowerCase().includes(keyword.toLowerCase()))) {
-            const match = disciplines.find(d => 
-                d.label.toLowerCase().includes('vdc')
-            );
-            groupKeyToUse = match?.key || 'vdc'; // Fallback to standard key
-        }
-        // 6. Fallback: Check discipline prefixes based on first 2 chars of description
-        else {
-            const disciplineMatch = disciplines.find(d => 
-                desc.toUpperCase().startsWith(d.label.substring(0, 2).toUpperCase())
-            );
+        // Discipline Matching Logic
+        if (/^mh\s*/i.test(desc)) {
+            const match = disciplines.find(d => d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet'));
+            groupKeyToUse = match?.key || 'sheetmetal';
+        } else if (/^mp\s*/i.test(desc)) {
+            const match = disciplines.find(d => d.label.toLowerCase().includes('piping') || d.label.toLowerCase().includes('pipe'));
+            groupKeyToUse = match?.key || 'piping';
+        } else if (/^pl\s*/i.test(desc)) {
+            const match = disciplines.find(d => d.label.toLowerCase().includes('plumb'));
+            groupKeyToUse = match?.key || 'plumbing';
+        } else if (managementKeywords.some(keyword => desc.includes(keyword.toLowerCase()))) {
+            const match = disciplines.find(d => d.label.toLowerCase().includes('manage') || d.label.toLowerCase().includes('coord'));
+            groupKeyToUse = match?.key || 'management';
+        } else if (vdcKeywords.some(keyword => desc.includes(keyword.toLowerCase()))) {
+            const match = disciplines.find(d => d.label.toLowerCase().includes('vdc'));
+            groupKeyToUse = match?.key || 'vdc';
+        } else {
+            // Fallback match by prefix
+            const disciplineMatch = disciplines.find(d => desc.toUpperCase().startsWith(d.label.substring(0, 2).toUpperCase()));
             groupKeyToUse = disciplineMatch?.key;
         }
 
-        // If still no match found, put in 'uncategorized' group
-        if (!groupKeyToUse) {
-            console.warn(`Activity "${desc}" could not be matched to any discipline. Adding to 'uncategorized'.`);
-            groupKeyToUse = 'uncategorized';
-        }
+        if (!groupKeyToUse) groupKeyToUse = 'uncategorized';
+        if (!acc[groupKeyToUse]) acc[groupKeyToUse] = [];
 
-        // Ensure the target group exists
-        if (!acc[groupKeyToUse]) {
-            acc[groupKeyToUse] = [];
-        }
-
-        // Add activity if not already present (checking normalized description)
+        // Check for duplicates within the group being built
         if (!acc[groupKeyToUse].some(existingAct => normalizeDesc(existingAct.description) === desc)) {
-            acc[groupKeyToUse].push({ ...act, description: desc });
+            acc[groupKeyToUse].push({ ...act, description: act.description }); // Keep original casing
         }
 
         return acc;
-    }, { ...defaultGroups }); // Start with a fresh copy of defaultGroups
-
-    console.log("Grouping result keys:", Object.keys(groupedResult));
-    console.log("Grouping result:", groupedResult);
-    return groupedResult;
+    }, { ...defaultGroups });
 };
 
+// --- Shared UI Components ---
 
-// --- Constants & Animation Variants ---
-export const animationVariants = {
-    hidden: { opacity: 0, height: 0 },
-    visible: { opacity: 1, height: 'auto', transition: { duration: 0.3, ease: "easeInOut" } },
-    exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
+export const Tooltip = ({ text, children }) => {
+    const [visible, setVisible] = useState(false);
+    return (
+        <div className="relative flex items-center justify-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
+            {children}
+            {visible && text && (
+                <div className="absolute bottom-full mb-2 w-max max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md z-20 shadow-lg border border-gray-700 pointer-events-none">
+                    <p className="font-mono whitespace-pre-wrap text-left">{text}</p>
+                </div>
+            )}
+        </div>
+    );
 };
 
-// --- Sub-Components (FinancialSummary, BudgetImpactLog, etc.) ---
+export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex justify-center items-center backdrop-blur-sm">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-xl shadow-2xl w-full max-w-md border ${currentTheme.borderColor}`}>
+                <h3 className="text-lg font-bold mb-4">{title}</h3>
+                <div className={`mb-6 ${currentTheme.subtleText}`}>{children}</div>
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} className={`px-4 py-2 rounded-md ${currentTheme.buttonBg} hover:opacity-80 transition-opacity`}>Cancel</button>
+                    <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg shadow-red-900/20">Confirm</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const CSVImportModal = ({ isOpen, onClose, onConfirm, conflicts, currentTheme }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-center items-center backdrop-blur-md">
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-xl shadow-2xl w-full max-w-2xl border ${currentTheme.borderColor} flex flex-col max-h-[80vh]`}>
+                <h3 className="text-lg font-bold mb-2 text-yellow-400">Import Conflicts Found</h3>
+                <p className="text-sm mb-4 opacity-80">
+                    The following activities already exist and have different Estimated Hours assigned. 
+                    Do you want to <b>overwrite</b> them with the new values from the CSV?
+                </p>
+                
+                <div className="flex-grow overflow-y-auto mb-6 pr-2 bg-black/20 rounded p-2 border border-gray-700/50">
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="text-xs uppercase opacity-50 border-b border-gray-600">
+                                <th className="p-2">Activity</th>
+                                <th className="p-2 text-right">Current Hrs</th>
+                                <th className="p-2 text-right">New CSV Hrs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {conflicts.map((c, i) => (
+                                <tr key={i} className="border-b border-gray-700/30 hover:bg-white/5">
+                                    <td className="p-2 truncate max-w-xs" title={c.description}>{c.description}</td>
+                                    <td className="p-2 text-right text-gray-400">{c.currentHours}</td>
+                                    <td className="p-2 text-right text-yellow-400 font-bold">{c.newHours}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                    <button 
+                        onClick={() => onConfirm(false)} 
+                        className={`px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-500 text-white transition-opacity`}
+                    >
+                        No, Skip Overwrite
+                    </button>
+                    <button 
+                        onClick={() => onConfirm(true)} 
+                        className="px-4 py-2 rounded-md bg-yellow-600 text-white hover:bg-yellow-500 transition-colors shadow-lg"
+                    >
+                        Yes, Overwrite All
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Financial Summary Component ---
 
 export const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget }) => {
     if (!project || !activityTotals) return null;
@@ -226,18 +247,117 @@ export const FinancialSummary = ({ project, activityTotals, currentTheme, curren
     );
 };
 
-export const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, activities }) => {
+// --- Financial Forecast Chart (D3) ---
 
+export const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentBudget, currentTheme }) => {
+    const svgRef = useRef(null);
+
+    const chartData = useMemo(() => {
+        if (!weeklyHours || Object.keys(weeklyHours).length === 0) return null;
+
+        const allWeeks = new Set();
+        Object.values(weeklyHours).forEach(tradeData => {
+            Object.keys(tradeData).forEach(week => allWeeks.add(week));
+        });
+
+        const sortedWeeks = Array.from(allWeeks).sort();
+        if (sortedWeeks.length === 0) return null;
+
+        let cumulativeCost = 0;
+        const plannedSpend = sortedWeeks.map(week => {
+            let weeklyTotalHours = 0;
+            Object.keys(weeklyHours).forEach(trade => {
+                weeklyTotalHours += weeklyHours[trade]?.[week] || 0;
+            });
+            cumulativeCost += weeklyTotalHours * (project.blendedRate || 0);
+            return { date: new Date(week), value: cumulativeCost };
+        });
+
+        return {
+            plannedSpend,
+            startDate: new Date(sortedWeeks[0]),
+            endDate: new Date(sortedWeeks[sortedWeeks.length - 1]),
+        };
+    }, [weeklyHours, project.blendedRate]);
+
+    useEffect(() => {
+        if (!chartData || !svgRef.current || !activityTotals) return;
+
+        const { plannedSpend, startDate, endDate } = chartData;
+        const { totalEarnedValue = 0, totalActualCost = 0, totalProjectedCost = 0 } = activityTotals;
+
+        const svg = d3.select(svgRef.current);
+        svg.selectAll('*').remove();
+
+        const margin = { top: 20, right: 120, bottom: 30, left: 60 };
+        const width = 800 - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+
+        const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleTime().domain([startDate, endDate]).range([0, width]);
+        const yMax = d3.max([currentBudget, totalProjectedCost, d3.max(plannedSpend, d => d.value)]);
+        const y = d3.scaleLinear().domain([0, yMax > 0 ? yMax : 100]).range([height, 0]);
+
+        const xAxis = g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(5));
+        xAxis.selectAll("text").style("fill", currentTheme.textColor);
+        xAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
+
+        const yAxis = g.append('g').call(d3.axisLeft(y).tickFormat(d3.format("$,.0f")));
+        yAxis.selectAll("text").style("fill", currentTheme.textColor);
+        yAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
+
+        g.append('path')
+            .datum(plannedSpend)
+            .attr('fill', 'none')
+            .attr('stroke', '#3b82f6')
+            .attr('stroke-width', 2)
+            .attr('d', d3.line().x(d => x(d.date)).y(d => y(d.value)));
+
+        g.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(currentBudget)).attr('y2', y(currentBudget)).attr('stroke', '#22c55e').attr('stroke-width', 2).attr('stroke-dasharray', '5,5');
+        g.append('text').attr('x', width + 5).attr('y', y(currentBudget)).text('Budget').attr('fill', '#22c55e').attr('alignment-baseline', 'middle');
+
+        g.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(totalProjectedCost)).attr('y2', y(totalProjectedCost)).attr('stroke', '#ef4444').attr('stroke-width', 2).attr('stroke-dasharray', '5,5');
+        g.append('text').attr('x', width + 5).attr('y', y(totalProjectedCost)).text('Projected').attr('fill', '#ef4444').attr('alignment-baseline', 'middle');
+
+        const today = new Date();
+        if (today >= startDate && today <= endDate) {
+            g.append('line').attr('x1', x(today)).attr('x2', x(today)).attr('y1', 0).attr('y2', height).attr('stroke', currentTheme.textColor).attr('stroke-width', 1).attr('stroke-dasharray', '2,2');
+            g.append('text').attr('x', x(today)).attr('y', -5).text('Today').attr('fill', currentTheme.textColor).attr('text-anchor', 'middle');
+
+            g.append('circle').attr('cx', x(today)).attr('cy', y(totalEarnedValue)).attr('r', 5).attr('fill', '#14b8a6');
+            g.append('text').attr('x', x(today) + 8).attr('y', y(totalEarnedValue)).text(`Earned: ${formatCurrency(totalEarnedValue)}`).attr('fill', '#14b8a6').attr('alignment-baseline', 'middle');
+
+            g.append('circle').attr('cx', x(today)).attr('cy', y(totalActualCost)).attr('r', 5).attr('fill', '#f97316');
+            g.append('text').attr('x', x(today) + 8).attr('y', y(totalActualCost) + 15).text(`Actual: ${formatCurrency(totalActualCost)}`).attr('fill', '#f97316').attr('alignment-baseline', 'middle');
+        }
+
+    }, [chartData, activityTotals, currentBudget, currentTheme]);
+
+    if (!chartData) {
+        return <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>Enter weekly hour forecasts in the Admin Console to see the financial forecast chart.</div>;
+    }
+
+    return (
+        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
+            <h3 className="text-lg font-semibold mb-2">Financial Forecast</h3>
+            <svg ref={svgRef} width="800" height="400"></svg>
+        </div>
+    );
+};
+
+// --- Budget Impact Log ---
+
+export const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, project, activities }) => {
     const tradeActivityOptions = useMemo(() => {
         const options = new Set();
         if (activities) {
             Object.values(activities).flat().forEach(activity => {
-                options.add(normalizeDesc(activity.description)); // Normalize options
+                options.add(normalizeDesc(activity.description)); 
             });
         }
         return Array.from(options).sort();
     }, [activities]);
-
 
     const [newImpact, setNewImpact] = useState({ date: new Date().toISOString().split('T')[0], description: '', tradeOrActivity: '', hours: 0, rateType: 'Detailing Rate' });
 
@@ -316,104 +436,10 @@ export const BudgetImpactLog = ({ impacts, onAdd, onDelete, currentTheme, projec
     );
 };
 
-export const FinancialForecastChart = ({ project, weeklyHours, activityTotals, currentBudget, currentTheme }) => {
-    const svgRef = React.useRef(null);
-
-    const chartData = useMemo(() => {
-        if (!weeklyHours || Object.keys(weeklyHours).length === 0) return null;
-
-        const allWeeks = new Set();
-        Object.values(weeklyHours).forEach(tradeData => {
-            Object.keys(tradeData).forEach(week => allWeeks.add(week));
-        });
-
-        const sortedWeeks = Array.from(allWeeks).sort();
-        if (sortedWeeks.length === 0) return null;
-
-        let cumulativeCost = 0;
-        const plannedSpend = sortedWeeks.map(week => {
-            let weeklyTotalHours = 0;
-            Object.keys(weeklyHours).forEach(trade => {
-                weeklyTotalHours += weeklyHours[trade]?.[week] || 0; // Added safety check
-            });
-            cumulativeCost += weeklyTotalHours * (project.blendedRate || 0);
-            return { date: new Date(week), value: cumulativeCost };
-        });
-
-        return {
-            plannedSpend,
-            startDate: new Date(sortedWeeks[0]),
-            endDate: new Date(sortedWeeks[sortedWeeks.length - 1]),
-        };
-    }, [weeklyHours, project.blendedRate]);
-
-    useEffect(() => {
-        if (!chartData || !svgRef.current || !activityTotals) return; // Added check for activityTotals
-
-        const { plannedSpend, startDate, endDate } = chartData;
-        const { totalEarnedValue = 0, totalActualCost = 0, totalProjectedCost = 0 } = activityTotals; // Provide defaults
-
-        const svg = d3.select(svgRef.current);
-        svg.selectAll('*').remove();
-
-        const margin = { top: 20, right: 120, bottom: 30, left: 60 };
-        const width = 800 - margin.left - margin.right;
-        const height = 400 - margin.top - margin.bottom;
-
-        const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-        const x = d3.scaleTime().domain([startDate, endDate]).range([0, width]);
-        const yMax = d3.max([currentBudget, totalProjectedCost, d3.max(plannedSpend, d => d.value)]);
-        const y = d3.scaleLinear().domain([0, yMax > 0 ? yMax : 100]).range([height, 0]);
-
-        const xAxis = g.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(5));
-        xAxis.selectAll("text").style("fill", currentTheme.textColor);
-        xAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
-
-        const yAxis = g.append('g').call(d3.axisLeft(y).tickFormat(d3.format("$,.0f")));
-        yAxis.selectAll("text").style("fill", currentTheme.textColor);
-        yAxis.selectAll(".domain, .tick line").style("stroke", currentTheme.textColor);
-
-        g.append('path')
-            .datum(plannedSpend)
-            .attr('fill', 'none')
-            .attr('stroke', '#3b82f6')
-            .attr('stroke-width', 2)
-            .attr('d', d3.line().x(d => x(d.date)).y(d => y(d.value)));
-
-        g.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(currentBudget)).attr('y2', y(currentBudget)).attr('stroke', '#22c55e').attr('stroke-width', 2).attr('stroke-dasharray', '5,5');
-        g.append('text').attr('x', width + 5).attr('y', y(currentBudget)).text('Budget').attr('fill', '#22c55e').attr('alignment-baseline', 'middle');
-
-        g.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(totalProjectedCost)).attr('y2', y(totalProjectedCost)).attr('stroke', '#ef4444').attr('stroke-width', 2).attr('stroke-dasharray', '5,5');
-        g.append('text').attr('x', width + 5).attr('y', y(totalProjectedCost)).text('Projected').attr('fill', '#ef4444').attr('alignment-baseline', 'middle');
-
-        const today = new Date();
-        if (today >= startDate && today <= endDate) {
-            g.append('line').attr('x1', x(today)).attr('x2', x(today)).attr('y1', 0).attr('y2', height).attr('stroke', currentTheme.textColor).attr('stroke-width', 1).attr('stroke-dasharray', '2,2');
-            g.append('text').attr('x', x(today)).attr('y', -5).text('Today').attr('fill', currentTheme.textColor).attr('text-anchor', 'middle');
-
-            g.append('circle').attr('cx', x(today)).attr('cy', y(totalEarnedValue)).attr('r', 5).attr('fill', '#14b8a6');
-            g.append('text').attr('x', x(today) + 8).attr('y', y(totalEarnedValue)).text(`Earned: ${formatCurrency(totalEarnedValue)}`).attr('fill', '#14b8a6').attr('alignment-baseline', 'middle');
-
-            g.append('circle').attr('cx', x(today)).attr('cy', y(totalActualCost)).attr('r', 5).attr('fill', '#f97316');
-            g.append('text').attr('x', x(today) + 8).attr('y', y(totalActualCost) + 15).text(`Actual: ${formatCurrency(totalActualCost)}`).attr('fill', '#f97316').attr('alignment-baseline', 'middle');
-        }
-
-    }, [chartData, activityTotals, currentBudget, currentTheme]);
-
-    if (!chartData) {
-        return <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm text-center`}>Enter weekly hour forecasts in the Admin Console to see the financial forecast chart.</div>;
-    }
-
-    return (
-        <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
-            <h3 className="text-lg font-semibold mb-2">Financial Forecast</h3>
-            <svg ref={svgRef} width="800" height="400"></svg>
-        </div>
-    );
-};
+// --- Action Tracker Components ---
 
 export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReorder, currentTheme }) => {
+    // ... (ProjectBreakdown logic from previous file - abbreviated for brevity)
     const [newItemName, setNewItemName] = useState('');
     const [editingItem, setEditingItem] = useState(null);
     const [draggingItem, setDraggingItem] = useState(null);
@@ -435,11 +461,11 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
     const handleDragStart = (e, item) => {
         setDraggingItem(item);
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', item.id); // Use item.id for data transfer
+        e.dataTransfer.setData('text/plain', item.id);
     };
 
      const handleDragOver = (e) => {
-        e.preventDefault(); // Necessary to allow dropping
+        e.preventDefault(); 
         e.dataTransfer.dropEffect = 'move';
     };
 
@@ -448,7 +474,7 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
         const draggedId = e.dataTransfer.getData('text/plain');
         if (!draggedId || draggedId === dropTargetId) {
              setDraggingItem(null);
-             return; // No drop if same item or no dragged item
+             return; 
         }
 
         const updatedItems = [...mainItems];
@@ -457,10 +483,9 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
 
         if (draggedItemIndex === -1 || targetIndex === -1) {
              setDraggingItem(null);
-             return; // Safety check
+             return; 
         }
 
-        // Remove from old position and insert at new position
         const [reorderedItem] = updatedItems.splice(draggedItemIndex, 1);
         updatedItems.splice(targetIndex, 0, reorderedItem);
 
@@ -469,13 +494,12 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
     };
 
      const handleDragEnd = () => {
-        // Reset dragging state if drag is cancelled
         setDraggingItem(null);
     };
 
     return (
         <>
-            <div className="space-y-2 max-h-96 overflow-y-auto mb-4 hide-scrollbar-on-hover pr-2"> {/* Added pr-2 */}
+            <div className="space-y-2 max-h-96 overflow-y-auto mb-4 hide-scrollbar-on-hover pr-2"> 
                 {(mainItems || []).map((item, index) => (
                     <div
                         key={item.id}
@@ -484,7 +508,7 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
                         onDragStart={(e) => handleDragStart(e, item)}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, item.id)}
-                        onDragEnd={handleDragEnd} // Add drag end handler
+                        onDragEnd={handleDragEnd} 
                     >
                         {editingItem?.id === item.id ? (
                             <input
@@ -499,14 +523,14 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
                         ) : (
                             <span className="flex-grow">{item.name}</span>
                         )}
-                        <div className="flex gap-2 flex-shrink-0 ml-2"> {/* Added flex-shrink-0 and ml-2 */}
+                        <div className="flex gap-2 flex-shrink-0 ml-2"> 
                             <button onClick={() => setEditingItem({...item})} className="text-blue-500 text-sm">Edit</button>
                             <button onClick={() => onDelete(item.id)} className="text-red-500 text-sm">Delete</button>
                         </div>
                     </div>
                 ))}
             </div>
-            <div className="flex gap-2 border-t pt-2 border-gray-500/20"> {/* Added border color */}
+            <div className="flex gap-2 border-t pt-2 border-gray-500/20"> 
                 <input
                     type="text"
                     value={newItemName}
@@ -519,7 +543,6 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
         </>
     );
 };
-
 
 export const ActionTrackerDisciplineManager = ({ disciplines, onAdd, onDelete, currentTheme }) => {
     const [newDisciplineName, setNewDisciplineName] = useState('');
@@ -546,7 +569,7 @@ export const ActionTrackerDisciplineManager = ({ disciplines, onAdd, onDelete, c
                     </div>
                 ))}
             </div>
-            <div className="flex gap-2 border-t pt-2 border-gray-500/20"> {/* Added border color */}
+            <div className="flex gap-2 border-t pt-2 border-gray-500/20"> 
                 <input
                     type="text"
                     value={newDisciplineName}
@@ -572,14 +595,12 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
         onUpdateActivityCompletion(mainId, trade, activityId, numericValue);
     };
 
-    // Filter project-wide disciplines based on whether they are active and designated as project-wide
     const projectWideDisciplines = (actionTrackerDisciplines || []).filter(disc =>
         projectWideActivities?.includes(disc.key) && activeTrades.includes(disc.key)
     );
 
     return (
         <div className="space-y-4">
-            {/* Project-Wide Activities Section */}
             {projectWideDisciplines.length > 0 && (
                  <div className="p-3 rounded-md bg-black/20">
                     <h4 className="font-bold text-md mb-2">Project-Wide Activities</h4>
@@ -587,12 +608,11 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                         {projectWideDisciplines.map(discipline => {
                             const trade = discipline.key;
                             const style = tradeColorMapping[trade] || { bg: 'bg-gray-500/70', text: 'text-white' };
-                            const tradeActivities = activities?.[trade] || []; // Safety check
+                            const tradeActivities = activities?.[trade] || []; 
                             const tradeSectionId = `project_wide_trade_${trade}`;
 
                             return (
                                 <div key={trade}>
-                                    {/* Header Button */}
                                     <button onClick={() => onToggle(tradeSectionId)} className={`w-full p-2 rounded-t-md ${style.bg} ${style.text} flex justify-between items-center`}>
                                         <span className="font-bold text-sm">{discipline.label}</span>
                                         <motion.svg
@@ -602,7 +622,6 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </motion.svg>
                                     </button>
-                                    {/* Collapsible Content */}
                                     <AnimatePresence>
                                     {!collapsedSections[tradeSectionId] && (
                                         <motion.div
@@ -624,7 +643,6 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                                     </div>
                                                 ) : (
                                                     tradeActivities.map(act => {
-                                                        // Get completion from project_wide structure
                                                         const activityCompletion = (actionTrackerData?.project_wide?.[trade]?.[act.id]) ?? '';
                                                         return (
                                                             <div key={act.id} className="grid grid-cols-[1fr,auto,auto] items-center text-sm py-1 gap-2">
@@ -633,7 +651,7 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                                                     type="number"
                                                                     value={activityCompletion}
                                                                     onClick={(e) => e.stopPropagation()}
-                                                                    onChange={(e) => handleActivityCompleteChange(null, trade, act.id, e.target.value)} // Pass null for mainId
+                                                                    onChange={(e) => handleActivityCompleteChange(null, trade, act.id, e.target.value)}
                                                                     className={`w-20 p-1 rounded-md text-right ml-auto ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                                     placeholder="%"
                                                                     disabled={!isActivityCompletionEditable}
@@ -660,10 +678,8 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                  </div>
             )}
 
-            {/* Mains-Specific Activities Section */}
             {(mainItems || []).map(main => (
                 <div key={main.id} className="p-3 rounded-md bg-black/20">
-                     {/* Main Header Button */}
                     <button onClick={() => onToggle(`main_${main.id}`)} className="w-full flex justify-between items-center text-left mb-2">
                         <h4 className="font-bold text-md">{main.name}</h4>
                         <motion.svg
@@ -673,7 +689,6 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </motion.svg>
                     </button>
-                    {/* Collapsible Content for Main */}
                     <AnimatePresence>
                     {!collapsedSections[`main_${main.id}`] && (
                         <motion.div
@@ -685,7 +700,6 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                             className="overflow-hidden"
                         >
                             <div className="space-y-3 pt-2">
-                                {/* Filter disciplines: NOT project-wide AND active */}
                                 {(actionTrackerDisciplines || [])
                                     .filter(disc => !projectWideActivities?.includes(disc.key) && activeTrades.includes(disc.key))
                                     .map(discipline => {
@@ -693,19 +707,17 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                     const style = tradeColorMapping[trade] || { bg: 'bg-gray-500/70', text: 'text-white' };
                                     if(!style) return null;
 
-                                    const tradeActivities = activities?.[trade] || []; // Safety check
+                                    const tradeActivities = activities?.[trade] || []; 
 
                                     const tradeTotalHours = tradeActivities.reduce((sum, act) => sum + Number(act.estimatedHours || 0), 0);
                                     const percentageOfProject = totalProjectHours > 0 ? (tradeTotalHours / totalProjectHours) * 100 : 0;
 
-                                    // Get data for this specific main and trade
                                     const tradeData = actionTrackerData?.[main.id]?.[trade] || {};
-                                    const tradePercentage = tradeData.tradePercentage ?? ''; // Use ?? for empty string default
+                                    const tradePercentage = tradeData.tradePercentage ?? ''; 
                                     const tradeSectionId = `main_${main.id}_trade_${trade}`;
 
                                     return (
                                         <div key={trade}>
-                                            {/* Trade Header Button */}
                                             <button onClick={() => onToggle(tradeSectionId)} className={`w-full p-2 rounded-t-md ${style.bg} ${style.text} flex justify-between items-center`}>
                                                 <span className="font-bold text-sm">{discipline.label}</span>
                                                 <div className="flex items-center gap-2 text-sm">
@@ -727,7 +739,6 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                                     </motion.svg>
                                                 </div>
                                             </button>
-                                            {/* Collapsible Content for Trade within Main */}
                                             <AnimatePresence>
                                             {!collapsedSections[tradeSectionId] && (
                                                 <motion.div
@@ -749,7 +760,6 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                                             </div>
                                                         ) : (
                                                             tradeActivities.map(act => {
-                                                                // Get completion for this specific activity within this main/trade
                                                                 const activityCompletion = (tradeData.activities?.[act.id]) ?? '';
                                                                 return (
                                                                     <div key={act.id} className="grid grid-cols-[1fr,auto,auto] items-center text-sm py-1 gap-2">
@@ -758,7 +768,7 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
                                                                             type="number"
                                                                             value={activityCompletion}
                                                                             onClick={(e) => e.stopPropagation()}
-                                                                            onChange={(e) => handleActivityCompleteChange(main.id, trade, act.id, e.target.value)} // Pass main.id
+                                                                            onChange={(e) => handleActivityCompleteChange(main.id, trade, act.id, e.target.value)} 
                                                                             className={`w-20 p-1 rounded-md text-right ml-auto ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                                             placeholder="%"
                                                                             disabled={!isActivityCompletionEditable}
@@ -797,23 +807,16 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
 
     const rateToUse = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
 
-    // Budget and Earned Value are still based on Estimated Hours
     const rawBudget = (Number(estimatedHours) || 0) * rateToUse;
     const lineItemBudget = Math.ceil(rawBudget / 5) * 5;
     const earnedValue = lineItemBudget * (Number(percentComplete) / 100);
     
-    // Actual Cost is now the user-provided costToDate
-    const actualCost = Number(costToDate) || 0;
-    
     const percentOfProject = totalProjectHours > 0 ? (Number(estimatedHours) / totalProjectHours) * 100 : 0;
 
-
-    // Projected Cost calculation
     const calculateProjectedCost = (act) => {
         const localCostToDate = Number(act.costToDate) || 0;
         const localPercentComplete = Number(act.percentComplete) || 0;
         if (localPercentComplete <= 0) {
-             // If 0% complete, projected cost is the estimated budget
              const estHrs = Number(act.estimatedHours) || 0;
              const rate = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
              const budget = Math.ceil((estHrs * rate) / 5) * 5;
@@ -831,10 +834,9 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text={`Est. Hours * Rate (Raw: ${formatCurrency(rawBudget)})`}><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Est. Hrs / Total Est. Hrs) * 100"><p>{percentOfProject.toFixed(2)}%</p></Tooltip></td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}>
-                <p>{Number(percentComplete || 0).toFixed(2)}%</p> {/* Display only */}
+                <p>{Number(percentComplete || 0).toFixed(2)}%</p> 
             </td>
             
-            {/* --- "Actual Cost ($)" is now the input field --- */}
             <td className={`p-1 w-24 text-center`}>
                 {accessLevel === 'taskmaster' ? (
                     <input
@@ -848,10 +850,8 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
                 )}
             </td>
             
-            {/* --- "Earned ($)" display column --- */}
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
 
-            {/* --- "Proj. Cost" display column --- */}
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Cost to Date / % Comp) * 100"><p>{formatCurrency(projectedCost)}</p></Tooltip></td>
             <td className="p-1 text-center w-12">
                  {accessLevel === 'taskmaster' && (
@@ -876,17 +876,14 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
 
     return (
         <div className={`border-b ${currentTheme.borderColor}`}>
-            {/* Header */}
             <div className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}>
                 <div className="flex-grow flex items-center">
-                    {/* Toggle Icon */}
                     <motion.svg onClick={onToggle}
                         animate={{ rotate: isCollapsed ? 0 : 180 }}
                         transition={{ duration: 0.2 }}
                         xmlns="http://www.w3.org/2000/svg" className="cursor-pointer h-5 w-5 transition-transform flex-shrink-0 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </motion.svg>
-                    {/* Editable Title */}
                     {isEditingTitle ? (
                          <input
                             type="text" value={editableTitle}
@@ -901,21 +898,17 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                             {title}
                          </span>
                     )}
-                    {/* --- MODIFICATION START: Changed grid-cols-9 to grid-cols-8 and removed groupTotals.used --- */}
                     <div className="flex-grow grid grid-cols-8 text-xs ml-4">
-                        <span></span> {/* Spacer for Activity/Charge Code */}
+                        <span></span> 
                         <span className="text-center">{groupTotals.estimated.toFixed(2)}</span>
                         <span className="text-center">{formatCurrency(groupTotals.budget)}</span>
-                        <span></span> {/* Spacer for % of Proj */}
+                        <span></span> 
                         <span className="text-center">{groupTotals.percentComplete.toFixed(2)}%</span>
-                        {/* <span className="text-center">{groupTotals.used.toFixed(2)}</span> -- REMOVED "Hrs Used" TOTAL -- */}
                         <span className="text-center">{formatCurrency(groupTotals.earnedValue)}</span>
                         <span className="text-center">{formatCurrency(groupTotals.actualCost)}</span>
-                        <span className="text-center">{formatCurrency(groupTotals.projected)}</span> {/* Renamed to Proj. Cost logic */}
+                        <span className="text-center">{formatCurrency(groupTotals.projected)}</span> 
                     </div>
-                    {/* --- MODIFICATION END --- */}
                 </div>
-                {/* Header Controls */}
                 <div className="flex items-center gap-4 flex-shrink-0 ml-4">
                      {accessLevel === 'taskmaster' && (
                         <TutorialHighlight tutorialKey="projectWideActivities">
@@ -929,12 +922,11 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                         <option value="Detailing Rate">Detailing Rate</option>
                         <option value="VDC Rate">VDC Rate</option>
                      </select>
-                     {accessLevel === 'taskmaster' && ( // Only allow delete if taskmaster
+                     {accessLevel === 'taskmaster' && ( 
                          <button onClick={(e) => { e.stopPropagation(); onDeleteGroup(groupKey); }} className="text-white hover:text-red-300 font-bold text-lg">&times;</button>
                      )}
                 </div>
             </div>
-            {/* Collapsible Content */}
             <AnimatePresence>
             {!isCollapsed && (
                 <motion.div
@@ -955,11 +947,9 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% of Project</th>
                                     <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Calculated automatically from the Action Tracker section.">% Comp</Tooltip></th>
-                                    {/* --- MODIFICATION START: Removed "Hrs Used", changed "Actual ($)" to input, changed "Proj. Hrs" to "Proj. Cost" --- */}
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actual Cost ($)</th>
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
-                                    {/* --- MODIFICATION END --- */}
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actions</th>
                                 </tr>
                             </thead>
@@ -979,11 +969,9 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                         rateType={rateType}
                                     />
                                 ))}
-                                 {accessLevel === 'taskmaster' && ( // Only allow add if taskmaster
+                                 {accessLevel === 'taskmaster' && ( 
                                      <tr>
-                                        {/* --- MODIFICATION START: Changed colSpan from 11 to 10 --- */}
                                         <td colSpan="10"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
-                                        {/* --- MODIFICATION END --- */}
                                     </tr>
                                  )}
                             </tbody>
