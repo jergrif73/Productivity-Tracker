@@ -1,39 +1,8 @@
-import React, { useMemo, useRef, useEffect, useCallback, useState } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { TutorialHighlight } from './App';
 import EmployeeSkillMatrix from './EmployeeSkillMatrix';
 import FullProjectReport from './FullProjectReport'; // Import the new component
 import * as d3 from 'd3';
-
-// Helper function to convert legacy trade names to abbreviations
-const getTradeDisplayName = (trade) => {
-    const displayMap = {
-        'BIM': 'VDC',
-        'Piping': 'MP',
-        'Duct': 'MH',
-        'duct': 'MH',
-        'piping': 'MP',
-        'plumbing': 'PL',
-        'Plumbing': 'PL',
-        'Coordination': 'Coord',
-        'Management': 'MGMT',
-        'management': 'MGMT',
-        'Structural': 'ST',
-        'Fire Protection': 'FP',
-        'Process Piping': 'PP',
-        'Medical Gas': 'PJ',
-        'vdc': 'VDC',
-        'sheetmetal': 'MH',
-    };
-    return displayMap[trade] || trade;
-};
-
-// Helper to replace BIM with VDC in skill names
-const mapBimToVdc = (skillName) => {
-    if (!skillName) return skillName;
-    return getTradeDisplayName(skillName);
-};
-
-// --- Helper Components ---
 
 // --- D3 Chart Components (Moved from ReportingConsole) ---
 
@@ -261,6 +230,116 @@ const ReportDisplay = ({
         exportToCSV(sortedReportData, reportHeaders, reportType);
     };
 
+    // Print handler - opens report in new window for clean printing
+    const handlePrintReport = () => {
+        const reportContent = document.getElementById('full-project-report-print');
+        if (!reportContent) return;
+
+        // Generate filename: MM_DD_YY_ProjectID_Report
+        const today = new Date();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const year = String(today.getFullYear()).slice(-2);
+        const projectId = reportData?.project?.projectId || 'Unknown';
+        const filename = `${month}_${day}_${year}_${projectId}_Report`;
+
+        // Open a new window
+        const printWindow = window.open('', '_blank', 'width=850,height=1100');
+        if (!printWindow) {
+            alert('Please allow popups to print the report');
+            return;
+        }
+
+        // Write the HTML document
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${filename}</title>
+                <style>
+                    @page {
+                        size: letter portrait;
+                        margin: 0.25in;
+                    }
+                    @media print {
+                        .no-print {
+                            display: none !important;
+                        }
+                    }
+                    * {
+                        box-sizing: border-box;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    body {
+                        font-family: Arial, sans-serif;
+                        margin: 0;
+                        padding: 8px;
+                        background: white;
+                        color: #1F2937;
+                    }
+                    .print-controls {
+                        position: fixed;
+                        top: 10px;
+                        right: 10px;
+                        z-index: 1000;
+                        display: flex;
+                        gap: 8px;
+                    }
+                    .print-controls button {
+                        padding: 10px 20px;
+                        font-size: 14px;
+                        font-weight: bold;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                    }
+                    .print-btn {
+                        background: #16a34a;
+                        color: white;
+                    }
+                    .print-btn:hover {
+                        background: #15803d;
+                    }
+                    .close-btn {
+                        background: #6b7280;
+                        color: white;
+                    }
+                    .close-btn:hover {
+                        background: #4b5563;
+                    }
+                    table {
+                        border-collapse: collapse;
+                        width: 100%;
+                        page-break-inside: auto;
+                    }
+                    tr {
+                        page-break-inside: avoid;
+                    }
+                    thead {
+                        display: table-header-group;
+                    }
+                    th, td {
+                        padding: 4px 6px;
+                        text-align: left;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-controls no-print">
+                    <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+                    <button class="close-btn" onclick="window.close()">✕ Close</button>
+                </div>
+                ${reportContent.innerHTML}
+            </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+        printWindow.focus();
+    };
+
     if (reportType === 'full-project-report' && reportData) {
         return (
             <div className="flex-grow flex flex-col min-h-0 min-w-0">
@@ -269,7 +348,7 @@ const ReportDisplay = ({
                         <h3 className="text-xl font-semibold">Report Results</h3>
                         <div className="flex gap-2">
                             <button onClick={onClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                            <button onClick={() => setTimeout(() => window.print(), 100)} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700 print:hidden">Print</button>
+                            <button onClick={handlePrintReport} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Print</button>
                         </div>
                     </div>
                     <div id="full-project-report-printable" className="overflow-auto hide-scrollbar-on-hover flex-grow">

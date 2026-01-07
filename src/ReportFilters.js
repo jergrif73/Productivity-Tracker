@@ -1,13 +1,138 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { TutorialHighlight } from './App';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Helper to replace BIM with VDC in skill names
-const mapBimToVdc = (skillName) => {
-    if (!skillName) return skillName;
-    if (skillName === 'BIM') return 'VDC';
-    if (skillName === 'BIM Knowledge') return 'VDC Knowledge';
-    return skillName;
+// Combined Search + Dropdown Component
+const SearchableDropdown = ({ projects, selectedProjectId, onSelect, currentTheme }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+    const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+    const containerRef = useRef(null);
+    const dropdownRef = useRef(null);
+    const inputRef = useRef(null);
+
+    const filteredProjects = projects.filter(p => 
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.projectId && p.projectId.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const selectedProject = projects.find(p => p.id === selectedProjectId);
+
+    // Update dropdown position when opening
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            const rect = inputRef.current.getBoundingClientRect();
+            setDropdownPosition({
+                top: rect.bottom + window.scrollY,
+                left: rect.left + window.scrollX,
+                width: rect.width
+            });
+        }
+    }, [isOpen]);
+
+    // Close when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            const isOutsideContainer = containerRef.current && !containerRef.current.contains(e.target);
+            const isOutsideDropdown = !dropdownRef.current || !dropdownRef.current.contains(e.target);
+            
+            if (isOutsideContainer && isOutsideDropdown) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    const handleSelect = (projectId) => {
+        onSelect(projectId);
+        setIsOpen(false);
+        setSearchTerm('');
+    };
+
+    return (
+        <div ref={containerRef} className="relative">
+            {/* Search Input */}
+            <div className="relative">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder={selectedProject ? selectedProject.name : "Search projects..."}
+                    value={searchTerm}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    className={`w-full p-2 pr-8 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                />
+                {/* Dropdown Toggle Button */}
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${currentTheme.subtleText}`}
+                >
+                    <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </div>
+
+            {/* Dropdown List - positioned fixed to escape overflow */}
+            {isOpen && (
+                <div 
+                    ref={dropdownRef}
+                    className={`fixed border rounded-md ${currentTheme.cardBg} ${currentTheme.borderColor} max-h-48 overflow-y-auto shadow-lg`}
+                    style={{ 
+                        top: dropdownPosition.top,
+                        left: dropdownPosition.left,
+                        width: dropdownPosition.width,
+                        zIndex: 9999
+                    }}
+                >
+                    {/* Clear selection option */}
+                    {selectedProjectId && (
+                        <div
+                            onClick={() => handleSelect('')}
+                            className={`p-2 cursor-pointer hover:bg-blue-500/20 ${currentTheme.subtleText} border-b ${currentTheme.borderColor} text-sm`}
+                        >
+                            ✕ Clear Selection
+                        </div>
+                    )}
+                    
+                    {filteredProjects.length === 0 ? (
+                        <div className={`p-3 text-center ${currentTheme.subtleText}`}>
+                            No projects found
+                        </div>
+                    ) : (
+                        filteredProjects.map(p => (
+                            <div
+                                key={p.id}
+                                onClick={() => handleSelect(p.id)}
+                                className={`p-2 cursor-pointer hover:bg-blue-500/20 ${currentTheme.textColor} ${
+                                    p.id === selectedProjectId ? 'bg-blue-500/30' : ''
+                                }`}
+                            >
+                                <div className="font-medium truncate text-sm">{p.name}</div>
+                                {p.projectId && (
+                                    <div className={`text-xs ${currentTheme.subtleText}`}>
+                                        ID: {p.projectId}
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                    
+                    {/* Results count */}
+                    <div className={`p-2 text-xs ${currentTheme.subtleText} border-t ${currentTheme.borderColor} text-center`}>
+                        {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 // Helper for collapsible sections
@@ -18,7 +143,7 @@ const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) =>
     };
 
     return (
-        <div className="border-b border-gray-500/20 pb-2">
+        <div className="border-b border-gray-500/20 pb-2" style={{ overflow: 'visible' }}>
             <button onClick={onToggle} className="w-full flex justify-between items-center py-2">
                 <h3 className="text-sm font-semibold">{title}</h3>
                 <motion.svg
@@ -37,9 +162,9 @@ const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) =>
                         exit="collapsed"
                         variants={animationVariants}
                         transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
-                        className="overflow-hidden"
+                        style={{ overflow: 'visible' }}
                     >
-                        <div className="space-y-4">
+                        <div className="space-y-4" style={{ overflow: 'visible' }}>
                             {children}
                         </div>
                     </motion.div>
@@ -118,10 +243,12 @@ const ReportFilters = ({
                 return (
                     <>
                         <CollapsibleFilterSection title="Select Project" isCollapsed={collapsedFilters?.project} onToggle={() => onToggleFilterCollapse('project')}>
-                            <select value={selectedProjectId} onChange={e => onFilterChange('selectedProjectId', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="">-- Select a Project --</option>
-                                {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
+                            <SearchableDropdown
+                                projects={projects.filter(p => !p.archived)}
+                                selectedProjectId={selectedProjectId}
+                                onSelect={(id) => onFilterChange('selectedProjectId', id)}
+                                currentTheme={currentTheme}
+                            />
                         </CollapsibleFilterSection>
                         <CollapsibleFilterSection title="Report Options" isCollapsed={collapsedFilters?.reportOptions} onToggle={() => onToggleFilterCollapse('reportOptions')}>
                             <div className="space-y-2">

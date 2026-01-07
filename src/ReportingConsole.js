@@ -97,12 +97,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         });
         return map;
     }, [allProjectActivities]);
-    
-    // Helper function for reports
-    const formatCurrency = (value) => {
-        const numberValue = Number(value) || 0;
-        return numberValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-    };
 
     // Filtered detailers for skill matrix (passed to ReportDisplay)
     const filteredDetailersForMatrix = useMemo(() => {
@@ -400,7 +394,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         } else {
             setReportContext(null);
         }
-    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks, filteredDetailersForMatrix, selectedProjectId, reportOption]);
+    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, detailers, getDaysInRange, tasks, selectedProjectId, reportOption]);
 
     const handleClearReport = useCallback(() => {
         setReportData(null);
@@ -491,34 +485,34 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 <style>
                     {`
                         @media print {
-                            /* Hide everything */
+                            /* Skill Matrix printing only - Full Project Report uses popup window */
+                            @page {
+                                size: letter portrait;
+                                margin: 0.25in;
+                            }
+                            
+                            /* Hide everything except skill matrix */
                             body * {
                                 visibility: hidden;
                             }
                             
-                            /* Full Project Report */
-                            #full-project-report-printable,
-                            #full-project-report-printable * {
-                                visibility: visible !important;
-                            }
-                            #full-project-report-printable {
-                                position: absolute !important;
-                                left: 0 !important;
-                                top: 0 !important;
-                                width: 100% !important;
-                                overflow: visible !important;
-                            }
-                            
-                            /* Skill Matrix */
                             #skill-matrix-printable-area,
                             #skill-matrix-printable-area * {
                                 visibility: visible !important;
                             }
+                            
                             #skill-matrix-printable-area {
                                 position: absolute !important;
                                 left: 0 !important;
                                 top: 0 !important;
                                 width: 100% !important;
+                            }
+                            
+                            /* Color printing */
+                            * {
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                                color-adjust: exact !important;
                             }
                         }
                     `}

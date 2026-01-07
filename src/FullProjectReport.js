@@ -35,7 +35,7 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
     // Extract data safely
     const project = report?.project;
     const activitiesDoc = report?.activitiesDoc;
-    const financialSummary = report?.financialSummary || {};
+    const financialSummary = useMemo(() => report?.financialSummary || {}, [report?.financialSummary]);
     const actionTrackerSummary = report?.actionTrackerSummary || [];
     const reportOption = report?.reportOption;
     const dateRange = report?.dateRange || {};
@@ -316,7 +316,7 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
                     }
                     
                     /* Color printing */
-                    html, body {
+                    * {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                         color-adjust: exact !important;
@@ -324,6 +324,8 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
                     
                     #full-project-report-print {
                         background: white !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
                     }
                     
                     /* Table handling */
@@ -335,6 +337,11 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
                     }
                     thead {
                         display: table-header-group;
+                    }
+                    
+                    /* Keep sections together when possible */
+                    .section-header {
+                        page-break-after: avoid !important;
                     }
                 }
             `}</style>
@@ -458,7 +465,6 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
                     <table style={{ width: '100%', fontSize: '11px' }}>
                         <tbody>
                             <tr><td style={{ padding: '3px 0', color: '#6B7280' }}>Start Date</td><td style={{ textAlign: 'right', fontWeight: '500' }}>{formatDate(scheduleInfo.startDate)}</td></tr>
-                            <tr><td style={{ padding: '3px 0', color: '#6B7280' }}>End Date</td><td style={{ textAlign: 'right', fontWeight: '500' }}>{formatDate(scheduleInfo.endDate)}</td></tr>
                             <tr><td style={{ padding: '3px 0', color: '#6B7280' }}>Duration</td><td style={{ textAlign: 'right', fontWeight: '500' }}>{scheduleInfo.durationWeeks} weeks</td></tr>
                             <tr><td style={{ padding: '3px 0', color: '#6B7280' }}>Team Size</td><td style={{ textAlign: 'right', fontWeight: '500' }}>{teamMembers.length} members</td></tr>
                             <tr><td style={{ padding: '3px 0', color: '#6B7280' }}>Total Planned Hours</td><td style={{ textAlign: 'right', fontWeight: '500' }}>{scheduleInfo.totalPlannedHours.toFixed(0)} hrs</td></tr>
