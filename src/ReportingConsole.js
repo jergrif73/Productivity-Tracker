@@ -10,21 +10,6 @@ import MovableJobFamilyDisplay from './MovableJobFamilyDisplay';
 import GeminiInsightChat from './GeminiInsightChat';
 import JobFamilyEditor from './JobFamilyEditor'; // Import JobFamilyEditor
 
-const abbreviateTitle = (title) => {
-    if (!title) return 'N/A';
-    const abbreviations = {
-        "Detailer I": "DI",
-        "Detailer II": "DII",
-        "Detailer III": "DIII",
-        "VDC Specialist": "VDCS",
-        "Project Constructability Lead": "PCL",
-        "Project Constructability Lead, Sr.": "PCL, Sr.",
-        "Trade Constructability Lead": "TCL",
-        "Constructability Manager": "CM",
-    };
-    return abbreviations[title] || title.split(' ').map(w => w[0]).join('');
-};
-
 const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tasks = [], allProjectActivities = [], currentTheme, geminiApiKey, accessLevel, db, appId }) => {
     // State for filters (managed here, passed to ReportFilters)
     const [reportType, setReportType] = useState('');
@@ -34,11 +19,9 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
     const [selectedLevels, setSelectedLevels] = useState([]);
     const [selectedTrade, setSelectedTrade] = useState('');
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-    const [selectedSkills, setSelectedSkills] = useState([]);
-    const [selectedProfile, setSelectedProfile] = useState("Select a Profile...");
     const [reportOption, setReportOption] = useState('fullProject');
     const [collapsedFilters, setCollapsedFilters] = useState({
-        level: true, trade: true, profile: true, skills: true, employee: true, project: true, dateRange: true, jobFamily: true, reportOptions: true
+        level: true, trade: true, employee: true, project: true, dateRange: true, jobFamily: true, reportOptions: true
     });
 
     // State for report results (managed here, passed to ReportDisplay)
@@ -95,18 +78,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             }
         });
         return [...trades].sort();
-    }, [detailers]);
-    const allSkillsOptions = useMemo(() => {
-        const skills = new Set();
-        detailers.forEach(d => {
-            if (d.skills) {
-                Object.keys(d.skills).forEach(skillName => skills.add(skillName));
-            }
-            if (Array.isArray(d.disciplineSkillsets)) {
-                d.disciplineSkillsets.forEach(ds => skills.add(ds.name));
-            }
-        });
-        return Array.from(skills).sort();
     }, [detailers]);
 
     // Helper for date range calculation
@@ -332,121 +303,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 // Data for skill matrix is handled by the EmployeeSkillMatrix component directly
                 // No tabular data or chartData is set here for this report type
                 break;
-            
-            case 'employee-details':
-                const tradeAbbreviations = {
-                    "Piping": "MP",
-                    "Duct": "MH",
-                    "Plumbing": "PL",
-                    "VDC": "VDC",
-                    "Structural": "Str",
-                    "Coordination": "Coord",
-                    "GIS/GPS": "GIS"
-                };
-
-                const sortedEmployees = [...filteredDetailersForMatrix].sort((a, b) => a.lastName.localeCompare(b.lastName));
-
-                headers = sortedEmployees.map(emp => ({
-                    id: emp.id,
-                    name: `${emp.firstName} ${emp.lastName}`,
-                }));
-
-                const skillRows = ['Title', 'Primary Trade', ...allSkillsOptions];
-
-                data = skillRows.map(skill => {
-                    const rowData = { attribute: skill, values: [] };
-                    sortedEmployees.forEach(emp => {
-                        let value = 0; // Default for scores
-                        if (skill === 'Title') {
-                            value = abbreviateTitle(emp.title);
-                        } else if (skill === 'Primary Trade') {
-                            const primaryTrade = (Array.isArray(emp.disciplineSkillsets) && emp.disciplineSkillsets.length > 0)
-                                ? emp.disciplineSkillsets[0].name
-                                : 'N/A';
-                            value = tradeAbbreviations[primaryTrade] || primaryTrade;
-                        } else {
-                            // Check general skills
-                            if (emp.skills && emp.skills[skill] !== undefined) {
-                                value = emp.skills[skill];
-                            }
-                            // Check discipline skills (overwrites if present)
-                            if (Array.isArray(emp.disciplineSkillsets)) {
-                                const discipline = emp.disciplineSkillsets.find(d => d.name === skill);
-                                if (discipline) {
-                                    value = discipline.score;
-                                }
-                            }
-                        }
-                        rowData.values.push({ employeeId: emp.id, value });
-                    });
-                    return rowData;
-                });
-                isTabularReport = true;
-                break;
-
-            case 'top-employee-skills-by-trade':
-                if (selectedSkills.length === 0) {
-                    alert("Please select at least one skill to compare."); // Consider replacing with a toast/modal
-                    return;
-                }
-
-                const employeeSkillScores = detailers
-                    .filter(d => {
-                        const primaryTrade = d.disciplineSkillsets && Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : null;
-                        return (selectedLevels.length === 0 || selectedLevels.includes(d.title)) && (!selectedTrade || primaryTrade === selectedTrade);
-                    })
-                    .map(d => {
-                        let totalScoreForSelectedSkills = 0;
-                        const individualSkillScores = {};
-
-                        selectedSkills.forEach(skillName => {
-                            let score = 0;
-                            if (d.skills && d.skills[skillName] !== undefined) {
-                                score = d.skills[skillName];
-                            }
-                            if (Array.isArray(d.disciplineSkillsets)) {
-                                const disciplineSkill = d.disciplineSkillsets.find(ds => ds.name === skillName);
-                                if (disciplineSkill) {
-                                    score = disciplineSkill.score;
-                                }
-                            }
-                            totalScoreForSelectedSkills += score;
-                            individualSkillScores[skillName] = score;
-                        });
-
-                        const mainTrade = d.disciplineSkillsets && Array.isArray(d.disciplineSkillsets) && d.disciplineSkillsets.length > 0 ? d.disciplineSkillsets[0].name : 'Uncategorized';
-
-                        return {
-                            id: d.id,
-                            name: `${d.firstName} ${d.lastName}`,
-                            trade: mainTrade,
-                            totalScore: totalScoreForSelectedSkills,
-                            ...individualSkillScores
-                        };
-                    });
-                
-                const topEmployeesByTrade = employeeSkillScores.reduce((acc, emp) => {
-                    if (!acc[emp.trade]) {
-                        acc[emp.trade] = [];
-                    }
-                    acc[emp.trade].push(emp);
-                    return acc;
-                }, {});
-
-                data = [];
-                headers = ["Trade", "Employee Name", "Total Score (Selected Skills)"];
-                selectedSkills.forEach(skill => headers.push(skill));
-
-                Object.keys(topEmployeesByTrade).sort().forEach(trade => {
-                    const sortedEmployees = topEmployeesByTrade[trade].sort((a, b) => b.totalScore - a.totalScore);
-                    sortedEmployees.slice(0, 2).forEach(emp => {
-                        const row = [trade, emp.name, emp.totalScore];
-                        selectedSkills.forEach(skill => row.push(emp[skill]));
-                        data.push(row);
-                    });
-                });
-                isTabularReport = true;
-                break;
 
             case 'project-hours':
                 headers = ["Project Name", "Project ID", "Total Allocated Hours"];
@@ -522,62 +378,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                     });
                 isTabularReport = true;
                 break;
-            
-            case 'forecast-vs-actual':
-                headers = ["Project Name", "Project ID", "Forecasted Hours", "Assigned Hours", "Actual Cost ($)", "Variance (Forecast Hrs - Actual Cost)"];
-                let projectsToReport = projects.filter(p => !p.archived);
-
-                if (selectedProjectId) {
-                    projectsToReport = projects.filter(p => p.id === selectedProjectId);
-                } else if (sDate && eDate) {
-                    const activeProjectIds = new Set();
-                    assignments.forEach(ass => {
-                        const assStartDate = new Date(ass.startDate);
-                        const assEndDate = new Date(ass.endDate);
-                        if(assStartDate <= eDate && assEndDate >= sDate) {
-                            activeProjectIds.add(ass.projectId);
-                        }
-                    });
-                    projectsToReport = projectsToReport.filter(p => activeProjectIds.has(p.id));
-                }
-                
-                data = projectsToReport.map(p => {
-                        const activitiesDoc = projectActivitiesMap.get(p.id);
-                        const projectActivities = activitiesDoc ? activitiesDoc.activities : null;
-
-
-                        const actualBurn = projectActivities 
-                            ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.costToDate) || 0), 0)
-                            : 0;
-
-                        const assignedHours = assignments
-                            .filter(a => a.projectId === p.id)
-                            .reduce((sum, ass) => {
-                                const assignmentStart = new Date(ass.startDate);
-                                const assignmentEnd = new Date(ass.endDate);
-                                const diffTime = Math.abs(assignmentEnd - assignmentStart);
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                const workDays = Math.ceil(diffDays * (5/7));
-                                return sum + (workDays * 8 * (Number(ass.allocation) / 100));
-                            }, 0);
-
-                        const forecastedHours = projectActivities
-                            ? Object.values(projectActivities).flat().reduce((sum, act) => sum + (Number(act.estimatedHours) || 0), 0)
-                            : 0;
-
-                        const variance = forecastedHours - actualBurn; // This is Hours - Dollars, as requested.
-
-                        return [
-                            p.name,
-                            p.projectId,
-                            forecastedHours.toFixed(2),
-                            assignedHours.toFixed(2),
-                            formatCurrency(actualBurn), // Format as currency
-                            variance.toFixed(2) // This is still Hrs - $
-                        ];
-                    });
-                isTabularReport = true;
-                break;
 
             default:
                 break;
@@ -600,7 +400,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         } else {
             setReportContext(null);
         }
-    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, selectedSkills, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks, allSkillsOptions, filteredDetailersForMatrix, selectedProjectId, reportOption]);
+    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, detailers, selectedLevels, selectedTrade, getDaysInRange, tasks, filteredDetailersForMatrix, selectedProjectId, reportOption]);
 
     const handleClearReport = useCallback(() => {
         setReportData(null);
@@ -615,8 +415,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         setSelectedLevels([]);
         setSelectedTrade('');
         setSelectedEmployeeId('');
-        setSelectedSkills([]);
-        setSelectedProfile("Select a Profile...");
         setReportOption('fullProject');
         // Close modals/popups
         setIsJobFamilyPopupVisible(false);
@@ -655,8 +453,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             case 'selectedLevels': setSelectedLevels(value); break;
             case 'selectedTrade': setSelectedTrade(value); break;
             case 'selectedEmployeeId': setSelectedEmployeeId(value); break;
-            case 'selectedSkills': setSelectedSkills(value); break;
-            case 'selectedProfile': setSelectedProfile(value); break;
             case 'reportOption': setReportOption(value); break;
             default: break;
         }
@@ -695,11 +491,35 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 <style>
                     {`
                         @media print {
-                            body * { visibility: hidden; }
-                            #full-project-report-printable, #full-project-report-printable * { visibility: visible; }
-                            #full-project-report-printable { position: absolute; left: 0; top: 0; width: 100%; }
-                            #skill-matrix-printable-area, #skill-matrix-printable-area * { visibility: visible; }
-                            #skill-matrix-printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+                            /* Hide everything */
+                            body * {
+                                visibility: hidden;
+                            }
+                            
+                            /* Full Project Report */
+                            #full-project-report-printable,
+                            #full-project-report-printable * {
+                                visibility: visible !important;
+                            }
+                            #full-project-report-printable {
+                                position: absolute !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                width: 100% !important;
+                                overflow: visible !important;
+                            }
+                            
+                            /* Skill Matrix */
+                            #skill-matrix-printable-area,
+                            #skill-matrix-printable-area * {
+                                visibility: visible !important;
+                            }
+                            #skill-matrix-printable-area {
+                                position: absolute !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                width: 100% !important;
+                            }
                         }
                     `}
                 </style>
@@ -765,15 +585,12 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                         selectedLevels={selectedLevels}
                         selectedTrade={selectedTrade}
                         selectedEmployeeId={selectedEmployeeId}
-                        selectedSkills={selectedSkills}
-                        selectedProfile={selectedProfile}
                         reportOption={reportOption}
                         collapsedFilters={collapsedFilters}
                         jobFamilyToDisplayInPopup={jobFamilyToDisplayInPopup}
                         jobFamilyData={jobFamilyData}
                         uniqueTitles={uniqueTitles}
                         uniqueTrades={uniqueTrades}
-                        allSkillsOptions={allSkillsOptions}
                         detailers={detailers}
                         projects={projects}
                         currentTheme={currentTheme}
@@ -797,6 +614,8 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                         appId={appId}
                         onClearReport={handleClearReport}
                         onRequestSort={requestSort}
+                        assignments={assignments}
+                        detailers={detailers}
                     />
                 </div>
             </div>

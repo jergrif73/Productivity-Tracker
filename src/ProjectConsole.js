@@ -5,6 +5,36 @@ import ProjectDetailView from './ProjectDetailView.js';
 // Removed unused deleteDoc import, kept updateDoc and doc
 import { doc, getDoc } from 'firebase/firestore';
 
+// Helper to convert old discipline labels to abbreviated versions
+const abbreviateDisciplineLabel = (label) => {
+    const labelMap = {
+        'Duct': 'MH',
+        'Sheet Metal': 'MH',
+        'Sheet Metal / HVAC': 'MH',
+        'Piping': 'MP',
+        'Mechanical Piping': 'MP',
+        'Process Piping': 'PP',
+        'Plumbing': 'PL',
+        'Fire Protection': 'FP',
+        'Medical Gas': 'PJ',
+        'Structural': 'ST',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'GIS/GPS': 'GIS/GPS',
+        'VDC': 'VDC'
+    };
+    return labelMap[label] || label;
+};
+
+// Helper to abbreviate an array of discipline objects
+const abbreviateDisciplines = (disciplines) => {
+    if (!disciplines) return [];
+    return disciplines.map(d => ({
+        ...d,
+        label: abbreviateDisciplineLabel(d.label)
+    }));
+};
+
 const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
@@ -66,10 +96,17 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                     console.log("🔧 AUTO-POPULATE: actionTrackerDisciplines is empty but activities exist");
                     
                     const standardLabels = {
-                        'sheetmetal': 'Sheet Metal / HVAC',
-                        'piping': 'Mechanical Piping',
-                        'plumbing': 'Plumbing',
-                        'management': 'Management',
+                        'sheetmetal': 'MH',
+                        'duct': 'MH',
+                        'piping': 'MP',
+                        'processpiping': 'PP',
+                        'plumbing': 'PL',
+                        'fireprotection': 'FP',
+                        'medgas': 'PJ',
+                        'structural': 'ST',
+                        'coordination': 'Coord',
+                        'gisgps': 'GIS/GPS',
+                        'management': 'MGMT',
                         'vdc': 'VDC'
                     };
                     
@@ -81,6 +118,9 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                     
                     console.log("🔧 Auto-populated disciplines in ProjectConsole:", disciplines);
                 }
+                
+                // Apply abbreviations to all disciplines
+                disciplines = abbreviateDisciplines(disciplines);
                 
                 console.log("Fetched disciplines for project", projectId, ":", disciplines);
                 // Cache in ref
@@ -143,7 +183,8 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                 setFilters(prev => ({ ...prev, query: currentProject.name || currentProject.projectId }));
             }
         }
-    }, [expandedProjectId, projects, filters.query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expandedProjectId, projects]); // Removed filters.query to allow user editing
 
 
     // Handle clicking a project card to expand/collapse - MODIFIED: Sets all states

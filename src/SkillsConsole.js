@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 
+// Helper function to convert legacy trade names to abbreviations
+const getTradeDisplayName = (trade) => {
+    const displayMap = {
+        'BIM': 'VDC',
+        'Piping': 'MP',
+        'Duct': 'MH',
+        'Plumbing': 'PL',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'Structural': 'ST',
+        'Fire Protection': 'FP',
+        'Process Piping': 'PP',
+        'Medical Gas': 'PJ',
+    };
+    return displayMap[trade] || trade;
+};
+
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
     return (
@@ -26,7 +43,7 @@ const NoteEditorModal = ({ disciplineName, initialNote, onSave, onClose, current
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-center items-center">
             <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
-                <h3 className="text-lg font-bold mb-4">Notes for {disciplineName}</h3>
+                <h3 className="text-lg font-bold mb-4">Notes for {getTradeDisplayName(disciplineName)}</h3>
                 <textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
@@ -73,7 +90,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
 
 
     const skillCategories = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "VDC"];
+    const disciplineOptions = ["MH", "PL", "MP", "PP", "FP", "PJ", "ST", "Coord", "GIS/GPS", "VDC", "MGMT"];
     const titleOptions = [
         "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
         "Project Constructability Lead", "Project Constructability Lead, Sr.",
@@ -286,7 +303,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
                                             <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                             </svg>
-                                            <span className="font-medium">{discipline.name}</span>
+                                            <span className="font-medium">{getTradeDisplayName(discipline.name)}</span>
                                             <button onClick={() => setEditingNoteFor(discipline)} className={`ml-2 text-gray-400 hover:text-white transition-colors ${discipline.note ? 'text-cyan-400' : ''}`} title="Edit Notes">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                     <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />

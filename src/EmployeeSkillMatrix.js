@@ -55,12 +55,28 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
 
     const { data, skillNames, employeeNames, employeeTradeMap } = useMemo(() => {
         const generalSkillOrder = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-        const disciplineSkillOrder = ["Piping", "Duct", "Plumbing", "Coordination", "VDC", "Structural", "GIS/GPS"];
+        const disciplineSkillOrder = ["MP", "MH", "PL", "Coord", "VDC", "ST", "GIS/GPS", "PP", "FP", "PJ", "MGMT"];
+        // Map old names to new abbreviations for backward compatibility
+        const disciplineNameMap = {
+            "Piping": "MP", "Mechanical Piping": "MP",
+            "Duct": "MH", "Sheet Metal": "MH", "Sheet Metal / HVAC": "MH",
+            "Plumbing": "PL",
+            "Coordination": "Coord",
+            "VDC": "VDC",
+            "Structural": "ST",
+            "GIS/GPS": "GIS/GPS",
+            "Process Piping": "PP",
+            "Fire Protection": "FP",
+            "Medical Gas": "PJ",
+            "Management": "MGMT"
+        };
         const skillNames = [...generalSkillOrder, ...disciplineSkillOrder];
 
         const sortedDetailers = [...detailers].sort((a, b) => {
-            const tradeA = a.disciplineSkillsets?.[0]?.name || 'Z';
-            const tradeB = b.disciplineSkillsets?.[0]?.name || 'Z';
+            const rawTradeA = a.disciplineSkillsets?.[0]?.name || 'Z';
+            const rawTradeB = b.disciplineSkillsets?.[0]?.name || 'Z';
+            const tradeA = disciplineNameMap[rawTradeA] || rawTradeA;
+            const tradeB = disciplineNameMap[rawTradeB] || rawTradeB;
             if (tradeA !== tradeB) {
                 return tradeA.localeCompare(tradeB);
             }
@@ -71,7 +87,8 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
 
         const employeeTradeMap = new Map();
         sortedDetailers.forEach(detailer => {
-             const trade = detailer.disciplineSkillsets?.[0]?.name || 'Uncategorized';
+             const rawTrade = detailer.disciplineSkillsets?.[0]?.name || 'Uncategorized';
+             const trade = disciplineNameMap[rawTrade] || rawTrade;
              employeeTradeMap.set(`${detailer.firstName} ${detailer.lastName}`, trade);
         });
 
@@ -84,7 +101,12 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
                 flatData.push({ employee: employeeName, skill, score });
             });
 
-            const disciplineMap = new Map((detailer.disciplineSkillsets || []).map(ds => [ds.name, ds.score]));
+            // Create map with both old and new names mapped to scores
+            const disciplineMap = new Map();
+            (detailer.disciplineSkillsets || []).forEach(ds => {
+                const mappedName = disciplineNameMap[ds.name] || ds.name;
+                disciplineMap.set(mappedName, ds.score);
+            });
             disciplineSkillOrder.forEach(skill => {
                 const score = disciplineMap.get(skill) || 0;
                 flatData.push({ employee: employeeName, skill, score });

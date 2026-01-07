@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, Suspense, lazy, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { tutorialContent } from './tutorial-steps.js';
@@ -230,6 +230,349 @@ const TutorialWidget = () => {
     );
 };
 
+// --- Feedback/Bug Report Modal ---
+const FeedbackModal = ({ isOpen, onClose, db, appId, currentTheme, showToast, currentUser }) => {
+    const [feedbackType, setFeedbackType] = useState('bug');
+    const [title, setTitle] = useState('');
+    const [consoleAffected, setConsoleAffected] = useState('');
+    const [priority, setPriority] = useState('Medium');
+    const [description, setDescription] = useState('');
+    const [stepsToReproduce, setStepsToReproduce] = useState('');
+    const [expectedBehavior, setExpectedBehavior] = useState('');
+    const [actualBehavior, setActualBehavior] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const consoleOptions = [
+        'Dashboard', 'Team', 'Project', 'Tasks', 'Gantt', 'Forecast', 
+        'Reporting', 'Manage', 'DB Admin', 'Workloader', 'Login/Auth', 'Other'
+    ];
+
+    const priorityOptions = ['Critical', 'High', 'Medium', 'Low'];
+
+    const getBrowserInfo = () => {
+        const ua = navigator.userAgent;
+        let browser = 'Unknown';
+        if (ua.includes('Firefox')) browser = 'Firefox';
+        else if (ua.includes('Chrome')) browser = 'Chrome';
+        else if (ua.includes('Safari')) browser = 'Safari';
+        else if (ua.includes('Edge')) browser = 'Edge';
+        
+        return {
+            browser,
+            userAgent: ua,
+            screenSize: `${window.innerWidth}x${window.innerHeight}`,
+            timestamp: new Date().toISOString()
+        };
+    };
+
+    const handleSubmit = async () => {
+        if (!title.trim()) {
+            showToast('Please enter a title', 'error');
+            return;
+        }
+        if (!description.trim()) {
+            showToast('Please enter a description', 'error');
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        try {
+            // Find the "New Requests" lane
+            const lanesRef = collection(db, `artifacts/${appId}/public/data/taskLanes`);
+            const lanesSnapshot = await getDocs(lanesRef);
+            let newRequestsLaneId = null;
+            
+            lanesSnapshot.forEach(doc => {
+                if (doc.data().name === 'New Requests') {
+                    newRequestsLaneId = doc.id;
+                }
+            });
+
+            if (!newRequestsLaneId) {
+                showToast('Error: Could not find New Requests lane', 'error');
+                setIsSubmitting(false);
+                return;
+            }
+
+            const browserInfo = getBrowserInfo();
+            const typeLabel = feedbackType === 'bug' ? '🐛 BUG' : feedbackType === 'feature' ? '✨ FEATURE' : '💡 ENHANCEMENT';
+            const priorityEmoji = priority === 'Critical' ? '🔴' : priority === 'High' ? '🟠' : priority === 'Medium' ? '🟡' : '🟢';
+
+            // Build the task description
+            let fullDescription = `**Type:** ${typeLabel}\n`;
+            fullDescription += `**Priority:** ${priorityEmoji} ${priority}\n`;
+            fullDescription += `**Console/Area:** ${consoleAffected || 'Not specified'}\n`;
+            fullDescription += `**Reported by:** ${currentUser?.firstName || 'Unknown'} ${currentUser?.lastName || ''}\n`;
+            fullDescription += `**Date:** ${new Date().toLocaleDateString()}\n\n`;
+            fullDescription += `---\n\n`;
+            fullDescription += `**Description:**\n${description}\n`;
+
+            if (feedbackType === 'bug') {
+                if (stepsToReproduce.trim()) {
+                    fullDescription += `\n**Steps to Reproduce:**\n${stepsToReproduce}\n`;
+                }
+                if (expectedBehavior.trim()) {
+                    fullDescription += `\n**Expected Behavior:**\n${expectedBehavior}\n`;
+                }
+                if (actualBehavior.trim()) {
+                    fullDescription += `\n**Actual Behavior:**\n${actualBehavior}\n`;
+                }
+            }
+
+            fullDescription += `\n---\n**Browser Info:**\n`;
+            fullDescription += `• Browser: ${browserInfo.browser}\n`;
+            fullDescription += `• Screen: ${browserInfo.screenSize}\n`;
+            fullDescription += `• Timestamp: ${browserInfo.timestamp}\n`;
+
+            const taskData = {
+                taskName: `ATTN:DEV - ${typeLabel} - ${title}`,
+                projectId: '',
+                detailerId: '',
+                status: 'Not Started',
+                dueDate: '',
+                entryDate: new Date().toISOString().split('T')[0],
+                laneId: newRequestsLaneId,
+                subTasks: [],
+                watchers: [],
+                comments: [{
+                    id: `comment_${Date.now()}`,
+                    text: fullDescription,
+                    authorId: currentUser?.id || 'system',
+                    authorName: `${currentUser?.firstName || 'System'} ${currentUser?.lastName || ''}`.trim(),
+                    timestamp: new Date().toISOString()
+                }],
+                attachments: [],
+                feedbackMeta: {
+                    type: feedbackType,
+                    priority,
+                    consoleAffected,
+                    browserInfo,
+                    reporterId: currentUser?.id || null,
+                    reporterName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Unknown'
+                }
+            };
+
+            await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), taskData);
+
+            showToast('Feedback submitted successfully! Thank you.', 'success');
+            
+            // Reset form
+            setFeedbackType('bug');
+            setTitle('');
+            setConsoleAffected('');
+            setPriority('Medium');
+            setDescription('');
+            setStepsToReproduce('');
+            setExpectedBehavior('');
+            setActualBehavior('');
+            onClose();
+
+        } catch (error) {
+            console.error('Error submitting feedback:', error);
+            showToast('Failed to submit feedback. Please try again.', 'error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[80] flex justify-center items-center p-4">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className={`${currentTheme.cardBg} ${currentTheme.textColor} rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col`}
+            >
+                {/* Header */}
+                <div className={`p-4 border-b ${currentTheme.borderColor} flex justify-between items-center flex-shrink-0`}>
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-500 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold">Report Bug / Suggest Feature</h2>
+                            <p className={`text-sm ${currentTheme.subtleText}`}>Help us improve the application</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className={`p-2 rounded-lg ${currentTheme.buttonBg} hover:bg-opacity-80`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Body - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* Feedback Type */}
+                    <div>
+                        <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Type *</label>
+                        <div className="flex gap-2">
+                            {[
+                                { value: 'bug', label: '🐛 Bug Report', color: 'red' },
+                                { value: 'feature', label: '✨ Feature Request', color: 'purple' },
+                                { value: 'enhancement', label: '💡 Enhancement', color: 'blue' }
+                            ].map(type => (
+                                <button
+                                    key={type.value}
+                                    onClick={() => setFeedbackType(type.value)}
+                                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                        feedbackType === type.value 
+                                            ? `bg-${type.color}-500 text-white` 
+                                            : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80`
+                                    }`}
+                                    style={feedbackType === type.value ? { backgroundColor: type.color === 'red' ? '#ef4444' : type.color === 'purple' ? '#a855f7' : '#3b82f6' } : {}}
+                                >
+                                    {type.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Title */}
+                    <div>
+                        <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Title *</label>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="Brief summary of the issue or suggestion"
+                            className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        />
+                    </div>
+
+                    {/* Console Affected & Priority Row */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Console/Area Affected</label>
+                            <select
+                                value={consoleAffected}
+                                onChange={(e) => setConsoleAffected(e.target.value)}
+                                className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            >
+                                <option value="">Select area...</option>
+                                {consoleOptions.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Priority</label>
+                            <select
+                                value={priority}
+                                onChange={(e) => setPriority(e.target.value)}
+                                className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                            >
+                                {priorityOptions.map(opt => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                        <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Description *</label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder={feedbackType === 'bug' 
+                                ? "Describe the bug in detail. What were you trying to do?" 
+                                : "Describe the feature or enhancement you'd like to see"}
+                            rows={4}
+                            className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        />
+                    </div>
+
+                    {/* Bug-specific fields */}
+                    {feedbackType === 'bug' && (
+                        <>
+                            <div>
+                                <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Steps to Reproduce</label>
+                                <textarea
+                                    value={stepsToReproduce}
+                                    onChange={(e) => setStepsToReproduce(e.target.value)}
+                                    placeholder="1. Go to...\n2. Click on...\n3. See error"
+                                    rows={3}
+                                    className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Expected Behavior</label>
+                                    <textarea
+                                        value={expectedBehavior}
+                                        onChange={(e) => setExpectedBehavior(e.target.value)}
+                                        placeholder="What should happen?"
+                                        rows={2}
+                                        className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={`block text-sm font-medium mb-2 ${currentTheme.subtleText}`}>Actual Behavior</label>
+                                    <textarea
+                                        value={actualBehavior}
+                                        onChange={(e) => setActualBehavior(e.target.value)}
+                                        placeholder="What actually happened?"
+                                        rows={2}
+                                        className={`w-full p-3 border rounded-lg ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Browser info notice */}
+                    <div className={`p-3 rounded-lg ${currentTheme.altRowBg} text-sm ${currentTheme.subtleText}`}>
+                        <div className="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Browser and screen information will be automatically included</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className={`p-4 border-t ${currentTheme.borderColor} flex justify-end gap-3 flex-shrink-0`}>
+                    <button
+                        onClick={onClose}
+                        className={`px-4 py-2 rounded-lg ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-80`}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="px-6 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Submitting...
+                            </>
+                        ) : (
+                            <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                                Submit Feedback
+                            </>
+                        )}
+                    </button>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
+
 // --- UX/UI Components ---
 const Toaster = ({ toasts }) => (
     <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
@@ -402,6 +745,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
     const [viewingSkillsFor, setViewingSkillsFor] = useState(null);
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
     const [initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole] = useState(null);
     const [initialSelectedEmployeeInWorkloader, setInitialSelectedEmployeeInWorkloader] = useState(null);
@@ -668,6 +1012,16 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                         </div>
                         <div className="flex justify-center items-center gap-4">
                             <button
+                                    onClick={() => setIsFeedbackModalOpen(true)}
+                                    className="bg-amber-500 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-amber-600 transition-colors flex items-center gap-2"
+                                    title="Report a bug or suggest a feature"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    Feedback
+                                </button>
+                            <button
                                     onClick={() => startTutorial(view)}
                                     className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-purple-700 transition-colors"
                                 >
@@ -773,6 +1127,17 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                         User ID: {userId || 'N/A'} | App ID: {appId}
                     </footer>
                 </div>
+                
+                {/* Feedback Modal */}
+                <FeedbackModal 
+                    isOpen={isFeedbackModalOpen}
+                    onClose={() => setIsFeedbackModalOpen(false)}
+                    db={db}
+                    appId={appId}
+                    currentTheme={currentTheme}
+                    showToast={showToast}
+                    currentUser={currentUser}
+                />
             </div>
         </NavigationContext.Provider>
     );
@@ -875,8 +1240,3 @@ const App = () => {
 };
 
 export default App;
-
-
-
-
-

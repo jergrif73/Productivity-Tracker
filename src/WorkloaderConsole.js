@@ -33,6 +33,20 @@ const Tooltip = ({ text, children }) => {
     );
 };
 
+// Helper to convert trade names for display (BIM → VDC, etc.)
+const getTradeDisplayName = (trade) => {
+    const displayMap = {
+        'BIM': 'VDC',
+        'Piping': 'MP',
+        'Duct': 'MH',
+        'Plumbing': 'PL',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'Structural': 'ST',
+    };
+    return displayMap[trade] || trade;
+};
+
 // Confirmation Modal Component (Re-used from other files for consistency)
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children, currentTheme }) => {
     if (!isOpen) return null;
@@ -88,7 +102,7 @@ const DragReconciliationModal = ({ isOpen, onClose, onConfirm, dragChanges, curr
                         <div className="text-sm space-y-1">
                             <div><span className="font-medium">Employee:</span> {assignment.detailerName}</div>
                             <div><span className="font-medium">Project:</span> {assignment.projectName || assignment.projectId}</div>
-                            <div><span className="font-medium">Trade:</span> {assignment.trade}</div>
+                            <div><span className="font-medium">Trade:</span> {getTradeDisplayName(assignment.trade)}</div>
                             <div><span className="font-medium">Allocation:</span> {assignment.allocation}%</div>
                         </div>
                     </div>
@@ -228,23 +242,49 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     const isEditor = accessLevel === 'taskmaster' || accessLevel === 'tcl';
 
     const tradeColorMapping = {
+        // New abbreviated names
+        MP: { bg: 'bg-green-500', text: 'text-white' },
+        PP: { bg: 'bg-green-600', text: 'text-white' },
+        MH: { bg: 'bg-yellow-400', text: 'text-black' },
+        PL: { bg: 'bg-blue-500', text: 'text-white' },
+        Coord: { bg: 'bg-pink-500', text: 'text-white' },
+        MGMT: { bg: 'bg-pink-400', text: 'text-white' },
+        VDC: { bg: 'bg-indigo-600', text: 'text-white' },
+        ST: { bg: 'bg-amber-700', text: 'text-white' },
+        "GIS/GPS": { bg: 'bg-teal-500', text: 'text-white' },
+        FP: { bg: 'bg-red-500', text: 'text-white' },
+        PJ: { bg: 'bg-cyan-500', text: 'text-white' },
+        // Legacy names for backward compatibility
         Piping: { bg: 'bg-green-500', text: 'text-white' },
         Duct: { bg: 'bg-yellow-400', text: 'text-black' },
         Plumbing: { bg: 'bg-blue-500', text: 'text-white' },
         Coordination: { bg: 'bg-pink-500', text: 'text-white' },
-        VDC: { bg: 'bg-indigo-600', text: 'text-white' },
         Structural: { bg: 'bg-amber-700', text: 'text-white' },
-        "GIS/GPS": { bg: 'bg-teal-500', text: 'text-white' },
+        Management: { bg: 'bg-pink-400', text: 'text-white' },
+        BIM: { bg: 'bg-indigo-600', text: 'text-white' },  // Legacy BIM uses VDC color
     };
 
     const legendColorMapping = {
+        // New abbreviated names
+        MP: 'bg-green-500',
+        PP: 'bg-green-600',
+        MH: 'bg-yellow-400',
+        PL: 'bg-blue-500',
+        Coord: 'bg-pink-500',
+        MGMT: 'bg-pink-400',
+        VDC: 'bg-indigo-600',
+        ST: 'bg-amber-700',
+        "GIS/GPS": 'bg-teal-500',
+        FP: 'bg-red-500',
+        PJ: 'bg-cyan-500',
+        // Legacy names for backward compatibility
         Piping: 'bg-green-500',
         Duct: 'bg-yellow-400',
         Plumbing: 'bg-blue-500',
         Coordination: 'bg-pink-500',
-        VDC: 'bg-indigo-600',
         Structural: 'bg-amber-700',
-        "GIS/GPS": 'bg-teal-500',
+        Management: 'bg-pink-400',
+        BIM: 'bg-indigo-600',  // Legacy BIM uses VDC color
     };
 
     const getWeekDates = (from) => {
@@ -467,9 +507,9 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
     }, [detailers, assignments, projects, sortBy, searchTerm]);
 
     const displayableWeekDates = useMemo(() => {
-        const allAssignments = groupBy === 'project'
-            ? projectGroupedData.flatMap(p => p.assignments)
-            : employeeGroupedData.flatMap(e => e.assignments);
+        // Always use ALL assignments to determine week range, regardless of search filter
+        // This ensures the timeline stays consistent whether viewing all or searching
+        const allAssignments = assignments;
 
         const activeWeekStrings = new Set();
 
@@ -488,7 +528,22 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
 
         return weekDates.filter(week => activeWeekStrings.has(week.toISOString().split('T')[0]));
 
-    }, [weekDates, groupBy, projectGroupedData, employeeGroupedData]);
+    }, [weekDates, assignments]);
+
+    // Compute unique trades actually being used in displayed data
+    const activeTrades = useMemo(() => {
+        const allAssignments = groupBy === 'project'
+            ? projectGroupedData.flatMap(p => p.assignments)
+            : employeeGroupedData.flatMap(e => e.assignments);
+        
+        const uniqueTrades = new Set();
+        allAssignments.forEach(ass => {
+            if (ass.trade) {
+                uniqueTrades.add(ass.trade);
+            }
+        });
+        return Array.from(uniqueTrades);
+    }, [groupBy, projectGroupedData, employeeGroupedData]);
 
     const handleDateNav = (offset) => {
         setStartDate(prev => {
@@ -936,10 +991,12 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                     </TutorialHighlight>
                  </div>
                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                     {Object.entries(legendColorMapping).map(([trade, color]) => (
+                     {Object.entries(legendColorMapping)
+                         .filter(([trade]) => activeTrades.includes(trade))
+                         .map(([trade, color]) => (
                          <div key={trade} className="flex items-center gap-2">
                              <div className={`w-4 h-4 rounded-sm ${color}`}></div>
-                             <span className={currentTheme.textColor}>{trade}</span>
+                             <span className={currentTheme.textColor}>{getTradeDisplayName(trade)}</span>
                          </div>
                      ))}
                  </div>
@@ -1033,7 +1090,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                         </button>
                                                     )}
                                                 </td>
-                                                <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
+                                                <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{getTradeDisplayName(assignment.trade)}</td>
                                                 <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
                                                 {displayableWeekDates.map((ws, weekIndex) => { const weekStart = toLocalDate(ws);
                                                     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
@@ -1063,7 +1120,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                         isAssigned = assignStart <= weekEnd && assignEnd >= weekStart;
                                                     }
 
-                                                    const tooltipText = isAssigned ? `Trade: ${assignment.trade || 'N/A'}` : '';
+                                                    const tooltipText = isAssigned ? `Trade: ${getTradeDisplayName(assignment.trade) || 'N/A'}` : '';
 
                                                     const isNewAssignmentHighlighted = dragState &&
                                                         dragState.assignment.id === actualAssignment.id &&
@@ -1257,7 +1314,7 @@ const WorkloaderConsole = ({ db, detailers, projects, assignments, theme, setThe
                                                     </button>
                                                 )}
                                             </td>
-                                            <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.trade}</td>
+                                            <td className={`p-1 border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{getTradeDisplayName(assignment.trade)}</td>
                                             <td className={`p-1 font-semibold border ${currentTheme.borderColor} ${currentTheme.textColor}`}>{assignment.allocation}%</td>
                                             {displayableWeekDates.map((ws, weekIndex) => { const weekStart = toLocalDate(ws);
                                                 const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);

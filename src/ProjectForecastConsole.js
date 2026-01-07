@@ -27,27 +27,61 @@ const Tooltip = ({ text, children }) => {
 
 // --- Constants ---
 
+// Map old names to new abbreviations
+const disciplineNameMap = {
+    "Piping": "MP", "Mechanical Piping": "MP",
+    "Duct": "MH", "Sheet Metal": "MH", "Sheet Metal / HVAC": "MH",
+    "Plumbing": "PL",
+    "Coordination": "Coord",
+    "VDC": "VDC",
+    "BIM": "VDC",  // Legacy BIM → VDC
+    "Structural": "ST",
+    "GIS/GPS": "GIS/GPS",
+    "Process Piping": "PP",
+    "Fire Protection": "FP",
+    "Medical Gas": "PJ",
+    "Management": "MGMT"
+};
+
 const d3ColorMapping = {
+    MP: '#22c55e',
+    PP: '#16a34a',
+    MH: '#facc15',
+    PL: '#3b82f6',
+    Coord: '#ec4899',
+    MGMT: '#f472b6',
+    VDC: '#4f46e5',
+    ST: '#f59e0b',
+    "GIS/GPS": '#14b8a6',
+    FP: '#ef4444',
+    PJ: '#06b6d4',
+    // Legacy names for backward compatibility
     Piping: '#22c55e',
     Duct: '#facc15',
     Plumbing: '#3b82f6',
     Coordination: '#ec4899',
-    VDC: '#4f46e5',
     Structural: '#f59e0b',
-    "GIS/GPS": '#14b8a6',
+    Management: '#f472b6',
+    BIM: '#4f46e5',  // Legacy BIM uses VDC color
     Default: '#9ca3af',
 };
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
+const statusAbbreviations = {
+    Planning: "E",
+    Conducting: "B",
+    Controlling: "O",
+    Archive: "A"
+};
 const statusDescriptions = {
     Planning: "Estimated",
     Conducting: "Booked but not Sold",
     Controlling: "Operational",
-    Archive: "Completed"
+    Archive: "Archived"
 };
 
 // Defines the order for stacking in the stacked bar chart.
-const tradeStackOrder = ["VDC", "Plumbing", "Piping", "Duct", "Structural", "GIS/GPS", "Coordination"];
+const tradeStackOrder = ["VDC", "PL", "MP", "PP", "MH", "ST", "GIS/GPS", "Coord", "MGMT", "FP", "PJ", "Plumbing", "Piping", "Duct", "Structural", "Coordination", "Management", "BIM"];
 
 
 // --- Main Component ---
@@ -125,7 +159,7 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
 
     const weekDates = useMemo(() => getWeekDates(startDate, weekCount), [startDate]);
 
-    const { lineChartData, stackedChartData } = useMemo(() => {
+    const { lineChartData, stackedChartData, activeTrades } = useMemo(() => {
         const hoursByTrade = {};
         const activeProjects = Object.values(allProjectsForecasts).filter(p => p.status && activeStatuses.includes(p.status));
 
@@ -166,7 +200,10 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
             return entry;
         });
 
-        return { lineChartData: lineData, stackedChartData: stackedData };
+        // Get list of trades that actually have data
+        const activeTrades = Object.keys(hoursByTrade);
+
+        return { lineChartData: lineData, stackedChartData: stackedData, activeTrades };
 
     }, [allProjectsForecasts, activeStatuses, weekDates]);
 
@@ -241,10 +278,18 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
 
             const trade = g.selectAll(".trade").data(lineChartData).enter().append("g").attr("class", "trade");
             
+            // Helper to get color - tries original name, then abbreviated name
+            const getTradeColor = (tradeName) => {
+                if (d3ColorMapping[tradeName]) return d3ColorMapping[tradeName];
+                const abbrev = disciplineNameMap[tradeName];
+                if (abbrev && d3ColorMapping[abbrev]) return d3ColorMapping[abbrev];
+                return d3ColorMapping.Default;
+            };
+            
             trade.append("path")
                 .attr("class", "line")
                 .attr("d", d => line(d.values))
-                .style("stroke", d => d3ColorMapping[d.trade] || d3ColorMapping.Default)
+                .style("stroke", d => getTradeColor(d.trade))
                 .style("fill", "none")
                 .style("stroke-width", "2.5px");
             
@@ -255,11 +300,12 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .attr("cx", d => x(d.date))
                 .attr("cy", d => y(d.hours))
                 .attr("r", 4)
-                .style("fill", function() { return d3ColorMapping[d3.select(this.parentNode).datum().trade] || d3ColorMapping.Default; })
+                .style("fill", function() { return getTradeColor(d3.select(this.parentNode).datum().trade); })
                 .on("mouseover", function(event, d) {
                     tooltip.transition().duration(200).style("opacity", .9);
                     const tradeName = d3.select(this.parentNode).datum().trade;
-                    tooltip.html(`<strong>${tradeName}</strong><br/>Week of ${d.date.toLocaleDateString()}<br/>Hours: <strong>${d.hours}</strong>`)
+                    const displayName = disciplineNameMap[tradeName] || tradeName;
+                    tooltip.html(`<strong>${displayName}</strong><br/>Week of ${d.date.toLocaleDateString()}<br/>Hours: <strong>${d.hours}</strong>`)
                         .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px");
                     d3.select(this).attr("r", 6);
                 })
@@ -314,7 +360,16 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .data(series)
                 .enter().append("g")
                 .attr("class", "serie")
-                .attr("fill", d => `url(#gradient-${d.key.replace(/[^a-zA-Z0-9]/g, '-')})`)
+                .attr("fill", d => {
+                    // Try original name first, then abbreviated name
+                    const gradientId = `gradient-${d.key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    const abbrevName = disciplineNameMap[d.key];
+                    const abbrevGradientId = abbrevName ? `gradient-${abbrevName.replace(/[^a-zA-Z0-9]/g, '-')}` : null;
+                    // Check if original gradient exists, otherwise try abbreviated, otherwise use Default
+                    if (d3ColorMapping[d.key]) return `url(#${gradientId})`;
+                    if (abbrevName && d3ColorMapping[abbrevName]) return `url(#${abbrevGradientId})`;
+                    return `url(#gradient-Default)`;
+                })
                 .selectAll("rect")
                 .data(d => d)
                 .enter().append("rect")
@@ -327,10 +382,11 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .on("mouseover", function(event, d) {
                     const serie = d3.select(this.parentNode).datum();
                     const trade = serie.key;
+                    const displayName = disciplineNameMap[trade] || trade;
                     const hours = d.data[trade];
                     if (hours > 0) {
                         tooltip.transition().duration(200).style("opacity", .9);
-                        tooltip.html(`<strong>${trade}</strong>: ${hours.toFixed(1)} hrs`)
+                        tooltip.html(`<strong>${displayName}</strong>: ${hours.toFixed(1)} hrs`)
                             .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
                         d3.select(this).attr('filter', 'url(#brightness)');
                     }
@@ -395,7 +451,7 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                                         onClick={() => handleStatusToggle(status)}
                                         className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                     >
-                                        {status}
+                                        {statusAbbreviations[status]}
                                     </button>
                                 </Tooltip>
                             ))}
@@ -426,12 +482,15 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                             <TutorialHighlight tutorialKey="legend">
                                 {/* Moved legend inside the scrollable container */}
                                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs pt-4 flex-shrink-0">
-                                    {Object.keys(d3ColorMapping).filter(trade => trade !== 'Default').map(trade => (
-                                        <div key={trade} className="flex items-center gap-2">
-                                            <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade]}}></div>
-                                            <span className={currentTheme.textColor}>{trade}</span>
-                                        </div>
-                                    ))}
+                                    {activeTrades.map(trade => {
+                                        const displayName = disciplineNameMap[trade] || trade;
+                                        return (
+                                            <div key={trade} className="flex items-center gap-2">
+                                                <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade] || d3ColorMapping[displayName] || d3ColorMapping.Default}}></div>
+                                                <span className={currentTheme.textColor}>{displayName}</span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </TutorialHighlight>
                         </div>

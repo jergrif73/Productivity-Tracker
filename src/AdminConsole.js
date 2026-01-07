@@ -25,6 +25,23 @@ const formatCurrency = (value) => {
     return numberValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 };
 
+// Helper function to convert legacy trade names to abbreviations
+const getTradeDisplayName = (trade) => {
+    const displayMap = {
+        'BIM': 'VDC',
+        'Piping': 'MP',
+        'Duct': 'MH',
+        'Plumbing': 'PL',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'Structural': 'ST',
+        'Fire Protection': 'FP',
+        'Process Piping': 'PP',
+        'Medical Gas': 'PJ',
+    };
+    return displayMap[trade] || trade;
+};
+
 const Tooltip = ({ text, children }) => {
     const [visible, setVisible] = useState(false);
     return (
@@ -86,7 +103,7 @@ const NoteEditorModal = ({ disciplineName, initialNote, onSave, onClose, current
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-[100] flex justify-center items-center">
             <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-lg shadow-2xl w-full max-w-md`}>
-                <h3 className="text-lg font-bold mb-4">Notes for {disciplineName}</h3>
+                <h3 className="text-lg font-bold mb-4">Notes for {getTradeDisplayName(disciplineName)}</h3>
                 <textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
@@ -111,7 +128,9 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
     const [editingNoteFor, setEditingNoteFor] = useState(null);
 
     const skillCategories = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-    const disciplineOptions = ["Duct", "Plumbing", "Piping", "Structural", "Coordination", "GIS/GPS", "VDC"];
+    const disciplineOptions = [
+        "MH", "MP", "PP", "PL", "FP", "PJ", "ST", "VDC", "Coord", "GIS/GPS", "MGMT"
+    ];
     const titleOptions = [
         "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
         "Project Constructability Lead", "Project Constructability Lead, Sr.",
@@ -316,7 +335,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
                                                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                                 </svg>
-                                                <span className="font-medium">{discipline.name}</span>
+                                                <span className="font-medium">{getTradeDisplayName(discipline.name)}</span>
                                                 <button onClick={() => setEditingNoteFor(discipline)} className={`ml-2 text-gray-400 hover:text-white transition-colors ${discipline.note ? 'text-cyan-400' : ''}`} title="Edit Notes">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                                         <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
@@ -356,13 +375,15 @@ const titleOptions = [
 ];
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
-const disciplineOptions = ["Duct", "Piping", "Plumbing", "VDC", "Structural", "Coordination", "GIS/GPS"];
+const disciplineOptions = [
+    "MH", "MP", "PP", "PL", "FP", "PJ", "ST", "VDC", "Coord", "GIS/GPS", "MGMT"
+];
 
 const statusDescriptions = {
     Planning: "Estimated",
     Conducting: "Booked but not Sold",
     Controlling: "Operational",
-    Archive: "Completed"
+    Archive: "Archived"
 };
 
 const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
@@ -1009,11 +1030,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 { description: "PL External Changes", chargeCode: "9618561" },
                 { description: "Detailing Management", chargeCode: "9619161" },
                 { description: "Project Content Development", chargeCode: "9619261" },
-                { description: "Project VDC Admin", chargeCode: "9630062" },
-                { description: "Project Setup", chargeCode: "9630162" },
-                { description: "Project Data Management", chargeCode: "9630262" },
-                { description: "Project Closeout", chargeCode: "9630562" },
-                { description: "Project Coordination Management​", chargeCode: "9630762" }
+                { description: "Project Coordination Management", chargeCode: "9630762" },
+                { description: "VDC Support", chargeCode: "9631062" }
             ];
             
             // Normalize function
@@ -1035,9 +1053,9 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 subsets: []
             }));
             
-            // Group activities by discipline
+            // Group activities by discipline - keys must match actionTrackerDisciplines keys
             const groupedActivities = {
-                sheetmetal: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
+                duct: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
                 piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
                 plumbing: standardActivities.filter(act => /^PL\s*/i.test(act.description)),
                 management: standardActivities.filter(act => 
@@ -1045,30 +1063,36 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                         keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
                     )
                 ),
-                vdc: standardActivities.filter(act => 
-                    ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'].some(
-                        keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
-                    )
-                )
+                vdc: standardActivities.filter(act => act.description === 'VDC Support')
             };
             
             // Create default disciplines
             const defaultDisciplines = [
-                { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
-                { key: 'piping', label: 'Mechanical Piping' },
-                { key: 'plumbing', label: 'Plumbing' },
-                { key: 'management', label: 'Management' },
+                { key: 'duct', label: 'MH' },
+                { key: 'piping', label: 'MP' },
+                { key: 'plumbing', label: 'PL' },
+                { key: 'management', label: 'MGMT' },
                 { key: 'vdc', label: 'VDC' }
             ];
             
             // Create the projectActivities document
+            // VDC defaults to VDC Rate, all others to Detailing Rate
+            const defaultRateTypes = {
+                duct: 'Detailing Rate',
+                piping: 'Detailing Rate',
+                plumbing: 'Detailing Rate',
+                management: 'Detailing Rate',
+                vdc: 'VDC Rate'
+            };
+            
             const projectActivitiesData = {
                 activities: groupedActivities,
                 actionTrackerDisciplines: defaultDisciplines,
                 actionTrackerData: {},
                 budgetImpacts: [],
                 mainItems: [],
-                projectWideActivities: []
+                projectWideActivities: [],
+                rateTypes: defaultRateTypes
             };
             
             await setDoc(doc(db, `artifacts/${appId}/public/data/projectActivities`, newProjectId), projectActivitiesData);
@@ -1295,7 +1319,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                         onClick={() => handleStatusFilterToggle(status)}
                                                         className={`px-3 py-1 text-xs rounded-full transition-colors ${activeStatuses.includes(status) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                                     >
-                                                        {status.charAt(0)}
+                                                        {statusDescriptions[status].charAt(0)}
                                                     </button>
                                                 </Tooltip>
                                             ))}
@@ -1437,7 +1461,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                     <input value={newProject.projectId} onChange={e => setNewProject({...newProject, projectId: e.target.value})} placeholder="Project ID" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <select value={newProject.status} onChange={e => setNewProject({...newProject, status: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
                                                         {projectStatuses.map(status => (
-                                                            <option key={status} value={status}>{status}</option>
+                                                            <option key={status} value={status}>{statusDescriptions[status]}</option>
                                                         ))}
                                                     </select>
                                                     <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
@@ -1465,7 +1489,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                              <input name="name" value={editingProjectData.name} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                             <input name="projectId" value={editingProjectData.projectId} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/>
                                                             <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                                                {projectStatuses.map(status => (<option key={status} value={status}>{status}</option>))}
+                                                                {projectStatuses.map(status => (<option key={status} value={status}>{statusDescriptions[status]}</option>))}
                                                             </select>
                                                             <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Detailing Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
@@ -1482,7 +1506,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                                     <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Detailing Rate: ${p.blendedRate || 0}/hr | VDC Rate: ${p.vdcBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                                                    {projectStatuses.map(status => (<Tooltip key={status} text={statusDescriptions[status]}><button onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }} className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}>{status.charAt(0)}</button></Tooltip>))}
+                                                                    {projectStatuses.map(status => (<Tooltip key={status} text={statusDescriptions[status]}><button onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }} className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}>{statusDescriptions[status].charAt(0)}</button></Tooltip>))}
                                                                     <button onClick={(e) => { e.stopPropagation(); handleEditProject(p); }} className="ml-2 text-blue-500 hover:text-blue-700 text-sm" disabled={isEditing}>Edit</button>
                                                                     <button onClick={(e) => { e.stopPropagation(); confirmDelete('project', p); }} className="text-red-500 hover:text-red-700 text-sm" disabled={isEditing}>Delete</button>
                                                                 </div>

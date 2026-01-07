@@ -665,18 +665,55 @@ export const ProjectBreakdown = ({ mainItems, onAdd, onUpdate, onDelete, onReord
     );
 };
 
+// Standard discipline options for MEP fabrication
+const STANDARD_DISCIPLINE_OPTIONS = [
+    // Core MEP Trades
+    { key: 'duct', label: 'MH' },
+    { key: 'piping', label: 'MP' },
+    { key: 'processpiping', label: 'PP' },
+    { key: 'plumbing', label: 'PL' },
+    { key: 'fireprotection', label: 'FP' },
+    { key: 'medgas', label: 'PJ' },
+    // Structural & Electrical
+    { key: 'structural', label: 'ST' },
+    // VDC & Technology
+    { key: 'vdc', label: 'VDC' },
+    { key: 'coordination', label: 'Coord' },
+    { key: 'gisgps', label: 'GIS/GPS' },
+    // Management & Admin
+    { key: 'management', label: 'MGMT' },
+];
+
 export const ActionTrackerDisciplineManager = ({ disciplines, onAdd, onDelete, currentTheme }) => {
-    const [newDisciplineName, setNewDisciplineName] = useState('');
+    const [selectedDiscipline, setSelectedDiscipline] = useState('');
+    const [customDiscipline, setCustomDiscipline] = useState('');
+    const [showCustomInput, setShowCustomInput] = useState(false);
+
+    // Filter out disciplines that are already added
+    const availableDisciplines = STANDARD_DISCIPLINE_OPTIONS.filter(
+        opt => !disciplines.some(d => d.key === opt.key)
+    );
 
     const handleAdd = () => {
-        if (newDisciplineName.trim()) {
-            const newKey = newDisciplineName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (disciplines.some(d => d.key === newKey || d.label === newDisciplineName.trim())) {
-                alert('Discipline with this name or key already exists.');
+        if (selectedDiscipline) {
+            const disciplineToAdd = STANDARD_DISCIPLINE_OPTIONS.find(d => d.key === selectedDiscipline);
+            if (disciplineToAdd) {
+                onAdd({ key: disciplineToAdd.key, label: disciplineToAdd.label });
+                setSelectedDiscipline('');
+            }
+        }
+    };
+
+    const handleAddCustom = () => {
+        if (customDiscipline.trim()) {
+            const newKey = customDiscipline.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (disciplines.some(d => d.key === newKey || d.label.toLowerCase() === customDiscipline.trim().toLowerCase())) {
+                alert('A discipline with this name already exists.');
                 return;
             }
-            onAdd({ key: newKey, label: newDisciplineName.trim() });
-            setNewDisciplineName('');
+            onAdd({ key: newKey, label: customDiscipline.trim() });
+            setCustomDiscipline('');
+            setShowCustomInput(false);
         }
     };
 
@@ -690,16 +727,60 @@ export const ActionTrackerDisciplineManager = ({ disciplines, onAdd, onDelete, c
                     </div>
                 ))}
             </div>
-            <div className="flex gap-2 border-t pt-2 border-gray-500/20"> 
-                <input
-                    type="text"
-                    value={newDisciplineName}
-                    onChange={e => setNewDisciplineName(e.target.value)}
-                    placeholder="New Discipline Name..."
-                    className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                />
-                <button onClick={handleAdd} className={`p-1 px-3 rounded ${currentTheme.buttonBg} hover:bg-opacity-80`}>Add</button>
-            </div>
+            
+            {!showCustomInput ? (
+                <div className="flex gap-2 border-t pt-2 border-gray-500/20">
+                    <select
+                        value={selectedDiscipline}
+                        onChange={e => setSelectedDiscipline(e.target.value)}
+                        className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    >
+                        <option value="">Select Discipline...</option>
+                        {availableDisciplines.map(d => (
+                            <option key={d.key} value={d.key}>{d.label}</option>
+                        ))}
+                    </select>
+                    <button 
+                        onClick={handleAdd} 
+                        disabled={!selectedDiscipline}
+                        className={`p-1 px-3 rounded ${currentTheme.buttonBg} hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                        Add
+                    </button>
+                    <button 
+                        onClick={() => setShowCustomInput(true)}
+                        className={`p-1 px-2 rounded text-sm border ${currentTheme.borderColor} hover:bg-gray-500/20`}
+                        title="Add custom discipline"
+                    >
+                        +Custom
+                    </button>
+                </div>
+            ) : (
+                <div className="flex gap-2 border-t pt-2 border-gray-500/20">
+                    <input
+                        type="text"
+                        value={customDiscipline}
+                        onChange={e => setCustomDiscipline(e.target.value)}
+                        placeholder="Custom discipline name..."
+                        className={`flex-grow p-1 border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAddCustom(); if (e.key === 'Escape') setShowCustomInput(false); }}
+                        autoFocus
+                    />
+                    <button 
+                        onClick={handleAddCustom} 
+                        disabled={!customDiscipline.trim()}
+                        className={`p-1 px-3 rounded ${currentTheme.buttonBg} hover:bg-opacity-80 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                        Add
+                    </button>
+                    <button 
+                        onClick={() => { setShowCustomInput(false); setCustomDiscipline(''); }}
+                        className={`p-1 px-2 rounded text-sm border ${currentTheme.borderColor} hover:bg-gray-500/20`}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -925,49 +1006,149 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
 
 export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme, totalProjectHours, accessLevel, rateType }) => {
     const { percentComplete = 0, costToDate = 0, estimatedHours = 0 } = activity;
+    
+    // Local state for text inputs to prevent cursor jumping
+    const [localDescription, setLocalDescription] = useState(activity.description || '');
+    const [localChargeCode, setLocalChargeCode] = useState(activity.chargeCode || '');
+    const [localEstimatedHours, setLocalEstimatedHours] = useState(estimatedHours);
+    const [localCostToDate, setLocalCostToDate] = useState(costToDate);
+    const [localPercentComplete, setLocalPercentComplete] = useState(percentComplete);
+    
+    // Sync local state when activity prop changes (e.g., from another source)
+    useEffect(() => {
+        setLocalDescription(activity.description || '');
+    }, [activity.description]);
+    
+    useEffect(() => {
+        setLocalChargeCode(activity.chargeCode || '');
+    }, [activity.chargeCode]);
+    
+    useEffect(() => {
+        setLocalEstimatedHours(activity.estimatedHours || 0);
+    }, [activity.estimatedHours]);
+    
+    useEffect(() => {
+        setLocalCostToDate(activity.costToDate || 0);
+    }, [activity.costToDate]);
+    
+    useEffect(() => {
+        setLocalPercentComplete(activity.percentComplete || 0);
+    }, [activity.percentComplete]);
 
     const rateToUse = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
 
-    const rawBudget = (Number(estimatedHours) || 0) * rateToUse;
+    const rawBudget = (Number(localEstimatedHours) || 0) * rateToUse;
     const lineItemBudget = Math.ceil(rawBudget / 5) * 5;
-    const earnedValue = lineItemBudget * (Number(percentComplete) / 100);
+    const earnedValue = lineItemBudget * (Number(localPercentComplete) / 100);
     
-    const percentOfProject = totalProjectHours > 0 ? (Number(estimatedHours) / totalProjectHours) * 100 : 0;
+    const percentOfProject = totalProjectHours > 0 ? (Number(localEstimatedHours) / totalProjectHours) * 100 : 0;
 
-    const calculateProjectedCost = (act) => {
-        const localCostToDate = Number(act.costToDate) || 0;
-        const localPercentComplete = Number(act.percentComplete) || 0;
-        if (localPercentComplete <= 0) {
-             const estHrs = Number(act.estimatedHours) || 0;
+    const calculateProjectedCost = (localCost, localPercent) => {
+        const cost = Number(localCost) || 0;
+        const percent = Number(localPercent) || 0;
+        if (percent <= 0) {
+             const estHrs = Number(localEstimatedHours) || 0;
              const rate = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
              const budget = Math.ceil((estHrs * rate) / 5) * 5;
              return budget > 0 ? budget : 0;
         }
-        return (localCostToDate / localPercentComplete) * 100;
+        return (cost / percent) * 100;
     };
-    const projectedCost = calculateProjectedCost(activity);
+    const projectedCost = calculateProjectedCost(localCostToDate, localPercentComplete);
+
+    // Save handlers - only save to Firestore on blur
+    const handleDescriptionBlur = () => {
+        if (localDescription !== activity.description) {
+            onChange(groupKey, index, 'description', localDescription);
+        }
+    };
+    
+    const handleChargeCodeBlur = () => {
+        if (localChargeCode !== (activity.chargeCode || '')) {
+            onChange(groupKey, index, 'chargeCode', localChargeCode);
+        }
+    };
+    
+    const handleEstimatedHoursBlur = () => {
+        if (localEstimatedHours !== activity.estimatedHours) {
+            onChange(groupKey, index, 'estimatedHours', localEstimatedHours);
+        }
+    };
+    
+    const handleCostToDateBlur = () => {
+        if (localCostToDate !== activity.costToDate) {
+            onChange(groupKey, index, 'costToDate', localCostToDate);
+        }
+    };
+    
+    const handlePercentCompleteBlur = () => {
+        if (localPercentComplete !== activity.percentComplete) {
+            onChange(groupKey, index, 'percentComplete', localPercentComplete);
+        }
+    };
 
     return (
         <tr key={activity.id} className={currentTheme.cardBg}>
-            <td className="p-1"><input type="text" value={activity.description} onChange={(e) => onChange(groupKey, index, 'description', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
-            <td className="p-1"><input type="text" value={activity.chargeCode || ''} onChange={(e) => onChange(groupKey, index, 'chargeCode', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
-            <td className="p-1 w-24"><input type="number" value={estimatedHours} onChange={(e) => onChange(groupKey, index, 'estimatedHours', e.target.value)} className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} /></td>
+            <td className="p-1">
+                <input 
+                    type="text" 
+                    value={localDescription} 
+                    onChange={(e) => setLocalDescription(e.target.value)} 
+                    onBlur={handleDescriptionBlur}
+                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
+                />
+            </td>
+            <td className="p-1">
+                <input 
+                    type="text" 
+                    value={localChargeCode} 
+                    onChange={(e) => setLocalChargeCode(e.target.value)} 
+                    onBlur={handleChargeCodeBlur}
+                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
+                />
+            </td>
+            <td className="p-1 w-24">
+                <input 
+                    type="number" 
+                    value={localEstimatedHours} 
+                    onChange={(e) => setLocalEstimatedHours(e.target.value)} 
+                    onBlur={handleEstimatedHoursBlur}
+                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
+                />
+            </td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text={`Est. Hours * Rate (Raw: ${formatCurrency(rawBudget)})`}><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Est. Hrs / Total Est. Hrs) * 100"><p>{percentOfProject.toFixed(2)}%</p></Tooltip></td>
             <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}>
-                <p>{Number(percentComplete || 0).toFixed(2)}%</p> 
+                {(accessLevel === 'taskmaster' || accessLevel === 'tcl') ? (
+                    <div className="flex items-center justify-center">
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={localPercentComplete}
+                            onChange={(e) => setLocalPercentComplete(e.target.value)}
+                            onBlur={handlePercentCompleteBlur}
+                            className={`w-16 p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
+                        />
+                        <span>%</span>
+                    </div>
+                ) : (
+                    <p>{Number(localPercentComplete || 0).toFixed(2)}%</p>
+                )}
             </td>
             
             <td className={`p-1 w-24 text-center`}>
                 {accessLevel === 'taskmaster' ? (
                     <input
                         type="number"
-                        value={costToDate}
-                        onChange={(e) => onChange(groupKey, index, 'costToDate', e.target.value)}
+                        value={localCostToDate}
+                        onChange={(e) => setLocalCostToDate(e.target.value)}
+                        onBlur={handleCostToDateBlur}
                         className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
                     />
                 ) : (
-                    <p>{formatCurrency(costToDate)}</p>
+                    <p>{formatCurrency(localCostToDate)}</p>
                 )}
             </td>
             

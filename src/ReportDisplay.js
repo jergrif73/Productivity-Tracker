@@ -4,182 +4,36 @@ import EmployeeSkillMatrix from './EmployeeSkillMatrix';
 import FullProjectReport from './FullProjectReport'; // Import the new component
 import * as d3 from 'd3';
 
+// Helper function to convert legacy trade names to abbreviations
+const getTradeDisplayName = (trade) => {
+    const displayMap = {
+        'BIM': 'VDC',
+        'Piping': 'MP',
+        'Duct': 'MH',
+        'duct': 'MH',
+        'piping': 'MP',
+        'plumbing': 'PL',
+        'Plumbing': 'PL',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'management': 'MGMT',
+        'Structural': 'ST',
+        'Fire Protection': 'FP',
+        'Process Piping': 'PP',
+        'Medical Gas': 'PJ',
+        'vdc': 'VDC',
+        'sheetmetal': 'MH',
+    };
+    return displayMap[trade] || trade;
+};
+
 // Helper to replace BIM with VDC in skill names
 const mapBimToVdc = (skillName) => {
     if (!skillName) return skillName;
-    if (skillName === 'BIM') return 'VDC';
-    if (skillName === 'BIM Knowledge') return 'VDC Knowledge';
-    return skillName;
+    return getTradeDisplayName(skillName);
 };
 
 // --- Helper Components ---
-
-const TransposedSkillsReport = ({ headers, data, currentTheme }) => {
-    // State for sorting rows (clicking on top headers)
-    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
-    // State for sorting columns (clicking on skill rows)
-    const [columnSortConfig, setColumnSortConfig] = useState({ key: null, direction: 'ascending' });
-
-    // Handles requests to sort rows
-    const requestSort = (key) => {
-        let direction = 'ascending';
-        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        setSortConfig({ key, direction });
-        // Clear column sort when sorting rows
-        setColumnSortConfig({ key: null, direction: 'ascending' });
-    };
-
-    // Handles requests to sort columns
-    const requestColumnSort = (key) => {
-        let direction = 'ascending';
-        if (columnSortConfig.key === key && columnSortConfig.direction === 'ascending') {
-            direction = 'descending';
-        }
-        // Clear row sort when sorting columns
-        setSortConfig({ key: null, direction: 'ascending' });
-        setColumnSortConfig({ key, direction });
-    };
-
-    // Memoized processing for both column and row sorting
-    const { finalHeaders, finalData } = useMemo(() => {
-        // Start with original headers
-        let currentHeaders = [...headers];
-
-        // 1. Sort Columns if columnSortConfig is set
-        if (columnSortConfig.key) {
-            const sortRow = data.find(row => row.attribute === columnSortConfig.key);
-            if (sortRow) {
-                const valueMap = new Map(sortRow.values.map(v => [v.employeeId, v.value]));
-                currentHeaders.sort((a, b) => {
-                    const aValue = valueMap.get(a.id);
-                    const bValue = valueMap.get(b.id);
-                    if (typeof aValue === 'string' || typeof bValue === 'string') {
-                        return (String(aValue).localeCompare(String(bValue))) * (columnSortConfig.direction === 'ascending' ? 1 : -1);
-                    }
-                    const numA = aValue || 0;
-                    const numB = bValue || 0;
-                    if (numA < numB) return columnSortConfig.direction === 'ascending' ? -1 : 1;
-                    if (numA > numB) return columnSortConfig.direction === 'ascending' ? 1 : -1;
-                    return 0;
-                });
-            }
-        }
-
-        // 2. Reorder cell values in each row to match the current header order
-        const headerOrderMap = new Map(currentHeaders.map((h, i) => [h.id, i]));
-        const reorderedData = data.map(row => {
-            const newValues = new Array(currentHeaders.length);
-            row.values.forEach(cell => {
-                const newIndex = headerOrderMap.get(cell.employeeId);
-                if (newIndex !== undefined) {
-                    newValues[newIndex] = cell;
-                }
-            });
-            return { ...row, values: newValues.filter(Boolean) };
-        });
-
-        // 3. Sort Rows if sortConfig is set
-        if (!sortConfig.key) {
-            return { finalHeaders: currentHeaders, finalData: reorderedData };
-        }
-
-        const infoRows = reorderedData.filter(row => row.attribute === 'Title' || row.attribute === 'Primary Trade');
-        const skillRows = reorderedData.filter(row => row.attribute !== 'Title' && row.attribute !== 'Primary Trade');
-
-        skillRows.sort((a, b) => {
-            let aValue, bValue;
-
-            if (sortConfig.key === 'attribute') {
-                aValue = a.attribute;
-                bValue = b.attribute;
-            } else {
-                const employeeIndex = currentHeaders.findIndex(h => h.id === sortConfig.key);
-                aValue = employeeIndex !== -1 ? a.values[employeeIndex]?.value || 0 : 0;
-                bValue = employeeIndex !== -1 ? b.values[employeeIndex]?.value || 0 : 0;
-            }
-
-            if (typeof aValue === 'string' && typeof bValue === 'string') {
-                 return (aValue.localeCompare(bValue)) * (sortConfig.direction === 'ascending' ? 1 : -1);
-            }
-            const numA = aValue || 0;
-            const numB = bValue || 0;
-            if (numA < numB) return sortConfig.direction === 'ascending' ? -1 : 1;
-            if (numA > numB) return sortConfig.direction === 'ascending' ? 1 : -1;
-            return 0;
-        });
-
-        return { finalHeaders: currentHeaders, finalData: [...infoRows, ...skillRows] };
-
-    }, [data, headers, sortConfig, columnSortConfig]);
-
-
-    const getSortIndicator = (key) => {
-        if (sortConfig.key !== key) return null;
-        return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
-    };
-
-    const getColumnSortIndicator = (key) => {
-        if (columnSortConfig.key !== key) return null;
-        // Using right/left arrows for column sort direction
-        return columnSortConfig.direction === 'ascending' ? ' →' : ' ←';
-    };
-
-    return (
-        <div className="overflow-auto max-h-[70vh] border border-gray-600 rounded-lg">
-            <table className="text-xs border-collapse">
-                <thead className="bg-gray-800 sticky top-0 z-20">
-                    <tr>
-                        <th 
-                            className="p-1 font-semibold border-b-2 border-r border-gray-600 bg-gray-800 sticky left-0 z-30 align-bottom cursor-pointer"
-                            onClick={() => requestSort('attribute')}
-                        >
-                            Skill{getSortIndicator('attribute')}
-                        </th>
-                        {finalHeaders.map(employee => (
-                            <th 
-                                key={employee.id} 
-                                className="p-1 font-semibold border-b-2 border-r border-gray-600 text-center h-28 align-bottom cursor-pointer"
-                                onClick={() => requestSort(employee.id)}
-                            >
-                               <div className="[writing-mode:vertical-rl] transform rotate-180 whitespace-nowrap">
-                                    <span className="font-bold">{(employee.name || '').replace('\n', ' ')}{getSortIndicator(employee.id)}</span>
-                                </div>
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {finalData.map((skillRow, rowIndex) => {
-                        const isLastInfoRow = skillRow.attribute === 'Primary Trade';
-                        const rowClass = `border-gray-600 ${isLastInfoRow ? 'border-b-2' : 'border-b'}`;
-                        const isAltRow = rowIndex > 1 && (rowIndex - 2) % 2 !== 0;
-                        const isSortableSkill = skillRow.attribute !== 'Title' && skillRow.attribute !== 'Primary Trade';
-
-                        return (
-                            <tr key={skillRow.attribute} className={`${rowClass} ${isAltRow ? 'bg-gray-700/50' : ''}`}>
-                                <th 
-                                    className={`p-1 font-semibold border-r border-gray-600 bg-gray-800 sticky left-0 z-10 text-left ${isSortableSkill ? 'cursor-pointer' : ''}`}
-                                    onClick={() => isSortableSkill && requestColumnSort(skillRow.attribute)}
-                                >
-                                    {mapBimToVdc(skillRow.attribute)}
-                                    {getColumnSortIndicator(skillRow.attribute)}
-                                </th>
-                                {skillRow.values.map((cell, cellIndex) => (
-                                    <td key={`${cell.employeeId}-${cellIndex}`} className={`p-1 border-r border-gray-600 text-center ${skillRow.attribute === 'Primary Trade' ? 'font-bold' : ''}`}>
-                                        {cell.value}
-                                    </td>
-                                ))}
-                            </tr>
-                        )
-                    })}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
 
 // --- D3 Chart Components (Moved from ReportingConsole) ---
 
@@ -354,7 +208,7 @@ const exportToCSV = (reportData, reportHeaders, reportType) => {
 const ReportDisplay = ({
     reportData, reportHeaders, chartData, reportType, sortConfig, currentTheme,
     filteredDetailersForMatrix, accessLevel, db, appId,
-    onClearReport, onRequestSort
+    onClearReport, onRequestSort, assignments = [], detailers = []
 }) => {
 
     // Memoized sorted report data (moved from ReportingConsole)
@@ -363,8 +217,8 @@ const ReportDisplay = ({
             return reportData;
         }
         
-        // Don't try to sort employee-details or full-project-report - they have different structures
-        if (reportType === 'employee-details' || reportType === 'full-project-report') {
+        // Don't try to sort full-project-report - it has a different structure
+        if (reportType === 'full-project-report') {
             return reportData;
         }
         
@@ -404,20 +258,7 @@ const ReportDisplay = ({
     }, [chartData, reportType, currentTheme]);
 
     const handleExport = () => {
-        if (reportType === 'employee-details') {
-            // Re-transpose data for CSV
-            const csvHeaders = ['Skill', ...reportHeaders.map(h => h.name.replace('\n', ' '))];
-            const csvData = reportData.map(skillRow => {
-                const row = [mapBimToVdc(skillRow.attribute)];
-                skillRow.values.forEach(cell => {
-                    row.push(cell.value);
-                });
-                return row;
-            });
-            exportToCSV(csvData, csvHeaders, 'employee_skills_details');
-        } else {
-            exportToCSV(sortedReportData, reportHeaders, reportType);
-        }
+        exportToCSV(sortedReportData, reportHeaders, reportType);
     };
 
     if (reportType === 'full-project-report' && reportData) {
@@ -428,29 +269,12 @@ const ReportDisplay = ({
                         <h3 className="text-xl font-semibold">Report Results</h3>
                         <div className="flex gap-2">
                             <button onClick={onClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                            <button onClick={() => window.print()} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Print</button>
+                            <button onClick={() => setTimeout(() => window.print(), 100)} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700 print:hidden">Print</button>
                         </div>
                     </div>
                     <div id="full-project-report-printable" className="overflow-auto hide-scrollbar-on-hover flex-grow">
-                        <FullProjectReport report={reportData} currentTheme={currentTheme} />
+                        <FullProjectReport report={reportData} currentTheme={currentTheme} assignments={assignments} detailers={detailers} />
                     </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (reportType === 'employee-details' && reportData && reportHeaders) {
-        return (
-            <div className="flex-grow flex flex-col min-h-0 min-w-0">
-                <div className={`p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-semibold">Report Results</h3>
-                        <div className="flex gap-2">
-                            <button onClick={onClearReport} className="bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Clear Report</button>
-                            <button onClick={handleExport} className="bg-green-600 text-white p-2 rounded-md hover:bg-green-700">Export to CSV</button>
-                        </div>
-                    </div>
-                    <TransposedSkillsReport headers={reportHeaders} data={reportData} currentTheme={currentTheme} />
                 </div>
             </div>
         );
@@ -532,23 +356,13 @@ const ReportDisplay = ({
                                 <thead className={`${currentTheme.altRowBg} sticky top-0`}>
                                     <tr>
                                         {reportHeaders.map((header, index) => {
-                                            const isDetailsReport = reportType === 'employee-details';
                                             let thClass = `p-2 font-semibold border ${currentTheme.borderColor} cursor-pointer`;
                                             
                                             return (
                                                 <th 
                                                     key={`${header}-${index}`} 
                                                     className={thClass}
-                                                    style={isDetailsReport 
-                                                        ? { 
-                                                            writingMode: 'vertical-rl', 
-                                                            textOrientation: 'mixed', 
-                                                            whiteSpace: 'nowrap', 
-                                                            textAlign: 'right',
-                                                            padding: '10px 4px'
-                                                          } 
-                                                        : { textAlign: 'left' }
-                                                    }
+                                                    style={{ textAlign: 'left' }}
                                                     onClick={() => onRequestSort(header)}
                                                 >
                                                     {header}
@@ -567,13 +381,9 @@ const ReportDisplay = ({
                                                 <td 
                                                     key={`cell-${rowIndex}-${cellIndex}`} 
                                                     className={`p-2 border ${currentTheme.borderColor}`}
-                                                    style={{ textAlign: reportType === 'employee-details' && cellIndex > 2 ? 'center' : 'left' }}
+                                                    style={{ textAlign: 'left' }}
                                                 >
-                                                    {cellIndex === 0 && reportType === 'employee-details' ? (
-                                                        <div className="whitespace-pre-line leading-tight">{cell}</div>
-                                                    ) : (
-                                                        cell
-                                                    )}
+                                                    {cell}
                                                 </td>
                                             ))}
                                         </tr>

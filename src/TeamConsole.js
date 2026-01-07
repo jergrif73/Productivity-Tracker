@@ -52,6 +52,23 @@ if (typeof document !== 'undefined' && !document.getElementById('scrollbar-style
     document.head.appendChild(style);
 }
 
+// Helper function to convert legacy trade names to abbreviations
+const getTradeDisplayName = (trade) => {
+    const displayMap = {
+        'BIM': 'VDC',
+        'Piping': 'MP',
+        'Duct': 'MH',
+        'Plumbing': 'PL',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'Structural': 'ST',
+        'Fire Protection': 'FP',
+        'Process Piping': 'PP',
+        'Medical Gas': 'PJ',
+    };
+    return displayMap[trade] || trade;
+};
+
 
 // --- Helper Components ---
 // ... (NewProjectModal, ConfirmationModal) ...
@@ -77,6 +94,79 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
                 status: 'Planning',
                 archived: false
             });
+            
+            // Initialize projectActivities with standard activities
+            const standardChargeCodes = [
+                { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
+                { description: "MH Spooling", chargeCode: "9615261" },
+                { description: "MH Deliverables", chargeCode: "9615361" },
+                { description: "MH Internal Changes", chargeCode: "9615461" },
+                { description: "MH External Changes", chargeCode: "9615561" },
+                { description: "MP  Modeling / Coordinating", chargeCode: "9616161" },
+                { description: "MP Spooling", chargeCode: "9616261" },
+                { description: "MP Deliverables", chargeCode: "9616361" },
+                { description: "MP Internal Changes", chargeCode: "9616461" },
+                { description: "MP External Changes ", chargeCode: "9616561" },
+                { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
+                { description: "PL Spooling", chargeCode: "9618261" },
+                { description: "PL Deliverables", chargeCode: "9618361" },
+                { description: "PL Internal Changes", chargeCode: "9618461" },
+                { description: "PL External Changes", chargeCode: "9618561" },
+                { description: "Detailing Management", chargeCode: "9619161" },
+                { description: "Project Content Development", chargeCode: "9619261" },
+                { description: "Project Coordination Management", chargeCode: "9630762" },
+                { description: "VDC Support", chargeCode: "9631062" }
+            ];
+            
+            const normalizeDesc = (str = '') => String(str).replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
+            
+            const standardActivities = standardChargeCodes.map(item => ({
+                id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
+                description: normalizeDesc(item.description),
+                chargeCode: item.chargeCode,
+                estimatedHours: 0,
+                hoursUsed: 0,
+                percentComplete: 0,
+                subsets: []
+            }));
+            
+            const groupedActivities = {
+                duct: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
+                piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
+                plumbing: standardActivities.filter(act => /^PL\s*/i.test(act.description)),
+                management: standardActivities.filter(act => 
+                    ['Detailing Management', 'Project Content Development', 'Project Coordination Management'].some(
+                        keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
+                    )
+                ),
+                vdc: standardActivities.filter(act => act.description === 'VDC Support')
+            };
+            
+            // VDC defaults to VDC Rate, all others to Detailing Rate
+            const projectActivitiesData = {
+                activities: groupedActivities,
+                actionTrackerDisciplines: [
+                    { key: 'duct', label: 'MH' },
+                    { key: 'piping', label: 'MP' },
+                    { key: 'plumbing', label: 'PL' },
+                    { key: 'management', label: 'MGMT' },
+                    { key: 'vdc', label: 'VDC' }
+                ],
+                actionTrackerData: {},
+                budgetImpacts: [],
+                mainItems: [],
+                projectWideActivities: [],
+                rateTypes: {
+                    duct: 'Detailing Rate',
+                    piping: 'Detailing Rate',
+                    plumbing: 'Detailing Rate',
+                    management: 'Detailing Rate',
+                    vdc: 'VDC Rate'
+                }
+            };
+            
+            await setDoc(doc(db, `artifacts/${appId}/public/data/projectActivities`, docRef.id), projectActivitiesData);
+            
             onProjectCreated({ id: docRef.id, ...newProject });
             onClose();
         } catch (err) {
@@ -222,7 +312,7 @@ const InlineAssignmentEditor = ({ db, assignment, projects, detailerDisciplines,
                     >
                         <option value="">Select Trade</option>
                         {detailerDisciplines.map(discipline => (
-                            <option key={discipline} value={discipline}>{discipline}</option>
+                            <option key={discipline} value={discipline}>{getTradeDisplayName(discipline)}</option>
                         ))}
                     </select>
                 </div>
@@ -292,7 +382,102 @@ const EmployeeDetailPanel = ({ employee, assignmentsProp, projects, handleAddNew
         exit: { opacity: 0, height: 0, transition: { duration: 0.2, ease: "easeInOut" } }
     };
 
-    const filteredAssignments = assignmentsProp;
+    // Split assignments into active and archived based on end date
+    const { activeAssignments, archivedAssignments } = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const active = [];
+        const archived = [];
+        
+        (assignmentsProp || []).forEach(asn => {
+            if (asn.endDate) {
+                const endDate = new Date(asn.endDate);
+                endDate.setHours(0, 0, 0, 0);
+                if (endDate < today) {
+                    archived.push(asn);
+                } else {
+                    active.push(asn);
+                }
+            } else {
+                // No end date means it's active
+                active.push(asn);
+            }
+        });
+        
+        // Sort archived by end date descending (most recent first)
+        archived.sort((a, b) => new Date(b.endDate) - new Date(a.endDate));
+        
+        return { activeAssignments: active, archivedAssignments: archived };
+    }, [assignmentsProp]);
+    
+    const [isArchiveExpanded, setIsArchiveExpanded] = useState(false);
+
+    // Helper to render an assignment card
+    const renderAssignmentCard = (asn) => {
+        const isExpanded = expandedAssignmentId === asn.id;
+        const detailerDisciplines = Array.isArray(employee.disciplineSkillsets)
+            ? employee.disciplineSkillsets.map(s => s.name)
+            : Object.keys(employee.disciplineSkillsets || {});
+
+        return (
+            <motion.div
+                key={asn.id}
+                layout
+                initial={false}
+                animate={{ backgroundColor: isExpanded ? currentTheme.altRowBg : currentTheme.cardBg }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className={`p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer`}
+            >
+                <motion.div layout="position" className="flex justify-between items-center" onClick={() => toggleAssignmentExpansion(asn.id)}>
+                    <div>
+                        <p className="font-semibold">
+                            {asn.projectName || 'No Project Selected'}
+                            {asn.projectNumber ? ` (${asn.projectNumber})` : ''}
+                        </p>
+                        <p className={`text-sm ${currentTheme.subtleText}`}>Trade: {getTradeDisplayName(asn.trade)} | Allocation: {asn.allocation}%</p>
+                        <p className={`text-xs ${currentTheme.subtleText}`}>{asn.startDate} to {asn.endDate}</p>
+                    </div>
+                    <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                        </svg>
+                    </motion.div>
+                </motion.div>
+
+                <AnimatePresence>
+                    {isExpanded && (
+                        <motion.div
+                            key={`detail-${asn.id}`}
+                            variants={animationVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="overflow-hidden mt-3"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <TutorialHighlight tutorialKey="manageAssignments">
+                                <InlineAssignmentEditor
+                                    db={db}
+                                    assignment={asn}
+                                    projects={projects}
+                                    detailerDisciplines={detailerDisciplines}
+                                    onSave={handleSaveAssignment}
+                                    onDelete={(assignmentObject) => {
+                                        setAssignmentToDelete(assignmentObject);
+                                        setExpandedAssignmentId(null);
+                                    }}
+                                    currentTheme={currentTheme}
+                                    onAddNewProject={onAddNewProjectForAssignment}
+                                    accessLevel={accessLevel}
+                                />
+                            </TutorialHighlight>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+        );
+    };
 
     return (
         <div className={`rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} flex flex-col h-full`}>
@@ -316,79 +501,53 @@ const EmployeeDetailPanel = ({ employee, assignmentsProp, projects, handleAddNew
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto hide-scrollbar-on-hover">
+                {/* Active Assignments */}
                 <div className="space-y-3">
-                    {filteredAssignments.length > 0 ? (
-                        filteredAssignments.map(asn => {
-                            const isExpanded = expandedAssignmentId === asn.id;
-                            const detailerDisciplines = Array.isArray(employee.disciplineSkillsets)
-                                ? employee.disciplineSkillsets.map(s => s.name)
-                                : Object.keys(employee.disciplineSkillsets || {});
-
-                            return (
-                                <motion.div
-                                    key={asn.id}
-                                    layout
-                                    initial={false}
-                                    animate={{ backgroundColor: isExpanded ? currentTheme.altRowBg : currentTheme.cardBg }}
-                                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                                    className={`p-3 rounded-lg border ${currentTheme.borderColor} shadow-sm cursor-pointer`}
-                                >
-                                    <motion.div layout="position" className="flex justify-between items-center" onClick={() => toggleAssignmentExpansion(asn.id)}>
-                                        <div>
-                                            <p className="font-semibold">
-                                                {asn.projectName || 'No Project Selected'}
-                                                {asn.projectNumber ? ` (${asn.projectNumber})` : ''}
-                                            </p>
-                                            <p className={`text-sm ${currentTheme.subtleText}`}>Trade: {asn.trade} | Allocation: {asn.allocation}%</p>
-                                            <p className={`text-xs ${currentTheme.subtleText}`}>{asn.startDate} to {asn.endDate}</p>
-                                        </div>
-                                        <motion.div animate={{ rotate: isExpanded ? 90 : 0 }}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                                            </svg>
-                                        </motion.div>
-                                    </motion.div>
-
-                                    <AnimatePresence>
-                                        {isExpanded && (
-                                            <motion.div
-                                                key={`detail-${asn.id}`}
-                                                variants={animationVariants}
-                                                initial="hidden"
-                                                animate="visible"
-                                                exit="exit"
-                                                className="overflow-hidden mt-3"
-                                                onClick={e => e.stopPropagation()}
-                                            >
-                                                <TutorialHighlight tutorialKey="manageAssignments">
-                                                    <InlineAssignmentEditor
-                                                        db={db}
-                                                        assignment={asn} // Pass the current version of asn from the list
-                                                        projects={projects}
-                                                        detailerDisciplines={detailerDisciplines}
-                                                        onSave={handleSaveAssignment}
-                                                        // --- REVERTED: Pass the assignment object directly ---
-                                                        onDelete={(assignmentObject) => { // Renamed param for clarity
-                                                            // console.log("Setting assignment to delete:", assignmentObject); // Keep for debug if needed
-                                                            setAssignmentToDelete(assignmentObject); // Use the object passed directly from editor's props
-                                                            setExpandedAssignmentId(null); // Close editor on delete prompt
-                                                        }}
-                                                        // --- END REVERT ---
-                                                        currentTheme={currentTheme}
-                                                        onAddNewProject={onAddNewProjectForAssignment}
-                                                        accessLevel={accessLevel}
-                                                    />
-                                                </TutorialHighlight>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            );
-                        })
+                    {activeAssignments.length > 0 ? (
+                        activeAssignments.map(asn => renderAssignmentCard(asn))
                     ) : (
-                        <p className={currentTheme.subtleText}>No assignments for this employee.</p>
+                        <p className={currentTheme.subtleText}>No active assignments for this employee.</p>
                     )}
                 </div>
+                
+                {/* Archived Assignments Section */}
+                {archivedAssignments.length > 0 && (
+                    <div className="mt-6">
+                        <button
+                            onClick={() => setIsArchiveExpanded(!isArchiveExpanded)}
+                            className={`w-full flex items-center justify-between p-3 rounded-lg ${currentTheme.altRowBg} border ${currentTheme.borderColor} hover:bg-opacity-80 transition-colors`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                                <span className="font-semibold">Archive</span>
+                                <span className={`text-sm ${currentTheme.subtleText}`}>({archivedAssignments.length} past assignment{archivedAssignments.length !== 1 ? 's' : ''})</span>
+                            </div>
+                            <motion.div animate={{ rotate: isArchiveExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </motion.div>
+                        </button>
+                        
+                        <AnimatePresence>
+                            {isArchiveExpanded && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="space-y-3 mt-3 pl-2 border-l-2 border-gray-300 dark:border-gray-600">
+                                        {archivedAssignments.map(asn => renderAssignmentCard(asn))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -710,7 +869,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                                         onClick={() => handleTradeFilterToggle(trade)}
                                         className={`px-3 py-1 text-xs rounded-full transition-colors ${activeTrades.includes(trade) ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                     >
-                                        {trade}
+                                        {getTradeDisplayName(trade)}
                                     </button>
                                 ))}
                                 <button
@@ -746,7 +905,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                         title="Confirm Assignment Deletion"
                         currentTheme={currentTheme}
                     >
-                        Are you sure you want to delete the assignment for {assignmentToDelete.projectName || 'this assignment'} ({assignmentToDelete.trade || 'No Trade'})?
+                        Are you sure you want to delete the assignment for {assignmentToDelete.projectName || 'this assignment'} ({getTradeDisplayName(assignmentToDelete.trade) || 'No Trade'})?
                     </ConfirmationModal>
                 )}
                  {/* --- END UPDATE --- */}
@@ -773,7 +932,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                             <div className="space-y-4">
                                 {Object.keys(groupedEmployees).sort().map(trade => (
                                     <div key={trade}>
-                                        <h3 className={`text-sm font-bold uppercase ${currentTheme.subtleText} mb-2 pl-1 sticky top-0 ${currentTheme.cardBg} py-1 z-10`}>{trade}</h3>
+                                        <h3 className={`text-sm font-bold uppercase ${currentTheme.subtleText} mb-2 pl-1 sticky top-0 ${currentTheme.cardBg} py-1 z-10`}>{getTradeDisplayName(trade)}</h3>
                                         <div className="space-y-2">
                                             {groupedEmployees[trade].map((employee) => {
                                                 const isSelected = selectedEmployeeId === employee.id;
@@ -873,4 +1032,3 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 };
 
 export default TeamConsole;
-

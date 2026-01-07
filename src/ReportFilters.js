@@ -49,14 +49,6 @@ const CollapsibleFilterSection = ({ title, children, isCollapsed, onToggle }) =>
     );
 };
 
-const teamProfiles = {
-    "Select a Profile...": [],
-    "The Masterminds": ["Model Knowledge", "VDC Knowledge", "Coordination", "Structural"],
-    "The Strong Foundation": ["Teamwork Ability", "Leadership Skills", "Piping", "Duct", "Plumbing"],
-    "The Innovators": ["VDC Knowledge", "GIS/GPS"],
-    "The Problem Solvers": ["Leadership Skills", "Mechanical Abilities", "Coordination", "Model Knowledge"]
-};
-
 
 const ReportFilters = ({
     reportType,
@@ -66,34 +58,14 @@ const ReportFilters = ({
     selectedLevels, onFilterChange, 
     selectedTrade,
     selectedEmployeeId,
-    selectedSkills,
-    selectedProfile,
     reportOption,
     collapsedFilters, onToggleFilterCollapse,
     jobFamilyToDisplayInPopup, onJobFamilySelectForPopup,
     jobFamilyData,
-    uniqueTitles, uniqueTrades, allSkillsOptions,
+    uniqueTitles, uniqueTrades,
     detailers, projects, currentTheme,
     onGenerateReport
 }) => {
-
-    const handleSkillCheckboxChange = (skillName) => {
-        const newSkills = selectedSkills.includes(skillName)
-            ? selectedSkills.filter(s => s !== skillName)
-            : [...selectedSkills, skillName];
-        onFilterChange('selectedSkills', newSkills);
-        onFilterChange('selectedProfile', "Custom Selection");
-    };
-
-    const handleProfileChange = (e) => {
-        const profileName = e.target.value;
-        onFilterChange('selectedProfile', profileName);
-        if (teamProfiles[profileName]) {
-            onFilterChange('selectedSkills', [...teamProfiles[profileName]]);
-        } else {
-            onFilterChange('selectedSkills', []);
-        }
-    };
 
     const handleLevelChange = (level) => {
         const newLevels = selectedLevels.includes(level)
@@ -175,7 +147,6 @@ const ReportFilters = ({
                         )}
                     </>
                 );
-            case 'employee-details':
             case 'skill-matrix':
                 return (
                     <>
@@ -202,42 +173,6 @@ const ReportFilters = ({
                         </CollapsibleFilterSection>
                     </>
                 );
-            case 'top-employee-skills-by-trade':
-                return (
-                    <>
-                        <CollapsibleFilterSection title="Select Profile" isCollapsed={collapsedFilters?.profile} onToggle={() => onToggleFilterCollapse('profile')}>
-                            <select value={selectedProfile} onChange={handleProfileChange} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                {Object.keys(teamProfiles).map(profileName => (
-                                    <option key={profileName} value={profileName}>{profileName}</option>
-                                ))}
-                            </select>
-                        </CollapsibleFilterSection>
-                        {levelFilterUI}
-                        <CollapsibleFilterSection title="Filter by Trade" isCollapsed={collapsedFilters?.trade} onToggle={() => onToggleFilterCollapse('trade')}>
-                            <select value={selectedTrade} onChange={e => onFilterChange('selectedTrade', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="">All Primary Trades</option>
-                                {uniqueTrades.map(trade => <option key={trade} value={trade}>{trade}</option>)}
-                            </select>
-                        </CollapsibleFilterSection>
-                        <CollapsibleFilterSection title="Select Skills" isCollapsed={collapsedFilters?.skills} onToggle={() => onToggleFilterCollapse('skills')}>
-                            <div className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputBorder} max-h-48 overflow-y-auto`}>
-                                {allSkillsOptions.map(skill => (
-                                    <div key={skill} className="flex items-center mb-1">
-                                        <input
-                                            type="checkbox"
-                                            id={`skill-${skill}`}
-                                            value={skill}
-                                            checked={selectedSkills.includes(skill)}
-                                            onChange={() => handleSkillCheckboxChange(skill)}
-                                            className="mr-2"
-                                        />
-                                        <label htmlFor={`skill-${skill}`} className={`${currentTheme.inputText}`}>{mapBimToVdc(skill)}</label>
-                                    </div>
-                                ))}
-                            </div>
-                        </CollapsibleFilterSection>
-                    </>
-                );
             case 'employee-workload-dist':
                 return (
                     <CollapsibleFilterSection title="Select Employee" isCollapsed={collapsedFilters?.employee} onToggle={() => onToggleFilterCollapse('employee')}>
@@ -246,25 +181,6 @@ const ReportFilters = ({
                             {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
                         </select>
                     </CollapsibleFilterSection>
-                );
-            case 'forecast-vs-actual':
-                return (
-                    <>
-                        <CollapsibleFilterSection title="Select Project" isCollapsed={collapsedFilters?.project} onToggle={() => onToggleFilterCollapse('project')}>
-                            <select value={selectedProjectId} onChange={e => onFilterChange('selectedProjectId', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                                <option value="">All Projects</option>
-                                {projects.filter(p => !p.archived).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                        </CollapsibleFilterSection>
-                        <CollapsibleFilterSection title="Select Date Range" isCollapsed={collapsedFilters?.dateRange} onToggle={() => onToggleFilterCollapse('dateRange')}>
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium">Start Date</label>
-                                <input type="date" value={startDate} onChange={e => onFilterChange('startDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                                <label className="block text-sm font-medium">End Date</label>
-                                <input type="date" value={endDate} onChange={e => onFilterChange('endDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
-                            </div>
-                        </CollapsibleFilterSection>
-                    </>
                 );
             case 'project-hours':
             case 'detailer-workload':
@@ -296,15 +212,12 @@ const ReportFilters = ({
                                 <option value="project-health">Project Health Dashboard</option>
                                 <option value="employee-workload-dist">Employee Workload Distribution</option>
                                 <option value="skill-matrix">Employee Skill Matrix</option>
-                                <option value="top-employee-skills-by-trade">Top Employee Skills by Trade</option>
                             </optgroup>
                             <optgroup label="Tabular Reports">
                                 <option value="project-hours">Project Hours Summary</option>
                                 <option value="detailer-workload">Detailer Workload Summary</option>
                                 <option value="task-status">Task Status Report</option>
-                                <option value="forecast-vs-actual">Forecast vs. Actuals Summary</option>
                                 <option value="full-project-report">Full Project Report</option>
-                                <option value="employee-details">Employee Skills & Details</option>
                             </optgroup>
                         </select>
                     </div>

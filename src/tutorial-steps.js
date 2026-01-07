@@ -20,7 +20,7 @@ export const tutorialContent = {
         {
             key: "dynamicTimeline",
             title: "Dynamic Timeline View",
-            content: "The timeline is dynamic. It automatically hides empty weeks and rows with no scheduled work, keeping the view clean and focused. As you add or extend assignments, the timeline will expand to show them.",
+            content: "The timeline dynamically shows weeks with scheduled work. The legend at the top right only displays disciplines that are currently in use (e.g., MH for Duct, MP for Piping, PL for Plumbing, VDC, etc.). When searching, the timeline maintains full visibility of all weeks.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -32,7 +32,7 @@ export const tutorialContent = {
         {
             key: "searchTimeline",
             title: "Searching the Timeline",
-            content: "Use the search bar to filter the timeline. It will search by project name/ID when grouped by project, or by employee name when grouped by employee.",
+            content: "Use the search bar to filter the timeline. It will search by project name/ID when grouped by project, or by employee name when grouped by employee. The timeline columns remain consistent when searching.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {
@@ -44,7 +44,7 @@ export const tutorialContent = {
         {
             key: "editAssignments",
             title: "Editing Assignments (Taskmaster & TCL)",
-            content: "As a Taskmaster or TCL, you can click on any assignment cell to open a popup where you can edit its trade or allocation for all future weeks.",
+            content: "As a Taskmaster or TCL, you can click on any assignment cell to open a popup where you can edit its trade or allocation for all future weeks. Double-click a cell to quickly edit just the allocation percentage.",
             roles: ['taskmaster', 'tcl']
         },
         {
@@ -108,6 +108,12 @@ export const tutorialContent = {
         title: "Managing Assignments (Taskmaster & TCL)",
         content: "In the right-hand panel, you can add new project assignments or edit existing ones for the selected employee. This is where you allocate your team's time to specific projects.",
         roles: ['taskmaster', 'tcl']
+      },
+      {
+        key: "archiveAssignments",
+        title: "Archived Assignments",
+        content: "Assignments with end dates in the past automatically move to a collapsible 'Archive' section. You can expand this section to view or edit past assignments. If you change an archived assignment's end date to a future date, it will move back to the active list.",
+        roles: ['taskmaster', 'tcl', 'viewer']
       },
       {
         key: "addProjectOnTheFly",
@@ -174,19 +180,19 @@ export const tutorialContent = {
       {
         key: "actionTracker-tcl",
         title: "Action Tracker (TCL View)",
-        content: "As a TCL, this is your primary tool. Update the '% Complete' for each trade within a 'Main'. Your input here automatically calculates the overall '% Complete' for all related activities, which drives the project's Earned Value.",
+        content: "As a TCL, this is your primary tool. Update the '% Complete' for each trade within a 'Main'. Your input here automatically calculates the overall '% Complete' for all related activities, which drives the project's Earned Value. Taskmasters can also edit these percentages.",
         roles: ['tcl']
       },
       {
         key: "actionTracker-taskmaster",
         title: "Action Tracker (Taskmaster View)",
-        content: "As a Taskmaster, view progress reported by TCLs and edit the 'Percentage of Est. Hrs' to balance each trade's contribution to a 'Main', ensuring accurate Earned Value calculations.",
+        content: "As a Taskmaster, you can edit both the 'Percentage of Est. Hrs' to balance each trade's contribution to a 'Main', and the '% Complete' values just like a TCL. This ensures accurate Earned Value calculations.",
         roles: ['taskmaster']
       },
       {
         key: "activityBreakdown",
         title: "Activity Values Breakdown (Taskmaster)",
-        content: "Define all billable activities here. Input 'Est. Hrs' and 'Hrs Used'. The crucial '% Comp' field is calculated from the 'Action Tracker'. This section feeds directly into the Reporting Console.",
+        content: "Define all billable activities here. Input 'Est. Hrs' and 'Hrs Used'. The '% Comp' field is calculated from the 'Action Tracker'. Disciplines are displayed as abbreviations (MH=Duct, MP=Piping, PL=Plumbing, etc.). Use the 'Stamp' button to record when Actual Cost was last updated.",
         roles: ['taskmaster']
       },
       {
@@ -204,7 +210,7 @@ export const tutorialContent = {
       {
         key: "tradeFiltersProjectConsole",
         title: "Filter by Trade",
-        content: "Use these trade buttons to filter which trades' activities are displayed in the 'Action Tracker' and 'Activity Values Breakdown' sections, helping you focus on specific disciplines.",
+        content: "Use the trade filter buttons to show/hide specific disciplines. Abbreviations are used: MH (Duct/Sheet Metal), MP (Mechanical Piping), PP (Process Piping), PL (Plumbing), FP (Fire Protection), PJ (Medical Gas), ST (Structural), VDC, Coord (Coordination), MGMT (Management).",
         roles: ['taskmaster', 'tcl']
       },
       {
@@ -306,13 +312,13 @@ export const tutorialContent = {
         {
             key: "project-forecast",
             title: "Forecast Console Overview",
-            content: "The Forecast Console provides a global, high-level view of your forecasted workload, aggregated by trade across all active projects. This helps you understand overall demand for specific skills. The data is pulled from the Weekly Hour Forecasts you set in the Admin Console.",
+            content: "The Forecast Console provides a global, high-level view of your forecasted workload, aggregated by trade across all active projects. The legend dynamically shows only disciplines with forecasted hours. Data is pulled from the Weekly Hour Forecasts in the Manage Console.",
             roles: ['taskmaster']
         },
         {
             key: "statusFilter",
             title: "Filter by Project Status",
-            content: "Use the status filter buttons to include or exclude projects based on their current stage (e.g., Planning, Conducting, Controlling). This allows you to focus your forecast on confirmed work versus potential projects.",
+            content: "Use the status filter buttons (E, B, O, A) to include or exclude projects based on their current stage. E = Estimated, B = Booked but not Sold, O = Operational, A = Archived. Hover over each button for a tooltip with the full description.",
             roles: ['taskmaster']
         },
         {
@@ -360,6 +366,12 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "fullProjectReport",
+            title: "Full Project Report",
+            content: "The Full Project Report provides a comprehensive progress overview including: Executive Summary with health indicators, Project Information & Schedule, Financial Summary with progress bars, Discipline Summary by trade (MH, MP, PL, VDC, etc.), Team Staffing, Action Tracker Summary, Budget Impact Log, and detailed Activity Breakdown. Perfect for project status meetings and stakeholder updates.",
+            roles: ['taskmaster']
+        },
+        {
             key: "dynamicFilters",
             title: "Dynamic Report Filters",
             content: "The filters on the left sidebar are dynamic. As you select a 'Report Type,' the available filters below will change to show only the options relevant to that specific report.",
@@ -404,9 +416,21 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "addEmployeeFields",
+            title: "Adding New Employees",
+            content: "Fill in the employee's basic information including name, email, job title, and union local. The union local can be managed via the 'Manage' button next to the dropdown.",
+            roles: ['taskmaster']
+        },
+        {
             key: "manageUnionLocals",
             title: "Managing Union Locals",
             content: "Inside the 'Add New Employee' form, click the 'Manage' button next to the Union Local dropdown to add, edit, or delete union locals from the list.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "editEmployeeDetails",
+            title: "Editing Employee Details",
+            content: "Click 'Edit' on any employee row to modify their information, manage their discipline skillsets, and update their skill ratings.",
             roles: ['taskmaster']
         },
         {
@@ -416,9 +440,33 @@ export const tutorialContent = {
             roles: ['taskmaster']
         },
         {
+            key: "projectStatusImpact",
+            title: "Project Status Filters",
+            content: "Use the status filter buttons (E, B, O, A) to show/hide projects by status. E = Estimated, B = Booked but not Sold, O = Operational, A = Archived. Click a project's status button to change its status directly.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "addProjectFields",
+            title: "Adding New Projects",
+            content: "When creating a project, enter the project ID, name, budget, and blended rate. The blended rate is used to calculate financial metrics throughout the application.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "editProjectDetails",
+            title: "Editing Project Details",
+            content: "Click 'Edit' on any project row to modify its details including name, budget, blended rate, and status. Changes here affect all related calculations.",
+            roles: ['taskmaster']
+        },
+        {
             key: "weeklyForecast",
             title: "Weekly Hour Forecast",
             content: "Clicking on a project in the 'Manage Projects' list expands this weekly timeline. This is where you input the *demand*—the number of hours you forecast will be needed. This data powers the Forecast Console.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "addForecastRow",
+            title: "Adding Forecast Rows",
+            content: "Click 'Add Row' to add a new discipline/trade row to the forecast. Each row represents a different trade's forecasted hours. Use the discipline dropdown to select from abbreviations like MH (Duct), MP (Piping), PL (Plumbing), etc.",
             roles: ['taskmaster']
         },
         {
@@ -477,6 +525,12 @@ export const tutorialContent = {
             key: "dashboard",
             title: "Welcome to My Dashboard",
             content: "This is your personalized overview, providing a quick glance at your workload, projects, and tasks. Taskmasters, TCLs, and Viewers can select any employee to view their dashboard.",
+            roles: ['taskmaster', 'tcl', 'viewer']
+        },
+        {
+            key: "feedbackButton",
+            title: "Report Bugs & Suggest Features",
+            content: "Found a bug or have an idea for improvement? Click the amber 'Feedback' button in the header to submit a bug report or feature request. Your feedback creates a task in the Tasks Console tagged with 'ATTN:DEV' for the development team to review.",
             roles: ['taskmaster', 'tcl', 'viewer']
         },
         {

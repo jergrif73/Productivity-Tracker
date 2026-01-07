@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
 // Import necessary Firestore functions
-import { doc, onSnapshot, setDoc, collection, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, collection, updateDoc, deleteField } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TutorialHighlight, NavigationContext } from './App';
 
@@ -22,6 +22,36 @@ import {
     parseCSV,
     CSVReviewModal // Replaced CSVImportModal with CSVReviewModal
 } from './ProjectDetailViewComponents.js';
+
+// Helper to convert old discipline labels to abbreviated versions
+const abbreviateDisciplineLabel = (label) => {
+    const labelMap = {
+        'Duct': 'MH',
+        'Sheet Metal': 'MH',
+        'Sheet Metal / HVAC': 'MH',
+        'Piping': 'MP',
+        'Mechanical Piping': 'MP',
+        'Process Piping': 'PP',
+        'Plumbing': 'PL',
+        'Fire Protection': 'FP',
+        'Medical Gas': 'PJ',
+        'Structural': 'ST',
+        'Coordination': 'Coord',
+        'Management': 'MGMT',
+        'GIS/GPS': 'GIS/GPS',
+        'VDC': 'VDC'
+    };
+    return labelMap[label] || label;
+};
+
+// Helper to abbreviate an array of discipline objects
+const abbreviateDisciplines = (disciplines) => {
+    if (!disciplines) return [];
+    return disciplines.map(d => ({
+        ...d,
+        label: abbreviateDisciplineLabel(d.label)
+    }));
+};
 
 
 // --- Main ProjectDetailView Component ---
@@ -76,10 +106,17 @@ const ProjectDetailView = ({
                     if (data.activities && Object.keys(data.activities).length > 0) {
                         if (!data.actionTrackerDisciplines || data.actionTrackerDisciplines.length === 0) {
                             const standardLabels = {
-                                'sheetmetal': 'Sheet Metal / HVAC',
-                                'piping': 'Mechanical Piping',
-                                'plumbing': 'Plumbing',
-                                'management': 'Management',
+                                'sheetmetal': 'MH',
+                                'duct': 'MH',
+                                'piping': 'MP',
+                                'processpiping': 'PP',
+                                'plumbing': 'PL',
+                                'fireprotection': 'FP',
+                                'medgas': 'PJ',
+                                'structural': 'ST',
+                                'coordination': 'Coord',
+                                'gisgps': 'GIS/GPS',
+                                'management': 'MGMT',
                                 'vdc': 'VDC'
                             };
                             
@@ -149,18 +186,18 @@ const ProjectDetailView = ({
                     }));
                     
                     const groupedActivities = groupActivities(standardActivities, [
-                        { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
-                        { key: 'piping', label: 'Mechanical Piping' },
-                        { key: 'plumbing', label: 'Plumbing' },
-                        { key: 'management', label: 'Management' },
+                        { key: 'duct', label: 'MH' },
+                        { key: 'piping', label: 'MP' },
+                        { key: 'plumbing', label: 'PL' },
+                        { key: 'management', label: 'MGMT' },
                         { key: 'vdc', label: 'VDC' }
                     ]);
                     
                     const defaultDisciplines = [
-                        { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
-                        { key: 'piping', label: 'Mechanical Piping' },
-                        { key: 'plumbing', label: 'Plumbing' },
-                        { key: 'management', label: 'Management' },
+                        { key: 'duct', label: 'MH' },
+                        { key: 'piping', label: 'MP' },
+                        { key: 'plumbing', label: 'PL' },
+                        { key: 'management', label: 'MGMT' },
                         { key: 'vdc', label: 'VDC' }
                     ];
                     
@@ -414,7 +451,9 @@ const ProjectDetailView = ({
     const handleAddActionTrackerDiscipline = useCallback((newDiscipline) => { 
         const disciplines = [...(projectData?.actionTrackerDisciplines || []), newDiscipline]; 
         const updatedActivities = { ...(projectData?.activities || {}), [newDiscipline.key]: [] }; 
-        const updatedRateTypes = { ...(projectData?.rateTypes || {}), [newDiscipline.key]: 'Detailing Rate' }; 
+        // Default VDC discipline to VDC Rate, all others to Detailing Rate
+        const defaultRateType = newDiscipline.key === 'vdc' || newDiscipline.label === 'VDC' ? 'VDC Rate' : 'Detailing Rate';
+        const updatedRateTypes = { ...(projectData?.rateTypes || {}), [newDiscipline.key]: defaultRateType }; 
         handleSaveData({ 
             actionTrackerDisciplines: disciplines, 
             activities: updatedActivities, 
@@ -424,7 +463,30 @@ const ProjectDetailView = ({
         onSelectAllTrades(projectId, disciplines); 
         showToast(`Discipline "${newDiscipline.label}" added.`, 'success');
     }, [projectData, handleSaveData, onSelectAllTrades, projectId, showToast]);
-    const handleDeleteActionTrackerDiscipline = useCallback((disciplineKey) => { const disciplines = (projectData?.actionTrackerDisciplines || []).filter(d => d.key !== disciplineKey); handleSaveData({ actionTrackerDisciplines: disciplines }); onTradeFilterToggle(projectId, disciplineKey); }, [projectData, handleSaveData, onTradeFilterToggle, projectId]);
+    const handleDeleteActionTrackerDiscipline = useCallback(async (disciplineKey) => { 
+        const disciplineLabel = (projectData?.actionTrackerDisciplines || []).find(d => d.key === disciplineKey)?.label || disciplineKey;
+        if (!window.confirm(`Delete "${disciplineLabel}" discipline and all its activities? This cannot be undone.`)) return;
+        
+        const disciplines = (projectData?.actionTrackerDisciplines || []).filter(d => d.key !== disciplineKey); 
+        const updatedProjectWide = (projectData?.projectWideActivities || []).filter(k => k !== disciplineKey);
+        
+        try {
+            // Use updateDoc with deleteField to actually remove the nested keys from Firestore
+            await updateDoc(docRef, {
+                actionTrackerDisciplines: disciplines,
+                [`activities.${disciplineKey}`]: deleteField(),
+                [`rateTypes.${disciplineKey}`]: deleteField(),
+                projectWideActivities: updatedProjectWide
+            });
+            
+            // Update parent's discipline list and trade filters
+            onSelectAllTrades(projectId, disciplines);
+            showToast(`Discipline "${disciplineLabel}" deleted.`, 'success');
+        } catch (error) {
+            console.error("Error deleting discipline:", error);
+            showToast(`Failed to delete discipline: ${error.message}`, 'error');
+        }
+    }, [projectData, docRef, showToast, onSelectAllTrades, projectId]);
     const handleUpdateActionTrackerPercentage = useCallback((mainId, trade, field, value) => { const data = JSON.parse(JSON.stringify(projectData?.actionTrackerData || {})); if (!data[mainId]) data[mainId] = {}; if (!data[mainId][trade]) data[mainId][trade] = {}; data[mainId][trade][field] = value; handleSaveData({ actionTrackerData: data }); }, [projectData, handleSaveData]);
     const handleUpdateActivityCompletion = useCallback((mainId, trade, activityId, newPercentage) => {
         const localActionData = JSON.parse(JSON.stringify(projectData?.actionTrackerData || {}));
@@ -487,11 +549,21 @@ const ProjectDetailView = ({
         let details = disciplinesSource.find(d => d.key === newActivityGroup);
         if (!details) {
             const standardDisciplines = [
-                { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
-                { key: 'piping', label: 'Mechanical Piping' },
-                { key: 'plumbing', label: 'Plumbing' },
-                { key: 'management', label: 'Management' },
-                { key: 'vdc', label: 'VDC' }
+                // Core MEP Trades
+                { key: 'duct', label: 'MH' },
+                { key: 'piping', label: 'MP' },
+                { key: 'processpiping', label: 'PP' },
+                { key: 'plumbing', label: 'PL' },
+                { key: 'fireprotection', label: 'FP' },
+                { key: 'medgas', label: 'PJ' },
+                // Structural & Electrical
+                { key: 'structural', label: 'ST' },
+                // VDC & Technology
+                { key: 'vdc', label: 'VDC' },
+                { key: 'coordination', label: 'Coord' },
+                { key: 'gisgps', label: 'GIS/GPS' },
+                // Management & Admin
+                { key: 'management', label: 'MGMT' }
             ];
             details = standardDisciplines.find(d => d.key === newActivityGroup);
         }
@@ -524,15 +596,27 @@ const ProjectDetailView = ({
     
     const handleRemoveDuplicateActivities = useCallback(() => { if (!projectData?.activities) { showToast("No activities.", "info"); return; } const flat = Object.values(projectData.activities).flat(); const map = new Map(); flat.forEach(a => { const k = normalizeDesc(a.description); if (map.has(k)) { const e = map.get(k); e.estimatedHours = (Number(e.estimatedHours)||0)+(Number(a.estimatedHours)||0); e.costToDate = (Number(e.costToDate)||0)+(Number(a.costToDate)||0); if(!e.chargeCode && a.chargeCode) e.chargeCode = a.chargeCode; } else map.set(k, {...a, description: k, estimatedHours: Number(a.estimatedHours)||0, costToDate: Number(a.costToDate)||0 }); }); const unique = Array.from(map.values()); const removed = flat.length - unique.length; if (removed > 0) { const regrouped = groupActivities(unique, projectData.actionTrackerDisciplines || allDisciplines); handleSaveData({ activities: regrouped }); showToast(`${removed} duplicates merged.`, "success"); } else showToast("No duplicates found.", "info"); }, [projectData, allDisciplines, handleSaveData, showToast]);
 
-    const handleDeleteActivityGroup = useCallback((groupKey) => { 
-        if (!window.confirm(`Delete "${groupKey}" section and all its activities? This cannot be undone.`)) return; 
-        const { [groupKey]: _, ...restActs } = projectData?.activities || {}; 
-        const { [groupKey]: __, ...restRates } = projectData?.rateTypes || {}; 
+    const handleDeleteActivityGroup = useCallback(async (groupKey) => { 
+        const groupLabel = (projectData?.actionTrackerDisciplines || []).find(d => d.key === groupKey)?.label || groupKey;
+        if (!window.confirm(`Delete "${groupLabel}" section and all its activities? This cannot be undone.`)) return; 
+        
         const newDisciplines = (projectData?.actionTrackerDisciplines || []).filter(d => d.key !== groupKey); 
-        handleSaveData({ activities: restActs, rateTypes: restRates, actionTrackerDisciplines: newDisciplines }); 
-        onTradeFilterToggle(projectId, groupKey); 
-        showToast(`Section "${groupKey}" deleted.`, 'success'); 
-    }, [projectData, handleSaveData, onTradeFilterToggle, projectId, showToast]);
+        const updatedProjectWide = (projectData?.projectWideActivities || []).filter(k => k !== groupKey);
+        
+        try {
+            // Use updateDoc with deleteField to actually remove the nested keys from Firestore
+            await updateDoc(docRef, {
+                actionTrackerDisciplines: newDisciplines,
+                [`activities.${groupKey}`]: deleteField(),
+                [`rateTypes.${groupKey}`]: deleteField(),
+                projectWideActivities: updatedProjectWide
+            });
+            showToast(`Section "${groupLabel}" deleted.`, 'success'); 
+        } catch (error) {
+            console.error("Error deleting activity group:", error);
+            showToast(`Failed to delete section: ${error.message}`, 'error');
+        }
+    }, [projectData, docRef, showToast]);
 
     const handleRenameActivityGroup = useCallback((groupKey, newLabel) => { 
         if (!newLabel.trim()) return; 
@@ -592,8 +676,11 @@ const ProjectDetailView = ({
 
     const groupTotals = useMemo(() => {
         if (!projectData?.activities || !project) return {};
+        const disciplineKeys = (projectData?.actionTrackerDisciplines || []).map(d => d.key);
         return Object.fromEntries(
-            Object.entries(projectData.activities).map(([groupKey, acts]) => {
+            Object.entries(projectData.activities)
+                .filter(([groupKey]) => disciplineKeys.includes(groupKey)) // Only include disciplines in the list
+                .map(([groupKey, acts]) => {
                 const rateType = projectData.rateTypes?.[groupKey] || 'Detailing Rate';
                 const totals = calculateGroupTotals(acts, project, rateType); 
                 const totalBudgetForGroup = totals.budget;
@@ -608,7 +695,7 @@ const ProjectDetailView = ({
                 return [groupKey, totals];
             })
         );
-    }, [projectData?.activities, projectData?.rateTypes, project, calculateGroupTotals]); 
+    }, [projectData?.activities, projectData?.rateTypes, projectData?.actionTrackerDisciplines, project, calculateGroupTotals]); 
 
     const currentBudget = useMemo(() => {
         return (project?.initialBudget || 0) + (projectData?.budgetImpacts || []).reduce((sum, impact) => sum + impact.amount, 0);
@@ -620,13 +707,15 @@ const ProjectDetailView = ({
 
     const standardToCustomMapping = useMemo(() => {
         const mapping = {};
-        const disciplines = allDisciplines || [];
+        // Prefer projectData (real-time) over allDisciplines (cached)
+        const disciplines = projectData?.actionTrackerDisciplines || allDisciplines || [];
         
-        const ductDiscipline = disciplines.find(d => d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet'));
-        const pipingDiscipline = disciplines.find(d => d.label.toLowerCase().includes('piping') || d.label.toLowerCase().includes('pipe'));
-        const plumbingDiscipline = disciplines.find(d => d.label.toLowerCase().includes('plumb'));
-        const managementDiscipline = disciplines.find(d => d.label.toLowerCase().includes('manage') || d.label.toLowerCase().includes('coord'));
-        const vdcDiscipline = disciplines.find(d => d.label.toLowerCase().includes('vdc'));
+        // Match by key instead of label for abbreviated labels
+        const ductDiscipline = disciplines.find(d => d.key === 'duct' || d.key === 'sheetmetal' || d.label === 'MH');
+        const pipingDiscipline = disciplines.find(d => d.key === 'piping' || d.label === 'MP');
+        const plumbingDiscipline = disciplines.find(d => d.key === 'plumbing' || d.label === 'PL');
+        const managementDiscipline = disciplines.find(d => d.key === 'management' || d.key === 'coordination' || d.label === 'MGMT' || d.label === 'Coord');
+        const vdcDiscipline = disciplines.find(d => d.key === 'vdc' || d.label === 'VDC');
         
         if (ductDiscipline) mapping['sheetmetal'] = ductDiscipline.key;
         if (pipingDiscipline) mapping['piping'] = pipingDiscipline.key;
@@ -634,36 +723,48 @@ const ProjectDetailView = ({
         if (managementDiscipline) mapping['management'] = managementDiscipline.key;
         if (vdcDiscipline) mapping['vdc'] = vdcDiscipline.key;
         
-        mapping['sheetmetal_label'] = 'Sheet Metal / HVAC';
-        mapping['piping_label'] = 'Mechanical Piping';
-        mapping['plumbing_label'] = 'Plumbing';
-        mapping['management_label'] = 'Management';
+        mapping['sheetmetal_label'] = 'MH';
+        mapping['piping_label'] = 'MP';
+        mapping['plumbing_label'] = 'PL';
+        mapping['management_label'] = 'MGMT';
         mapping['vdc_label'] = 'VDC';
         mapping['uncategorized_label'] = 'Uncategorized';
         
         return mapping;
-    }, [allDisciplines]);
+    }, [projectData?.actionTrackerDisciplines, allDisciplines]);
 
     const tradeColorMapping = useMemo(() => {
         const mapping = {};
-        (allDisciplines || []).forEach(d => {
-             if (d.label.toLowerCase().includes('pip')) mapping[d.key] = { bg: 'bg-green-500/70', text: 'text-white' };
-             else if (d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet')) mapping[d.key] = { bg: 'bg-yellow-400/70', text: 'text-black' };
-             else if (d.label.toLowerCase().includes('plumb')) mapping[d.key] = { bg: 'bg-blue-500/70', text: 'text-white' };
-             else if (d.label.toLowerCase().includes('coord') || d.label.toLowerCase().includes('manage')) mapping[d.key] = { bg: 'bg-pink-500/70', text: 'text-white' };
-             else if (d.label.toLowerCase().includes('vdc')) mapping[d.key] = { bg: 'bg-indigo-600/70', text: 'text-white' };
-             else if (d.label.toLowerCase().includes('struct')) mapping[d.key] = { bg: 'bg-amber-700/70', text: 'text-white' };
-             else if (d.label.toLowerCase().includes('gis')) mapping[d.key] = { bg: 'bg-teal-500/70', text: 'text-white' };
+        // Prefer projectData (real-time) over allDisciplines (cached)
+        const disciplines = projectData?.actionTrackerDisciplines || allDisciplines || [];
+        disciplines.forEach(d => {
+             // Match by key for abbreviated labels
+             if (d.key === 'piping' || d.key === 'processpiping' || d.label === 'MP' || d.label === 'PP') mapping[d.key] = { bg: 'bg-green-500/70', text: 'text-white' };
+             else if (d.key === 'duct' || d.key === 'sheetmetal' || d.label === 'MH') mapping[d.key] = { bg: 'bg-yellow-400/70', text: 'text-black' };
+             else if (d.key === 'plumbing' || d.label === 'PL') mapping[d.key] = { bg: 'bg-blue-500/70', text: 'text-white' };
+             else if (d.key === 'coordination' || d.key === 'management' || d.label === 'Coord' || d.label === 'MGMT') mapping[d.key] = { bg: 'bg-pink-500/70', text: 'text-white' };
+             else if (d.key === 'vdc' || d.label === 'VDC') mapping[d.key] = { bg: 'bg-indigo-600/70', text: 'text-white' };
+             else if (d.key === 'structural' || d.label === 'ST') mapping[d.key] = { bg: 'bg-amber-700/70', text: 'text-white' };
+             else if (d.key === 'gisgps' || d.label === 'GIS/GPS') mapping[d.key] = { bg: 'bg-teal-500/70', text: 'text-white' };
+             else if (d.key === 'fireprotection' || d.label === 'FP') mapping[d.key] = { bg: 'bg-red-500/70', text: 'text-white' };
+             else if (d.key === 'medgas' || d.label === 'PJ') mapping[d.key] = { bg: 'bg-cyan-500/70', text: 'text-white' };
              else mapping[d.key] = { bg: 'bg-gray-500/70', text: 'text-white' }; 
         });
         mapping['sheetmetal'] = { bg: 'bg-yellow-400/70', text: 'text-black' };
+        mapping['duct'] = { bg: 'bg-yellow-400/70', text: 'text-black' };
         mapping['piping'] = { bg: 'bg-green-500/70', text: 'text-white' };
+        mapping['processpiping'] = { bg: 'bg-green-600/70', text: 'text-white' };
         mapping['plumbing'] = { bg: 'bg-blue-500/70', text: 'text-white' };
         mapping['management'] = { bg: 'bg-pink-500/70', text: 'text-white' };
+        mapping['coordination'] = { bg: 'bg-pink-400/70', text: 'text-white' };
         mapping['vdc'] = { bg: 'bg-indigo-600/70', text: 'text-white' };
+        mapping['structural'] = { bg: 'bg-amber-700/70', text: 'text-white' };
+        mapping['gisgps'] = { bg: 'bg-teal-500/70', text: 'text-white' };
+        mapping['fireprotection'] = { bg: 'bg-red-500/70', text: 'text-white' };
+        mapping['medgas'] = { bg: 'bg-cyan-500/70', text: 'text-white' };
         mapping['uncategorized'] = { bg: 'bg-gray-600/70', text: 'text-white' };
         return mapping;
-    }, [allDisciplines]);
+    }, [projectData?.actionTrackerDisciplines, allDisciplines]);
 
     const availableDisciplinesToAdd = useMemo(() => {
         const disciplinesSource = projectData?.actionTrackerDisciplines || allDisciplines || [];
@@ -673,11 +774,21 @@ const ProjectDetailView = ({
         }
         
         const standardDisciplines = [
-            { key: 'sheetmetal', label: 'Sheet Metal / HVAC' },
-            { key: 'piping', label: 'Mechanical Piping' },
-            { key: 'plumbing', label: 'Plumbing' },
-            { key: 'management', label: 'Management' },
-            { key: 'vdc', label: 'VDC' }
+            // Core MEP Trades
+            { key: 'duct', label: 'MH' },
+            { key: 'piping', label: 'MP' },
+            { key: 'processpiping', label: 'PP' },
+            { key: 'plumbing', label: 'PL' },
+            { key: 'fireprotection', label: 'FP' },
+            { key: 'medgas', label: 'PJ' },
+            // Structural & Electrical
+            { key: 'structural', label: 'ST' },
+            // VDC & Technology
+            { key: 'vdc', label: 'VDC' },
+            { key: 'coordination', label: 'Coord' },
+            { key: 'gisgps', label: 'GIS/GPS' },
+            // Management & Admin
+            { key: 'management', label: 'MGMT' }
         ];
         
         return standardDisciplines.filter(d => !projectData?.activities || !projectData.activities[d.key]);
@@ -694,9 +805,9 @@ const ProjectDetailView = ({
     }, [activeTrades, standardToCustomMapping]);
 
     const grandTotals = useMemo(() => {
-        const allKeys = Object.keys(projectData?.activities || {});
+        const disciplineKeys = (projectData?.actionTrackerDisciplines || []).map(d => d.key);
         return Object.entries(groupTotals).reduce((acc, [key, totals]) => {
-            if (allKeys.includes(key)) {
+            if (disciplineKeys.includes(key)) {
                  acc.estimated += totals.estimated;
                  acc.budget += totals.budget;
                  acc.earnedValue += totals.earnedValue;
@@ -705,7 +816,7 @@ const ProjectDetailView = ({
             }
             return acc;
         }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0 }); 
-    }, [groupTotals, projectData?.activities]); 
+    }, [groupTotals, projectData?.actionTrackerDisciplines]); 
 
     // --- Render logic ---
     if (loading) return <div className="p-4 text-center">Loading Project Details...</div>;
@@ -767,7 +878,12 @@ const ProjectDetailView = ({
                     <h4 className="text-sm font-semibold mb-2 text-center">Activity & Action Tracker Filters</h4>
                     <div className="flex items-center justify-center gap-2 flex-wrap">
                         {(() => {
-                            let disciplinesToShow = allDisciplines || [];
+                            // Prefer projectData (real-time) over allDisciplines (cached)
+                            let disciplinesToShow = projectData?.actionTrackerDisciplines || [];
+                            
+                            if (disciplinesToShow.length === 0) {
+                                disciplinesToShow = allDisciplines || [];
+                            }
                             
                             if (disciplinesToShow.length === 0 && projectData?.activities) {
                                 const activityKeys = Object.keys(projectData.activities);
@@ -777,7 +893,8 @@ const ProjectDetailView = ({
                                 }));
                             }
                             
-                            return disciplinesToShow.map(d => (
+                            // Abbreviate labels for display
+                            return abbreviateDisciplines(disciplinesToShow).map(d => (
                                 <button
                                     key={d.key}
                                     onClick={() => onTradeFilterToggle(projectId, d.key)}
@@ -792,7 +909,12 @@ const ProjectDetailView = ({
                             ));
                         })()}
                         {(() => {
-                            let disciplinesForButton = allDisciplines || [];
+                            // Prefer projectData (real-time) over allDisciplines (cached)
+                            let disciplinesForButton = projectData?.actionTrackerDisciplines || [];
+                            
+                            if (disciplinesForButton.length === 0) {
+                                disciplinesForButton = allDisciplines || [];
+                            }
                             
                             if (disciplinesForButton.length === 0 && projectData?.activities) {
                                 const activityKeys = Object.keys(projectData.activities);
@@ -946,7 +1068,7 @@ const ProjectDetailView = ({
                                                      <div>
                                                          <h4 className="font-semibold text-md mb-2">Disciplines</h4>
                                                          <ActionTrackerDisciplineManager
-                                                            disciplines={allDisciplines || []}
+                                                            disciplines={abbreviateDisciplines(projectData?.actionTrackerDisciplines || [])}
                                                             onAdd={handleAddActionTrackerDiscipline}
                                                             onDelete={handleDeleteActionTrackerDiscipline}
                                                             currentTheme={currentTheme}
@@ -976,21 +1098,24 @@ const ProjectDetailView = ({
                                             actionTrackerData={projectData?.actionTrackerData || {}}
                                             currentTheme={currentTheme}
                                             actionTrackerDisciplines={(() => {
-                                                if ((allDisciplines || []).length > 0) {
-                                                    return allDisciplines;
-                                                }
-                                                if (projectData?.activities) {
+                                                // Prefer projectData (real-time) over allDisciplines (cached)
+                                                let disciplines = [];
+                                                if ((projectData?.actionTrackerDisciplines || []).length > 0) {
+                                                    disciplines = projectData.actionTrackerDisciplines;
+                                                } else if ((allDisciplines || []).length > 0) {
+                                                    disciplines = allDisciplines;
+                                                } else if (projectData?.activities) {
                                                     const activityKeys = Object.keys(projectData.activities);
-                                                    return activityKeys.map(key => ({
+                                                    disciplines = activityKeys.map(key => ({
                                                         key: key,
                                                         label: standardToCustomMapping[`${key}_label`] || key
                                                     }));
                                                 }
-                                                return [];
+                                                return abbreviateDisciplines(disciplines);
                                             })()}
                                             tradeColorMapping={tradeColorMapping}
                                             isTradePercentageEditable={accessLevel === 'taskmaster'}
-                                            isActivityCompletionEditable={accessLevel === 'tcl'}
+                                            isActivityCompletionEditable={accessLevel === 'tcl' || accessLevel === 'taskmaster'}
                                             collapsedSections={collapsedSections}
                                             onToggle={handleToggleCollapse}
                                             activeTrades={expandedActiveTrades}
@@ -1020,6 +1145,19 @@ const ProjectDetailView = ({
                                             Import CSV
                                             <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
                                          </label>
+                                         {/* Timestamp Button */}
+                                         <button 
+                                            onClick={() => {
+                                                const now = new Date().toISOString();
+                                                handleSaveData({ actualCostUpdatedAt: now });
+                                                showToast('Actual Cost timestamp updated', 'success');
+                                            }}
+                                            className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex items-center gap-1 hover:opacity-80 transition-opacity`}
+                                            title={projectData?.actualCostUpdatedAt ? `Last updated: ${new Date(projectData.actualCostUpdatedAt).toLocaleString()}` : 'Click to timestamp actual cost update'}
+                                         >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            {projectData?.actualCostUpdatedAt ? new Date(projectData.actualCostUpdatedAt).toLocaleDateString() : 'Stamp'}
+                                         </button>
                                          <span className="text-gray-500">|</span>
 
                                         {availableDisciplinesToAdd.length === 0 ? (
@@ -1036,7 +1174,7 @@ const ProjectDetailView = ({
                                                     className={`text-xs p-1 rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                                                 >
                                                     <option value="">Add Discipline Section...</option>
-                                                    {availableDisciplinesToAdd.map(d => (
+                                                    {abbreviateDisciplines(availableDisciplinesToAdd).map(d => (
                                                         <option key={d.key} value={d.key}>{d.label}</option>
                                                     ))}
                                                 </select>
@@ -1055,20 +1193,25 @@ const ProjectDetailView = ({
                                 {/* Activity Tables */}
                                 <div className="space-y-1">
                                     {(() => {
+                                        const currentDisciplines = projectData?.actionTrackerDisciplines || [];
+                                        const disciplineKeys = currentDisciplines.map(d => d.key);
                                         const entries = Object.entries(projectData.activities || {});
-                                        const filtered = entries.filter(([groupKey]) => expandedActiveTrades.includes(groupKey));
+                                        // Only show activities whose key exists in the disciplines list
+                                        const filtered = entries.filter(([groupKey]) => 
+                                            expandedActiveTrades.includes(groupKey) && disciplineKeys.includes(groupKey)
+                                        );
                                         
                                         return filtered 
                                             .sort(([groupA], [groupB]) => {
-                                                const customLabelA = (allDisciplines || []).find(d => d.key === groupA)?.label;
-                                                const labelA = customLabelA || standardToCustomMapping[`${groupA}_label`] || groupA;
-                                                const customLabelB = (allDisciplines || []).find(d => d.key === groupB)?.label;
-                                                const labelB = customLabelB || standardToCustomMapping[`${groupB}_label`] || groupB;
+                                                const customLabelA = currentDisciplines.find(d => d.key === groupA)?.label;
+                                                const labelA = abbreviateDisciplineLabel(customLabelA || standardToCustomMapping[`${groupA}_label`] || groupA);
+                                                const customLabelB = currentDisciplines.find(d => d.key === groupB)?.label;
+                                                const labelB = abbreviateDisciplineLabel(customLabelB || standardToCustomMapping[`${groupB}_label`] || groupB);
                                                 return labelA.localeCompare(labelB);
                                             })
                                             .map(([groupKey, acts]) => {
-                                                 const customLabel = (allDisciplines || []).find(d => d.key === groupKey)?.label;
-                                                 const groupLabel = customLabel || standardToCustomMapping[`${groupKey}_label`] || groupKey;
+                                                 const customLabel = currentDisciplines.find(d => d.key === groupKey)?.label;
+                                                 const groupLabel = abbreviateDisciplineLabel(customLabel || standardToCustomMapping[`${groupKey}_label`] || groupKey);
                                                  
                                                  const colorInfo = tradeColorMapping[groupKey];
                                                  const colorClass = colorInfo ? `${colorInfo.bg} ${colorInfo.text}` : 'bg-gray-500/70 text-white';
