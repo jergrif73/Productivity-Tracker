@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { TutorialHighlight } from './App';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Combined Search + Dropdown Component
+// Combined Search + Dropdown Component for Projects
 const SearchableDropdown = ({ projects, selectedProjectId, onSelect, currentTheme }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isOpen, setIsOpen] = useState(false);
@@ -128,6 +128,142 @@ const SearchableDropdown = ({ projects, selectedProjectId, onSelect, currentThem
                     {/* Results count */}
                     <div className={`p-2 text-xs ${currentTheme.subtleText} border-t ${currentTheme.borderColor} text-center`}>
                         {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Combined Search + Dropdown Component for Employees
+const SearchableEmployeeDropdown = ({ employees, selectedEmployeeId, onSelect, currentTheme }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+    const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+    const containerRef = useRef(null);
+    const dropdownRef = useRef(null);
+    const inputRef = useRef(null);
+
+    const filteredEmployees = employees.filter(e => {
+        const fullName = `${e.firstName} ${e.lastName}`.toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+        return fullName.includes(searchLower) ||
+            (e.title && e.title.toLowerCase().includes(searchLower)) ||
+            (e.employeeId && e.employeeId.toLowerCase().includes(searchLower));
+    });
+
+    const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+
+    // Update dropdown position when opening
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            const rect = inputRef.current.getBoundingClientRect();
+            setDropdownPosition({
+                top: rect.bottom + window.scrollY,
+                left: rect.left + window.scrollX,
+                width: rect.width
+            });
+        }
+    }, [isOpen]);
+
+    // Close when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            const isOutsideContainer = containerRef.current && !containerRef.current.contains(e.target);
+            const isOutsideDropdown = !dropdownRef.current || !dropdownRef.current.contains(e.target);
+            
+            if (isOutsideContainer && isOutsideDropdown) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    const handleSelect = (employeeId) => {
+        onSelect(employeeId);
+        setIsOpen(false);
+        setSearchTerm('');
+    };
+
+    return (
+        <div ref={containerRef} className="relative">
+            {/* Search Input */}
+            <div className="relative">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder={selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : "Search employees..."}
+                    value={searchTerm}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setIsOpen(true);
+                    }}
+                    onFocus={() => setIsOpen(true)}
+                    className={`w-full p-2 pr-8 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                />
+                {/* Dropdown Toggle Button */}
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${currentTheme.subtleText}`}
+                >
+                    <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </div>
+
+            {/* Dropdown List - positioned fixed to escape overflow */}
+            {isOpen && (
+                <div 
+                    ref={dropdownRef}
+                    className={`fixed border rounded-md ${currentTheme.cardBg} ${currentTheme.borderColor} max-h-48 overflow-y-auto shadow-lg`}
+                    style={{ 
+                        top: dropdownPosition.top,
+                        left: dropdownPosition.left,
+                        width: dropdownPosition.width,
+                        zIndex: 9999
+                    }}
+                >
+                    {/* Clear selection option */}
+                    {selectedEmployeeId && (
+                        <div
+                            onClick={() => handleSelect('')}
+                            className={`p-2 cursor-pointer hover:bg-blue-500/20 ${currentTheme.subtleText} border-b ${currentTheme.borderColor} text-sm`}
+                        >
+                            ✕ Clear Selection
+                        </div>
+                    )}
+                    
+                    {filteredEmployees.length === 0 ? (
+                        <div className={`p-3 text-center ${currentTheme.subtleText}`}>
+                            No employees found
+                        </div>
+                    ) : (
+                        filteredEmployees.map(e => (
+                            <div
+                                key={e.id}
+                                onClick={() => handleSelect(e.id)}
+                                className={`p-2 cursor-pointer hover:bg-blue-500/20 ${currentTheme.textColor} ${
+                                    e.id === selectedEmployeeId ? 'bg-blue-500/30' : ''
+                                }`}
+                            >
+                                <div className="font-medium truncate text-sm">{e.firstName} {e.lastName}</div>
+                                {e.title && (
+                                    <div className={`text-xs ${currentTheme.subtleText}`}>
+                                        {e.title}
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    )}
+                    
+                    {/* Results count */}
+                    <div className={`p-2 text-xs ${currentTheme.subtleText} border-t ${currentTheme.borderColor} text-center`}>
+                        {filteredEmployees.length} employee{filteredEmployees.length !== 1 ? 's' : ''}
                     </div>
                 </div>
             )}
@@ -302,12 +438,24 @@ const ReportFilters = ({
                 );
             case 'employee-workload-dist':
                 return (
-                    <CollapsibleFilterSection title="Select Employee" isCollapsed={collapsedFilters?.employee} onToggle={() => onToggleFilterCollapse('employee')}>
-                        <select value={selectedEmployeeId} onChange={e => onFilterChange('selectedEmployeeId', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
-                            <option value="">-- Select an Employee --</option>
-                            {detailers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
-                        </select>
-                    </CollapsibleFilterSection>
+                    <>
+                        <CollapsibleFilterSection title="Select Employee" isCollapsed={collapsedFilters?.employee} onToggle={() => onToggleFilterCollapse('employee')}>
+                            <SearchableEmployeeDropdown
+                                employees={detailers}
+                                selectedEmployeeId={selectedEmployeeId}
+                                onSelect={(id) => onFilterChange('selectedEmployeeId', id)}
+                                currentTheme={currentTheme}
+                            />
+                        </CollapsibleFilterSection>
+                        <CollapsibleFilterSection title="Select Date Range" isCollapsed={collapsedFilters?.dateRange} onToggle={() => onToggleFilterCollapse('dateRange')}>
+                            <div className="space-y-2">
+                               <label className="block text-sm font-medium">Start Date</label>
+                               <input type="date" value={startDate} onChange={e => onFilterChange('startDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                               <label className="block text-sm font-medium">End Date</label>
+                               <input type="date" value={endDate} onChange={e => onFilterChange('endDate', e.target.value)} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
+                            </div>
+                        </CollapsibleFilterSection>
+                    </>
                 );
             case 'project-hours':
             case 'detailer-workload':

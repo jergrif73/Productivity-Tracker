@@ -1,24 +1,71 @@
 // src/EmployeeSkillMatrix.js
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { collection, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
-import JobFamilyEditor from './JobFamilyEditor'; // Standard default import
+import JobFamilyEditor from './JobFamilyEditor';
 import { jobFamilyData as initialJobFamilyData } from './job-family-data';
 
-// Helper to replace BIM with VDC in skill names
-const mapBimToVdc = (skillName) => {
-    if (!skillName) return skillName;
-    if (skillName === 'BIM') return 'VDC';
-    if (skillName === 'BIM Knowledge') return 'VDC Knowledge';
-    return skillName;
+// Discipline name mapping
+const disciplineNameMap = {
+    "Piping": "MP", "Mechanical Piping": "MP",
+    "Duct": "MH", "Sheet Metal": "MH", "Sheet Metal / HVAC": "MH",
+    "Plumbing": "PL",
+    "Coordination": "Coord",
+    "VDC": "VDC",
+    "Structural": "ST",
+    "GIS/GPS": "GIS/GPS",
+    "Process Piping": "PP",
+    "Fire Protection": "FP",
+    "Medical Gas": "PJ",
+    "Management": "MGMT"
 };
 
-const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, hideJobFamilyDisplay = false }) => { // Added hideJobFamilyDisplay prop
+// Default skill orders - defined outside component since they're constants
+const generalSkillOrder = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
+const disciplineSkillOrder = ["MP", "MH", "PL", "Coord", "VDC", "ST", "GIS/GPS", "PP", "FP", "PJ", "MGMT"];
+const defaultSkillOrder = [...generalSkillOrder, ...disciplineSkillOrder];
+
+// Color function - matches legend exactly
+const getScoreColor = (score) => {
+    if (score >= 9) return '#008000'; // Green - Expert
+    if (score === 8) return '#FFFF00'; // Yellow - Proficient  
+    if (score === 7) return '#FFA500'; // Orange - Competent
+    if (score >= 5) return '#FF0000'; // Red - Developing
+    if (score >= 3) return '#800080'; // Purple - Basic
+    if (score >= 1) return '#0000FF'; // Blue - Learning
+    return 'transparent';
+};
+
+const getScoreBorder = (score) => {
+    if (score >= 9) return '#006400';
+    if (score === 8) return '#CCCC00';
+    if (score === 7) return '#CC8400';
+    if (score >= 5) return '#CC0000';
+    if (score >= 3) return '#600060';
+    if (score >= 1) return '#0000CC';
+    return 'transparent';
+};
+
+// eslint-disable-next-line no-unused-vars
+const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, hideJobFamilyDisplay = false }) => {
     const svgRef = useRef(null);
     // eslint-disable-next-line no-unused-vars
-    const [selectedJob, setSelectedJob] = useState(''); // This state will no longer directly drive display if hideJobFamilyDisplay is true
+    const [selectedJob, setSelectedJob] = useState('');
     const [jobFamilyData, setJobFamilyData] = useState({});
-    const [isEditorOpen, setIsEditorOpen] = useState(false); // This state is now only for the internal JobFamilyEditor modal if it's still used here.
+    const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [showDragArea, setShowDragArea] = useState(false);
+    
+    // Sorting state
+    const [employeeSort, setEmployeeSort] = useState('discipline'); 
+    const [skillSort, setSkillSort] = useState('default');
+    const [customEmployeeOrder, setCustomEmployeeOrder] = useState([]);
+    const [customSkillOrder, setCustomSkillOrder] = useState([]);
+    
+    // Drag state
+    const [draggedEmployee, setDraggedEmployee] = useState(null);
+    const [draggedSkill, setDraggedSkill] = useState(null);
+    const [dragOverEmployee, setDragOverEmployee] = useState(null);
+    const [dragOverSkill, setDragOverSkill] = useState(null);
 
     useEffect(() => {
         if (!db || !appId) return;
@@ -27,14 +74,12 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
         const seedData = async () => {
             const querySnapshot = await getDocs(jobFamilyRef);
             if (querySnapshot.empty) {
-                console.log("Job family data is empty. Seeding initial data...");
                 const batch = writeBatch(db);
                 Object.values(initialJobFamilyData).forEach(job => {
                     const docRef = doc(jobFamilyRef);
                     batch.set(docRef, job);
                 });
                 await batch.commit();
-                console.log("Initial job family data seeded successfully.");
             }
         };
 
@@ -50,314 +95,525 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
         return () => unsubscribe();
     }, [db, appId]);
 
-    // jobToDisplay will only be set if hideJobFamilyDisplay is false (i.e., when this component is the primary displayer)
     const jobToDisplay = !hideJobFamilyDisplay && jobFamilyData[selectedJob];
 
-    const { data, skillNames, employeeNames, employeeTradeMap } = useMemo(() => {
-        const generalSkillOrder = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
-        const disciplineSkillOrder = ["MP", "MH", "PL", "Coord", "VDC", "ST", "GIS/GPS", "PP", "FP", "PJ", "MGMT"];
-        // Map old names to new abbreviations for backward compatibility
-        const disciplineNameMap = {
-            "Piping": "MP", "Mechanical Piping": "MP",
-            "Duct": "MH", "Sheet Metal": "MH", "Sheet Metal / HVAC": "MH",
-            "Plumbing": "PL",
-            "Coordination": "Coord",
-            "VDC": "VDC",
-            "Structural": "ST",
-            "GIS/GPS": "GIS/GPS",
-            "Process Piping": "PP",
-            "Fire Protection": "FP",
-            "Medical Gas": "PJ",
-            "Management": "MGMT"
-        };
-        const skillNames = [...generalSkillOrder, ...disciplineSkillOrder];
-
-        const sortedDetailers = [...detailers].sort((a, b) => {
-            const rawTradeA = a.disciplineSkillsets?.[0]?.name || 'Z';
-            const rawTradeB = b.disciplineSkillsets?.[0]?.name || 'Z';
-            const tradeA = disciplineNameMap[rawTradeA] || rawTradeA;
-            const tradeB = disciplineNameMap[rawTradeB] || rawTradeB;
-            if (tradeA !== tradeB) {
-                return tradeA.localeCompare(tradeB);
-            }
-            return a.lastName.localeCompare(b.lastName);
-        });
-
-        const employeeNames = sortedDetailers.map(d => `${d.firstName} ${d.lastName}`);
-
+    // Build base data
+    const { baseEmployees, employeeTradeMap, employeeDataMap, employeeTotalScores, skillTotalScores } = useMemo(() => {
         const employeeTradeMap = new Map();
-        sortedDetailers.forEach(detailer => {
-             const rawTrade = detailer.disciplineSkillsets?.[0]?.name || 'Uncategorized';
-             const trade = disciplineNameMap[rawTrade] || rawTrade;
-             employeeTradeMap.set(`${detailer.firstName} ${detailer.lastName}`, trade);
-        });
-
-        const flatData = [];
-        sortedDetailers.forEach(detailer => {
-            const employeeName = `${detailer.firstName} ${detailer.lastName}`;
-
+        const employeeDataMap = new Map();
+        const employeeTotalScores = new Map();
+        const skillTotalScores = new Map();
+        
+        defaultSkillOrder.forEach(skill => skillTotalScores.set(skill, 0));
+        
+        detailers.forEach(detailer => {
+            const fullName = `${detailer.firstName} ${detailer.lastName}`;
+            const rawTrade = detailer.disciplineSkillsets?.[0]?.name || 'Uncategorized';
+            const trade = disciplineNameMap[rawTrade] || rawTrade;
+            
+            employeeTradeMap.set(fullName, trade);
+            
+            let totalScore = 0;
+            
             generalSkillOrder.forEach(skill => {
                 const score = detailer.skills?.[skill] || 0;
-                flatData.push({ employee: employeeName, skill, score });
+                totalScore += score;
+                skillTotalScores.set(skill, (skillTotalScores.get(skill) || 0) + score);
             });
-
-            // Create map with both old and new names mapped to scores
+            
             const disciplineMap = new Map();
             (detailer.disciplineSkillsets || []).forEach(ds => {
                 const mappedName = disciplineNameMap[ds.name] || ds.name;
                 disciplineMap.set(mappedName, ds.score);
             });
+            
             disciplineSkillOrder.forEach(skill => {
                 const score = disciplineMap.get(skill) || 0;
-                flatData.push({ employee: employeeName, skill, score });
+                totalScore += score;
+                skillTotalScores.set(skill, (skillTotalScores.get(skill) || 0) + score);
+            });
+            
+            employeeTotalScores.set(fullName, totalScore);
+            
+            employeeDataMap.set(fullName, {
+                firstName: detailer.firstName,
+                lastName: detailer.lastName,
+                trade,
+                skills: detailer.skills || {},
+                disciplineSkillsets: detailer.disciplineSkillsets || [],
+                totalScore
             });
         });
-
-        return { data: flatData, skillNames, employeeNames, employeeTradeMap };
+        
+        const baseEmployees = detailers.map(d => `${d.firstName} ${d.lastName}`);
+        
+        return { baseEmployees, employeeTradeMap, employeeDataMap, employeeTotalScores, skillTotalScores };
     }, [detailers]);
 
+    // Sort employees
+    const sortedEmployeeNames = useMemo(() => {
+        if (employeeSort === 'custom' && customEmployeeOrder.length > 0) {
+            return customEmployeeOrder.filter(name => baseEmployees.includes(name));
+        }
+        
+        const sorted = [...baseEmployees].sort((a, b) => {
+            const dataA = employeeDataMap.get(a);
+            const dataB = employeeDataMap.get(b);
+            
+            switch (employeeSort) {
+                case 'lastName':
+                    return dataA.lastName.localeCompare(dataB.lastName);
+                case 'firstName':
+                    return dataA.firstName.localeCompare(dataB.firstName);
+                case 'scoreHighLow':
+                    return dataB.totalScore - dataA.totalScore;
+                case 'scoreLowHigh':
+                    return dataA.totalScore - dataB.totalScore;
+                case 'discipline':
+                default:
+                    if (dataA.trade !== dataB.trade) {
+                        return dataA.trade.localeCompare(dataB.trade);
+                    }
+                    return dataA.lastName.localeCompare(dataB.lastName);
+            }
+        });
+        
+        return sorted;
+    }, [baseEmployees, employeeSort, customEmployeeOrder, employeeDataMap]);
+
+    // Sort skills
+    const sortedSkillNames = useMemo(() => {
+        if (skillSort === 'custom' && customSkillOrder.length > 0) {
+            return customSkillOrder;
+        }
+        
+        switch (skillSort) {
+            case 'alphabetical':
+                return [...defaultSkillOrder].sort((a, b) => a.localeCompare(b));
+            case 'scoreHighLow':
+                return [...defaultSkillOrder].sort((a, b) => 
+                    (skillTotalScores.get(b) || 0) - (skillTotalScores.get(a) || 0)
+                );
+            case 'scoreLowHigh':
+                return [...defaultSkillOrder].sort((a, b) => 
+                    (skillTotalScores.get(a) || 0) - (skillTotalScores.get(b) || 0)
+                );
+            default:
+                return defaultSkillOrder;
+        }
+    }, [skillSort, customSkillOrder, skillTotalScores]);
+
+    // Build flat data
+    const data = useMemo(() => {
+        const flatData = [];
+        
+        sortedEmployeeNames.forEach((employeeName, empIdx) => {
+            const empData = employeeDataMap.get(employeeName);
+            if (!empData) return;
+            
+            const disciplineMap = new Map();
+            empData.disciplineSkillsets.forEach(ds => {
+                const mappedName = disciplineNameMap[ds.name] || ds.name;
+                disciplineMap.set(mappedName, ds.score);
+            });
+            
+            sortedSkillNames.forEach((skill, skillIdx) => {
+                let score = 0;
+                if (generalSkillOrder.includes(skill)) {
+                    score = empData.skills[skill] || 0;
+                } else {
+                    score = disciplineMap.get(skill) || 0;
+                }
+                flatData.push({ 
+                    employee: employeeName, 
+                    skill, 
+                    score,
+                    col: empIdx,
+                    row: skillIdx
+                });
+            });
+        });
+        
+        return flatData;
+    }, [sortedEmployeeNames, sortedSkillNames, employeeDataMap]);
+
+    // Drag handlers
+    const handleEmployeeDragStart = useCallback((e, name) => {
+        setDraggedEmployee(name);
+        e.dataTransfer.effectAllowed = 'move';
+    }, []);
+
+    const handleEmployeeDragOver = useCallback((e, name) => {
+        e.preventDefault();
+        if (draggedEmployee && draggedEmployee !== name) {
+            setDragOverEmployee(name);
+        }
+    }, [draggedEmployee]);
+
+    const handleEmployeeDrop = useCallback((e, targetName) => {
+        e.preventDefault();
+        if (!draggedEmployee || draggedEmployee === targetName) return;
+        
+        const currentOrder = employeeSort === 'custom' && customEmployeeOrder.length > 0 
+            ? [...customEmployeeOrder] 
+            : [...sortedEmployeeNames];
+        
+        const draggedIndex = currentOrder.indexOf(draggedEmployee);
+        const targetIndex = currentOrder.indexOf(targetName);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            currentOrder.splice(draggedIndex, 1);
+            currentOrder.splice(targetIndex, 0, draggedEmployee);
+            setCustomEmployeeOrder(currentOrder);
+            setEmployeeSort('custom');
+        }
+        
+        setDraggedEmployee(null);
+        setDragOverEmployee(null);
+    }, [draggedEmployee, employeeSort, customEmployeeOrder, sortedEmployeeNames]);
+
+    const handleSkillDragStart = useCallback((e, skill) => {
+        setDraggedSkill(skill);
+        e.dataTransfer.effectAllowed = 'move';
+    }, []);
+
+    const handleSkillDragOver = useCallback((e, skill) => {
+        e.preventDefault();
+        if (draggedSkill && draggedSkill !== skill) {
+            setDragOverSkill(skill);
+        }
+    }, [draggedSkill]);
+
+    const handleSkillDrop = useCallback((e, targetSkill) => {
+        e.preventDefault();
+        if (!draggedSkill || draggedSkill === targetSkill) return;
+        
+        const currentOrder = skillSort === 'custom' && customSkillOrder.length > 0 
+            ? [...customSkillOrder] 
+            : [...sortedSkillNames];
+        
+        const draggedIndex = currentOrder.indexOf(draggedSkill);
+        const targetIndex = currentOrder.indexOf(targetSkill);
+        
+        if (draggedIndex !== -1 && targetIndex !== -1) {
+            currentOrder.splice(draggedIndex, 1);
+            currentOrder.splice(targetIndex, 0, draggedSkill);
+            setCustomSkillOrder(currentOrder);
+            setSkillSort('custom');
+        }
+        
+        setDraggedSkill(null);
+        setDragOverSkill(null);
+    }, [draggedSkill, skillSort, customSkillOrder, sortedSkillNames]);
+
+    // D3 Visualization
     useEffect(() => {
         if (!data.length || !svgRef.current || !currentTheme) return;
 
-        const labelColor = currentTheme.mainBg === 'bg-gray-900' ? '#d1d5db' : '#111827';
+        const labelColor = currentTheme.mainBg === 'bg-gray-900' ? '#9CA3AF' : '#374151';
+        const gridColor = currentTheme.mainBg === 'bg-gray-900' ? '#4B5563' : '#9CA3AF';
 
-        const margin = { top: 122, right: 50, bottom: 50, left: 160 };
-        const cellWidth = 36;
-        const cellHeight = 36;
+        const cellSize = 28;
+        const leftMargin = 120;
+        const topMargin = 180; // Increased for rotated names
 
-        const width = employeeNames.length * cellWidth + margin.left + margin.right;
-        const height = skillNames.length * cellHeight + margin.top + margin.bottom;
+        const numCols = sortedEmployeeNames.length;
+        const numRows = sortedSkillNames.length;
+        
+        const chartWidth = numCols * cellSize;
+        const chartHeight = numRows * cellSize;
+        
+        const totalWidth = leftMargin + chartWidth + 10;
+        const totalHeight = topMargin + chartHeight + 10;
 
         const svg = d3.select(svgRef.current)
-            .attr("width", width)
-            .attr("height", height);
+            .attr("width", totalWidth)
+            .attr("height", totalHeight);
 
         svg.selectAll("*").remove();
 
-        const chart = svg.append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`);
-
+        // Tooltip
         const tooltip = d3.select("body").append("div")
-            .attr("class", "absolute opacity-0 transition-opacity duration-300 bg-gray-900 text-white text-xs rounded-md p-2 pointer-events-none shadow-lg z-50 border border-gray-700");
+            .attr("class", "absolute opacity-0 transition-opacity duration-200 bg-gray-900 text-white text-xs rounded-md p-2 pointer-events-none shadow-lg z-50 border border-gray-600")
+            .style("max-width", "200px");
 
-        const x = d3.scaleBand()
-            .domain(employeeNames)
-            .range([0, employeeNames.length * cellWidth])
-            .padding(0.1);
-
-        const y = d3.scaleBand()
-            .domain(skillNames)
-            .range([0, skillNames.length * cellHeight])
-            .padding(0.1);
-
-        const radius = d3.scaleSqrt()
+        const radius = d3.scaleLinear()
             .domain([0, 10])
-            .range([0, Math.min(cellWidth, cellHeight) / 2 - 4]);
+            .range([0, cellSize / 2 - 2]);
 
-        const color = d3.scaleLinear()
-            .domain([0, 4, 6, 8, 10])
-            .range(["#0000FF", "#800080", "#FF0000", "#FFFF00", "#008000"]) // Blue, Purple, Red, Yellow, Green
-            .interpolate(d3.interpolateRgb);
+        // Draw horizontal grid lines
+        for (let row = 0; row <= numRows; row++) {
+            svg.append("line")
+                .attr("x1", leftMargin)
+                .attr("y1", topMargin + row * cellSize)
+                .attr("x2", leftMargin + chartWidth)
+                .attr("y2", topMargin + row * cellSize)
+                .attr("stroke", gridColor)
+                .attr("stroke-width", 1);
+        }
 
-        chart.selectAll(".cell")
-            .data(data)
-            .enter().append("rect")
-            .attr("class", "cell")
-            .attr("x", d => x(d.employee))
-            .attr("y", d => y(d.skill))
-            .attr("width", x.bandwidth())
-            .attr("height", y.bandwidth())
-            .style("fill", "transparent")
-            .style("stroke", "white")
-            .style("stroke-width", 0.25)
-            .style("stroke-opacity", 0.8);
+        // Draw vertical grid lines
+        for (let col = 0; col <= numCols; col++) {
+            svg.append("line")
+                .attr("x1", leftMargin + col * cellSize)
+                .attr("y1", topMargin)
+                .attr("x2", leftMargin + col * cellSize)
+                .attr("y2", topMargin + chartHeight)
+                .attr("stroke", gridColor)
+                .attr("stroke-width", 1);
+        }
 
-        const xAxis = chart.append("g")
-            .attr("class", "x-axis")
-            .selectAll("g")
-            .data(employeeNames)
-            .enter().append("g")
-            .attr("transform", d => `translate(${x(d) + x.bandwidth() / 2}, 0)`);
+        // X-axis labels (Employee names) - above the grid
+        sortedEmployeeNames.forEach((name, i) => {
+            const xCenter = leftMargin + i * cellSize + cellSize / 2;
+            
+            svg.append("text")
+                .attr("x", xCenter)
+                .attr("y", topMargin - 8)
+                .attr("transform", `rotate(-55, ${xCenter}, ${topMargin - 8})`)
+                .attr("text-anchor", "end")
+                .attr("font-size", "9px")
+                .attr("fill", labelColor)
+                .text(name);
+        });
 
-        xAxis.append("text")
-            .text(d => d)
-            .attr("transform", "rotate(-65)")
-            .attr("dy", "0.32em")
-            .attr("y", -10)
-            .attr("x", 0)
-            .attr("text-anchor", "start")
-            .style("font-size", "11px")
-            .style("font-weight", "600")
-            .style("fill", labelColor);
+        // Y-axis labels (Skill names) - left of the grid
+        sortedSkillNames.forEach((skill, i) => {
+            const yCenter = topMargin + i * cellSize + cellSize / 2;
+            
+            svg.append("text")
+                .attr("x", leftMargin - 6)
+                .attr("y", yCenter)
+                .attr("text-anchor", "end")
+                .attr("dominant-baseline", "middle")
+                .attr("font-size", "9px")
+                .attr("fill", labelColor)
+                .text(skill);
+        });
 
-        const yAxis = chart.append("g")
-            .attr("class", "y-axis")
-            .selectAll("g")
-            .data(skillNames)
-            .enter().append("g")
-            .attr("transform", d => `translate(0, ${y(d) + y.bandwidth() / 2})`);
-
-        yAxis.append("text")
-            .text(d => mapBimToVdc(d))
-            .attr("x", -15)
-            .attr("text-anchor", "end")
-            .style("font-size", "11px")
-            .style("font-weight", "600")
-            .style("fill", labelColor);
-
-        chart.selectAll(".bubble")
-            .data(data)
-            .enter().append("circle")
-            .attr("class", "bubble")
-            .attr("cx", d => x(d.employee) + x.bandwidth() / 2)
-            .attr("cy", d => y(d.skill) + y.bandwidth() / 2)
-            .attr("r", 0)
-            .style("fill", d => d.score > 0 ? color(d.score) : "transparent")
-            .style("stroke", d => d.score > 0 ? d3.color(color(d.score)).darker(0.7) : currentTheme.borderColor)
-            .style("stroke-width", 1)
-            .on("mouseover", function(event, d) {
-                tooltip.transition().duration(200).style("opacity", .9);
-                tooltip.html(`<strong>${d.employee}</strong><br/>${mapBimToVdc(d.skill)}: <strong>${d.score}</strong>`)
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 28) + "px");
-                d3.select(this).style("stroke-width", 2.5).style("stroke", "black");
-            })
-            .on("mouseout", function(event, d) {
-                tooltip.transition().duration(500).style("opacity", 0);
-                d3.select(this).style("stroke-width", 1).style("stroke", d.score > 0 ? d3.color(color(d.score)).darker(0.7) : currentTheme.borderColor);
-            })
-            .transition()
-            .duration(500)
-            .delay((d, i) => i * 2)
-            .attr("r", d => radius(d.score));
+        // Score circles - centered in each cell
+        data.forEach((d, idx) => {
+            const cx = leftMargin + d.col * cellSize + cellSize / 2;
+            const cy = topMargin + d.row * cellSize + cellSize / 2;
+            
+            if (d.score > 0) {
+                svg.append("circle")
+                    .attr("cx", cx)
+                    .attr("cy", cy)
+                    .attr("r", 0)
+                    .attr("fill", getScoreColor(d.score))
+                    .attr("stroke", getScoreBorder(d.score))
+                    .attr("stroke-width", 1)
+                    .style("cursor", "pointer")
+                    .on("mouseover", function(event) {
+                        const trade = employeeTradeMap.get(d.employee) || 'N/A';
+                        const totalScore = employeeTotalScores.get(d.employee) || 0;
+                        tooltip.html(`<strong>${d.employee}</strong><br/>Trade: ${trade}<br/>Skill: ${d.skill}<br/>Score: ${d.score}/10<br/>Total: ${totalScore}`)
+                            .style("opacity", 1)
+                            .style("left", (event.pageX + 12) + "px")
+                            .style("top", (event.pageY - 10) + "px");
+                        d3.select(this).attr("stroke-width", 2);
+                    })
+                    .on("mousemove", function(event) {
+                        tooltip.style("left", (event.pageX + 12) + "px").style("top", (event.pageY - 10) + "px");
+                    })
+                    .on("mouseout", function() {
+                        d3.select(this).attr("stroke-width", 1);
+                        tooltip.style("opacity", 0);
+                    })
+                    .transition()
+                    .duration(200)
+                    .delay(idx * 0.2)
+                    .attr("r", radius(d.score));
+            }
+        });
 
         return () => { tooltip.remove() };
 
-    }, [data, skillNames, employeeNames, employeeTradeMap, currentTheme]);
+    }, [data, sortedSkillNames, sortedEmployeeNames, employeeTradeMap, employeeTotalScores, currentTheme]);
+
+    const handleResetSort = () => {
+        setEmployeeSort('discipline');
+        setSkillSort('default');
+        setCustomEmployeeOrder([]);
+        setCustomSkillOrder([]);
+    };
 
     return (
         <div id="skill-matrix-printable-area">
-            {/* The Job Family Review section is now conditionally rendered based on hideJobFamilyDisplay */}
-            {/* This section is removed as per user request to move "Manage Positions" button */}
-            {/* {!hideJobFamilyDisplay && (
-                <div className="mb-4 p-4 flex items-end gap-4">
-                    <div>
-                        <label htmlFor="job-family-select" className={`block mb-2 text-sm font-medium ${currentTheme.textColor}`}>Review Job Family Expectations:</label>
-                        <select
-                            id="job-family-select"
-                            value={selectedJob}
-                            onChange={(e) => setSelectedJob(e.target.value)}
-                            className={`w-full max-w-xs p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
-                        >
-                            <option value="">Select a Position...</option>
-                            {Object.keys(jobFamilyData).sort().map(jobTitle => (
-                                <option key={jobTitle} value={jobTitle}>{jobTitle}</option>
-                            ))}
-                        </select>
-                    </div>
-                    {accessLevel === 'taskmaster' && (
-                        <TutorialHighlight tutorialKey="manageJobPositions">
-                            <button onClick={() => setIsEditorOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
-                                Manage Positions
-                            </button>
-                        </TutorialHighlight>
-                    )}
+            {/* Compact Controls Row */}
+            <div className={`flex items-center gap-4 p-2 mb-2 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                <div className="flex items-center gap-2">
+                    <span className={`text-xs ${currentTheme.subtleText}`}>Employees:</span>
+                    <select
+                        value={employeeSort}
+                        onChange={(e) => setEmployeeSort(e.target.value)}
+                        className={`p-1 text-xs border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    >
+                        <option value="discipline">By Discipline</option>
+                        <option value="lastName">Last Name A-Z</option>
+                        <option value="firstName">First Name A-Z</option>
+                        <option value="scoreHighLow">Score ↓</option>
+                        <option value="scoreLowHigh">Score ↑</option>
+                        {customEmployeeOrder.length > 0 && <option value="custom">Custom</option>}
+                    </select>
                 </div>
-            )} */}
+                
+                <div className="flex items-center gap-2">
+                    <span className={`text-xs ${currentTheme.subtleText}`}>Skills:</span>
+                    <select
+                        value={skillSort}
+                        onChange={(e) => setSkillSort(e.target.value)}
+                        className={`p-1 text-xs border rounded ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    >
+                        <option value="default">Default</option>
+                        <option value="alphabetical">A-Z</option>
+                        <option value="scoreHighLow">Score ↓</option>
+                        <option value="scoreLowHigh">Score ↑</option>
+                        {customSkillOrder.length > 0 && <option value="custom">Custom</option>}
+                    </select>
+                </div>
+                
+                <button
+                    onClick={handleResetSort}
+                    className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-500"
+                >
+                    Reset
+                </button>
 
-            {/* The JobFamilyEditor modal is now opened directly from ReportingConsole.js */}
-            {isEditorOpen && (
-                 <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
-                    <div className={`bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}>
-                         <JobFamilyEditor db={db} appId={appId} currentTheme={currentTheme} onClose={() => setIsEditorOpen(false)} />
+                <button
+                    onClick={() => setShowDragArea(!showDragArea)}
+                    className={`px-2 py-1 text-xs rounded ${showDragArea ? 'bg-blue-600 text-white' : 'bg-gray-600 text-white hover:bg-gray-500'}`}
+                >
+                    {showDragArea ? 'Hide' : 'Show'} Custom Order
+                </button>
+            </div>
+
+            {/* Collapsible Drag Area - Grid Layout */}
+            {showDragArea && (
+                <div className={`p-3 mb-2 rounded ${currentTheme.cardBg} border ${currentTheme.borderColor}`}>
+                    {/* Employees - 8 columns */}
+                    <div className="mb-4">
+                        <div className={`text-xs font-medium mb-2 ${currentTheme.textColor}`}>
+                            Drag employees to reorder columns:
+                        </div>
+                        <div className="grid grid-cols-8 gap-1">
+                            {sortedEmployeeNames.map((name) => {
+                                const parts = name.split(' ');
+                                const short = `${parts[0][0]}.${parts[parts.length - 1]}`;
+                                return (
+                                    <div
+                                        key={name}
+                                        draggable
+                                        onDragStart={(e) => handleEmployeeDragStart(e, name)}
+                                        onDragOver={(e) => handleEmployeeDragOver(e, name)}
+                                        onDrop={(e) => handleEmployeeDrop(e, name)}
+                                        onDragEnd={() => { setDraggedEmployee(null); setDragOverEmployee(null); }}
+                                        title={name}
+                                        className={`px-2 py-1.5 text-xs rounded cursor-grab select-none text-center truncate ${
+                                            draggedEmployee === name 
+                                                ? 'opacity-50 bg-blue-600 text-white' 
+                                                : dragOverEmployee === name 
+                                                    ? 'bg-blue-500 text-white ring-2 ring-blue-300' 
+                                                    : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                                        }`}
+                                    >
+                                        {short}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                 </div>
+                    
+                    {/* Skills - 8 columns */}
+                    <div>
+                        <div className={`text-xs font-medium mb-2 ${currentTheme.textColor}`}>
+                            Drag skills to reorder rows:
+                        </div>
+                        <div className="grid grid-cols-8 gap-1">
+                            {sortedSkillNames.map((skill) => (
+                                <div
+                                    key={skill}
+                                    draggable
+                                    onDragStart={(e) => handleSkillDragStart(e, skill)}
+                                    onDragOver={(e) => handleSkillDragOver(e, skill)}
+                                    onDrop={(e) => handleSkillDrop(e, skill)}
+                                    onDragEnd={() => { setDraggedSkill(null); setDragOverSkill(null); }}
+                                    className={`px-2 py-1.5 text-xs rounded cursor-grab select-none text-center truncate ${
+                                        draggedSkill === skill 
+                                            ? 'opacity-50 bg-green-600 text-white' 
+                                            : dragOverSkill === skill 
+                                                ? 'bg-green-500 text-white ring-2 ring-green-300' 
+                                                : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                                    }`}
+                                >
+                                    {skill}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             )}
 
-            {/* The direct display of jobToDisplay is also conditionally rendered and now effectively always hidden here */}
+            {/* Job Family Editor Modal */}
+            {isEditorOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center">
+                    <div className={`bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto hide-scrollbar-on-hover`}>
+                        <JobFamilyEditor db={db} appId={appId} currentTheme={currentTheme} onClose={() => setIsEditorOpen(false)} />
+                    </div>
+                </div>
+            )}
+
+            {/* Job Display */}
             {jobToDisplay && !hideJobFamilyDisplay && (
                 <div className={`p-4 mb-4 border-t ${currentTheme.borderColor}`}>
                     <h3 className={`text-xl font-bold mb-3 ${currentTheme.textColor}`}>{jobToDisplay.title}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                        <div>
-                            <h4 className="font-semibold mb-2 text-base">Primary Responsibilities</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-0 */}
-                                {(jobToDisplay.primaryResponsibilities || []).map((item, index) => (
-                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{item}</span> {/* Text content */}
-                                    </li>
-                                ))}
-                            </ul>
-                            <h4 className="font-semibold mt-4 mb-2 text-base">Independence and Decision-Making</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
-                                {(jobToDisplay.independenceAndDecisionMaking || []).map((item, index) => (
-                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{item}</span> {/* Text content */}
-                                    </li>
-                                ))}
-                            </ul>
-                            <h4 className="font-semibold mt-4 mb-2 text-base">Leadership</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
-                                {(jobToDisplay.leadership || []).map((item, index) => (
-                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{item}</span> {/* Text content */}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold mb-2 text-base">Knowledge and Skills</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
-                                {(jobToDisplay.knowledgeAndSkills || []).map((item, index) => (
-                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{item}</span> {/* Text content */}
-                                    </li>
-                                ))}
-                            </ul>
-                            <h4 className="font-semibold mt-4 mb-2 text-base">Education</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
-                                {(jobToDisplay.education || []).map((item, index) => (
-                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{item}</span> {/* Text content */}
-                                    </li>
-                                ))}
-                            </ul>
-                            <h4 className="font-semibold mt-4 mb-2 text-base">Years of Experience Preferred</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
-                                {(jobToDisplay.yearsOfExperiencePreferred || []).map((item, index) => (
-                                    <li key={index} className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{item}</span> {/* Text content */}
-                                    </li>
-                                ))}
-                            </ul>
-                            <h4 className="font-semibold mt-4 mb-2 text-base">Preferred Experience</h4>
-                            <ul className="space-y-1"> {/* Removed list-disc, list-inside, pl-4 */}
-                                {jobToDisplay.experience && (
-                                    <li className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">{jobToDisplay.experience}</span> {/* Text content */}
-                                    </li>
-                                )}
-                                {!jobToDisplay.experience && (
-                                    <li className="flex items-start"> {/* Use flex for consistent alignment */}
-                                        <span className="w-4 flex-shrink-0">•</span> {/* Manual bullet */}
-                                        <span className="flex-grow">N/A</span> {/* Text content */}
-                                    </li>
-                                )}
-                            </ul>
-                        </div>
-                    </div>
                 </div>
             )}
 
-            <div style={{ maxHeight: '80vh', overflow: 'auto' }} className="hide-scrollbar-on-hover p-4">
-                <svg ref={svgRef}></svg>
+            {/* Matrix and Legend */}
+            <div className="flex">
+                <div style={{ maxHeight: '65vh', overflow: 'auto' }} className="hide-scrollbar-on-hover flex-grow">
+                    <svg ref={svgRef}></svg>
+                </div>
+                
+                {/* Legend */}
+                <div className={`flex-shrink-0 p-3 ml-3 border-l ${currentTheme.borderColor}`} style={{ minWidth: '150px' }}>
+                    <h4 className={`text-xs font-bold mb-2 ${currentTheme.textColor}`}>Skill Levels</h4>
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#008000', border: '1px solid #006400' }}></div>
+                            <span className={`text-xs ${currentTheme.textColor}`}>9-10: Expert</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#FFFF00', border: '1px solid #CCCC00' }}></div>
+                            <span className={`text-xs ${currentTheme.textColor}`}>8: Proficient</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#FFA500', border: '1px solid #CC8400' }}></div>
+                            <span className={`text-xs ${currentTheme.textColor}`}>7: Competent</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#FF0000', border: '1px solid #CC0000' }}></div>
+                            <span className={`text-xs ${currentTheme.textColor}`}>5-6: Developing</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#800080', border: '1px solid #600060' }}></div>
+                            <span className={`text-xs ${currentTheme.textColor}`}>3-4: Basic</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#0000FF', border: '1px solid #0000CC' }}></div>
+                            <span className={`text-xs ${currentTheme.textColor}`}>1-2: Learning</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full flex-shrink-0 bg-transparent" style={{ border: '1px solid #4B5563' }}></div>
+                            <span className={`text-xs ${currentTheme.subtleText}`}>0: None</span>
+                        </div>
+                    </div>
+                    <p className={`text-xs mt-3 pt-2 border-t ${currentTheme.borderColor} ${currentTheme.subtleText}`}>
+                        Size = skill level
+                    </p>
+                </div>
             </div>
         </div>
     );

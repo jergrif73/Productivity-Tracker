@@ -91,6 +91,20 @@ const GeminiInsightChat = ({ isVisible, onClose, reportContext, geminiApiKey, cu
                     Number of Budget Impacts: ${data.activitiesDoc?.budgetImpacts?.length || 0}
                 `;
                 formattedHeaders = 'Financial Summary, Action Tracker Summary, Budget Impact Log, Activity Values';
+            } else if (reportContext.type === 'skill-matrix') {
+                // Handle skill-matrix data format (array of objects)
+                dataSample = reportContext.data.slice(0, 20).map(emp => {
+                    const skillsList = Object.entries(emp.skills || {})
+                        .map(([skill, level]) => `${skill}: ${level}`)
+                        .join(', ');
+                    return `${emp.name} (${emp.title}, ${emp.primaryTrade}): ${skillsList}`;
+                }).join('\n');
+                formattedHeaders = reportContext.headers.join(', ');
+                
+                // Add filter context
+                if (reportContext.filters) {
+                    dataSample += `\n\nFilters Applied - Levels: ${reportContext.filters.selectedLevels}, Trade: ${reportContext.filters.selectedTrade}`;
+                }
             } else if (reportContext.type === 'employee-details' && reportContext.data[0] && typeof reportContext.data[0] === 'object' && !Array.isArray(reportContext.data[0])) {
                 dataSample = reportContext.data.slice(0, 20).map(row => 
                     `${row.attribute}: ${row.values.map(v => v.value).join(', ')}`

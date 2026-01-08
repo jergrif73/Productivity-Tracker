@@ -263,7 +263,11 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
             
             case 'employee-workload-dist':
                 if (!selectedEmployeeId) {
-                    alert("Please select an employee."); // Consider replacing with a toast/modal
+                    alert("Please select an employee.");
+                    return;
+                }
+                if (!sDate || !eDate) {
+                    alert("Please select a date range.");
                     return;
                 }
                 const employeeAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
@@ -278,24 +282,65 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                         return acc;
                     }
 
-                    const diffTime = Math.abs(assEndDate - assStartDate);
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                    const workDays = Math.ceil(diffDays * (5/7));
-                    const allocation = Number(ass.allocation) || 0;
-                    const hours = workDays * 8 * (allocation / 100);
+                    // Use getDaysInRange to calculate calendar days within the selected date range
+                    const calendarDays = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
+                    
+                    if (calendarDays > 0) {
+                        // Convert calendar days to approximate workdays (5/7 ratio)
+                        const workDays = Math.ceil(calendarDays * (5/7));
+                        const allocation = Number(ass.allocation) || 0;
+                        const hours = workDays * 8 * (allocation / 100);
 
-                    if (!acc[project.id]) {
-                        acc[project.id] = { projectName: project.name, hours: 0 };
+                        if (!acc[project.id]) {
+                            acc[project.id] = { projectName: project.name, hours: 0 };
+                        }
+                        acc[project.id].hours += hours;
                     }
-                    acc[project.id].hours += hours;
                     return acc;
                 }, {});
                 setChartData(Object.values(workloadData));
                 break;
 
             case 'skill-matrix':
-                // Data for skill matrix is handled by the EmployeeSkillMatrix component directly
-                // No tabular data or chartData is set here for this report type
+                // Build skill matrix data for Gemini context
+                const skillMatrixData = filteredDetailersForMatrix.map(d => {
+                    const skills = {};
+                    // Core skills
+                    if (d.coreSkillsets) {
+                        d.coreSkillsets.forEach(skill => {
+                            skills[skill.name] = skill.level;
+                        });
+                    }
+                    // Discipline skills
+                    if (d.disciplineSkillsets) {
+                        d.disciplineSkillsets.forEach(skill => {
+                            skills[skill.name] = skill.level;
+                        });
+                    }
+                    // Software skills
+                    if (d.softwareSkillsets) {
+                        d.softwareSkillsets.forEach(skill => {
+                            skills[skill.name] = skill.level;
+                        });
+                    }
+                    return {
+                        name: `${d.firstName} ${d.lastName}`,
+                        title: d.title,
+                        primaryTrade: d.disciplineSkillsets?.[0]?.name || 'N/A',
+                        skills
+                    };
+                });
+                
+                // Set context for Gemini
+                setReportContext({ 
+                    data: skillMatrixData, 
+                    headers: ['Employee', 'Title', 'Primary Trade', 'Skills'], 
+                    type: reportType,
+                    filters: {
+                        selectedLevels: selectedLevels.length > 0 ? selectedLevels : 'All',
+                        selectedTrade: selectedTrade || 'All'
+                    }
+                });
                 break;
 
             case 'project-hours':
@@ -383,18 +428,16 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         
         setReportHeaders(headers);
 
-        // FIX: Set reportContext for full-project-report too so Ctrl+Alt+Shift+G works
+        // Set reportContext for Gemini AI
         if (isTabularReport) {
             setReportContext({ data, headers, type: reportType });
         } else if (reportType === 'full-project-report' && data) {
-            // Set context for full project report to enable Gemini AI keyboard shortcut
-            console.log('Setting reportContext for full-project-report with data:', data);
-            console.log('Financial Summary:', data.financialSummary);
             setReportContext({ data, headers: [], type: reportType });
-        } else {
+        } else if (reportType !== 'skill-matrix') {
+            // Don't clear for skill-matrix - it sets its own context above
             setReportContext(null);
         }
-    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, detailers, getDaysInRange, tasks, selectedProjectId, reportOption]);
+    }, [startDate, endDate, reportType, projects, projectActivitiesMap, assignments, selectedEmployeeId, detailers, getDaysInRange, tasks, selectedProjectId, reportOption, selectedLevels, selectedTrade, filteredDetailersForMatrix]);
 
     const handleClearReport = useCallback(() => {
         setReportData(null);
@@ -424,10 +467,10 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                 event.altKey &&
                 event.key.toLowerCase() === 'g' &&
                 accessLevel === 'taskmaster' &&
-                reportContext // Only open if there's a report context
+                reportContext
             ) {
-                event.preventDefault(); // Prevent any default browser action for this combo
-                setIsGeminiVisible(prev => !prev); // Toggle visibility
+                event.preventDefault();
+                setIsGeminiVisible(prev => !prev);
             }
         };
 

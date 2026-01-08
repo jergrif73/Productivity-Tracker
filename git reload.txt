@@ -1,5 +1,5 @@
 git add .
-git commit -m "Worked on everything"
+git commit -m "Worked on Employee Skills Matrix"
 git push origin main
 
 
