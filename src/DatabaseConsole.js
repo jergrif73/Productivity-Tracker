@@ -110,8 +110,8 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
     const disciplineOptions = ["MH", "PL", "MP", "PP", "FP", "PJ", "ST", "Coord", "GIS/GPS", "VDC", "MGMT"];
     const titleOptions = [
         "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-        "Project Constructability Lead", "Project Constructability Lead, Sr.",
-        "Trade Constructability Lead", "Constructability Manager"
+        "Lead Detailer", "Project Constructability Lead",
+        "Trades Constructability Lead", "Division Constructability Manager"
     ];
 
     useEffect(() => {

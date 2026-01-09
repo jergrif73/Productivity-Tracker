@@ -4,6 +4,7 @@ import { collection, doc, addDoc, deleteDoc, updateDoc, onSnapshot, setDoc, getD
 // --- END FIX ---
 import { motion, AnimatePresence } from 'framer-motion'; // Import Framer Motion
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
+import { jobFamilyData as updatedJobFamilyData } from './job-family-data'; // Import updated job family data
 
 // --- Helper Components ---
 // ... (useDebounce, formatCurrency, Tooltip, ConfirmationModal, BubbleRating, NoteEditorModal, EditEmployeeModal remain the same) ...
@@ -133,8 +134,8 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
     ];
     const titleOptions = [
         "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-        "Project Constructability Lead", "Project Constructability Lead, Sr.",
-        "Trade Constructability Lead", "Constructability Manager"
+        "Lead Detailer", "Project Constructability Lead",
+        "Trades Constructability Lead", "Division Constructability Manager"
     ];
 
     useEffect(() => {
@@ -370,8 +371,8 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
 
 const titleOptions = [
     "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-    "Project Constructability Lead", "Project Constructability Lead, Sr.",
-    "Trade Constructability Lead", "Constructability Manager"
+    "Lead Detailer", "Project Constructability Lead",
+    "Trades Constructability Lead", "Division Constructability Manager"
 ];
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
@@ -910,6 +911,72 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
         await deleteDoc(unionLocalRef);
     };
 
+    // Migration function to update job family data in Firebase
+    const handleMigrateJobFamilies = async () => {
+        const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
+        
+        try {
+            // Delete all existing job family documents
+            const existingDocs = await getDocs(jobFamilyRef);
+            const deletePromises = existingDocs.docs.map(docSnapshot => 
+                deleteDoc(doc(db, `artifacts/${appId}/public/data/jobFamilyData`, docSnapshot.id))
+            );
+            await Promise.all(deletePromises);
+            
+            // Add new job family documents
+            const batch = writeBatch(db);
+            Object.values(updatedJobFamilyData).forEach(job => {
+                const docRef = doc(jobFamilyRef);
+                batch.set(docRef, job);
+            });
+            await batch.commit();
+            
+            showToast('Job Family data updated successfully!', 'success');
+        } catch (error) {
+            console.error('Error migrating job families:', error);
+            showToast('Error updating Job Family data', 'error');
+        }
+    };
+
+    // Migration function to update employee titles
+    const handleMigrateEmployeeTitles = async () => {
+        const titleMapping = {
+            'Project Constructability Lead, Sr.': 'Project Constructability Lead',
+            'Project Constructability Lead': 'Lead Detailer',
+            'Trade Constructability Lead': 'Trades Constructability Lead',
+            'Constructability Manager': 'Division Constructability Manager'
+        };
+        
+        try {
+            const employeesRef = collection(db, `artifacts/${appId}/public/data/detailers`);
+            const snapshot = await getDocs(employeesRef);
+            
+            let updateCount = 0;
+            const updatePromises = [];
+            
+            snapshot.docs.forEach(docSnapshot => {
+                const data = docSnapshot.data();
+                const oldTitle = data.title;
+                const newTitle = titleMapping[oldTitle];
+                
+                if (newTitle) {
+                    updatePromises.push(
+                        updateDoc(doc(db, `artifacts/${appId}/public/data/detailers`, docSnapshot.id), {
+                            title: newTitle
+                        })
+                    );
+                    updateCount++;
+                }
+            });
+            
+            await Promise.all(updatePromises);
+            showToast(`Updated ${updateCount} employee title(s) successfully!`, 'success');
+        } catch (error) {
+            console.error('Error migrating employee titles:', error);
+            showToast('Error updating employee titles', 'error');
+        }
+    };
+
 
     const handleToggleCollapse = (section) => {
         setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -1285,6 +1352,27 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                         >
+                            {/* Data Management Utilities */}
+                            <div className={`mb-4 p-3 ${currentTheme.cardBg} border ${currentTheme.borderColor} rounded-lg`}>
+                                <div className="flex items-center justify-between">
+                                    <span className={`text-sm font-medium ${currentTheme.textColor}`}>Data Management</span>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={handleMigrateJobFamilies}
+                                            className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                                        >
+                                            Update Job Families
+                                        </button>
+                                        <button 
+                                            onClick={handleMigrateEmployeeTitles}
+                                            className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                                        >
+                                            Migrate Employee Titles
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className={`py-2`}>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     <TutorialHighlight tutorialKey="manageEmployees">
