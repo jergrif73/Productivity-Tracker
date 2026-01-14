@@ -639,7 +639,7 @@ const ProjectDetailView = ({
             const percentComplete = Number(activity?.percentComplete || 0);
             const rateToUse = rateType === 'VDC Rate' ? (proj.vdcBlendedRate || proj.blendedRate || 0) : (proj.blendedRate || 0);
             
-            const budget = Math.ceil((estHours * rateToUse) / 5) * 5;
+            const budget = Math.ceil(estHours * rateToUse);
             const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
 
             acc.estimated += estHours;
@@ -663,7 +663,7 @@ const ProjectDetailView = ({
              const percentComplete = Number(activity?.percentComplete || 0);
              const rate = activity.rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
              
-             const budget = Math.ceil((estHours * rate) / 5) * 5;
+             const budget = Math.ceil(estHours * rate);
              const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
 
              acc.estimated += estHours;
@@ -688,7 +688,7 @@ const ProjectDetailView = ({
                     const estHours = Number(act.estimatedHours) || 0;
                     const percent = Number(act.percentComplete) || 0;
                     const rate = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate) : project.blendedRate;
-                    const actBudget = Math.ceil((estHours * rate) / 5) * 5;
+                    const actBudget = Math.ceil(estHours * rate);
                     return totalBudgetForGroup > 0 ? acc + (percent * (actBudget / totalBudgetForGroup)) : acc;
                 }, 0);
                 totals.percentComplete = weightedPercentComplete;
@@ -1247,18 +1247,35 @@ const ProjectDetailView = ({
                                 </div>
                                 {/* Grand Totals */}
                                 <TutorialHighlight tutorialKey="activityGrandTotals">
-                                    <div className={`w-full p-2 text-left font-bold flex justify-between items-center mt-2 ${currentTheme.altRowBg}`}>
-                                        <div className="flex-grow grid grid-cols-9 text-xs font-bold">
-                                             <span>Grand Totals</span>
-                                             <span></span> 
-                                             <span className="text-center">{grandTotals.estimated.toFixed(2)}</span>
-                                             <span className="text-center">{formatCurrency(grandTotals.budget)}</span>
-                                             <span></span> 
-                                             <span className="text-center">--</span> 
-                                             <span className="text-center">{formatCurrency(grandTotals.earnedValue)}</span>
-                                             <span className="text-center">{formatCurrency(grandTotals.actualCost)}</span>
-                                             <span className="text-center">{formatCurrency(grandTotals.projected)}</span>
-                                        </div>
+                                    <div className={`w-full mt-2 ${currentTheme.altRowBg}`}>
+                                        <table className="w-full text-sm table-fixed">
+                                            <colgroup>
+                                                <col style={{ width: '20%' }} />
+                                                <col style={{ width: '12%' }} />
+                                                <col style={{ width: '7%' }} />
+                                                <col style={{ width: '9%' }} />
+                                                <col style={{ width: '7%' }} />
+                                                <col style={{ width: '7%' }} />
+                                                <col style={{ width: '9%' }} />
+                                                <col style={{ width: '9%' }} />
+                                                <col style={{ width: '9%' }} />
+                                                <col style={{ width: '11%' }} />
+                                            </colgroup>
+                                            <tbody>
+                                                <tr>
+                                                    <td className="p-2 font-bold text-xs">Grand Totals</td>
+                                                    <td className="p-2"></td>
+                                                    <td className="p-2 text-center text-xs font-bold">{grandTotals.estimated.toFixed(2)}</td>
+                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.budget)}</td>
+                                                    <td className="p-2"></td>
+                                                    <td className="p-2 text-center text-xs font-bold">--</td>
+                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.actualCost)}</td>
+                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.earnedValue)}</td>
+                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.projected)}</td>
+                                                    <td className="p-2"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </TutorialHighlight>
                             </div>

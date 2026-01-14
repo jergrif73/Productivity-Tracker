@@ -1038,7 +1038,7 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
     const rateToUse = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
 
     const rawBudget = (Number(localEstimatedHours) || 0) * rateToUse;
-    const lineItemBudget = Math.ceil(rawBudget / 5) * 5;
+    const lineItemBudget = Math.ceil(rawBudget);
     const earnedValue = lineItemBudget * (Number(localPercentComplete) / 100);
     
     const percentOfProject = totalProjectHours > 0 ? (Number(localEstimatedHours) / totalProjectHours) * 100 : 0;
@@ -1049,7 +1049,7 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
         if (percent <= 0) {
              const estHrs = Number(localEstimatedHours) || 0;
              const rate = rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
-             const budget = Math.ceil((estHrs * rate) / 5) * 5;
+             const budget = Math.ceil(estHrs * rate);
              return budget > 0 ? budget : 0;
         }
         return (cost / percent) * 100;
@@ -1080,12 +1080,6 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
             onChange(groupKey, index, 'costToDate', localCostToDate);
         }
     };
-    
-    const handlePercentCompleteBlur = () => {
-        if (localPercentComplete !== activity.percentComplete) {
-            onChange(groupKey, index, 'percentComplete', localPercentComplete);
-        }
-    };
 
     return (
         <tr key={activity.id} className={currentTheme.cardBg}>
@@ -1107,38 +1101,24 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
                     className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
                 />
             </td>
-            <td className="p-1 w-24">
+            <td className="p-1 text-center">
                 <input 
                     type="number" 
                     value={localEstimatedHours} 
                     onChange={(e) => setLocalEstimatedHours(e.target.value)} 
                     onBlur={handleEstimatedHoursBlur}
-                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
+                    className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`} 
                 />
             </td>
-            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text={`Est. Hours * Rate (Raw: ${formatCurrency(rawBudget)})`}><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
-            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Est. Hrs / Total Est. Hrs) * 100"><p>{percentOfProject.toFixed(2)}%</p></Tooltip></td>
-            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}>
-                {(accessLevel === 'taskmaster' || accessLevel === 'tcl') ? (
-                    <div className="flex items-center justify-center">
-                        <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={localPercentComplete}
-                            onChange={(e) => setLocalPercentComplete(e.target.value)}
-                            onBlur={handlePercentCompleteBlur}
-                            className={`w-16 p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
-                        />
-                        <span>%</span>
-                    </div>
-                ) : (
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text={`Est. Hours * Rate (Raw: ${formatCurrency(rawBudget)})`}><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Est. Hrs / Total Est. Hrs) * 100"><p>{percentOfProject.toFixed(2)}%</p></Tooltip></td>
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}>
+                <Tooltip text="Fed from Action Tracker">
                     <p>{Number(localPercentComplete || 0).toFixed(2)}%</p>
-                )}
+                </Tooltip>
             </td>
             
-            <td className={`p-1 w-24 text-center`}>
+            <td className={`p-1 text-center`}>
                 {accessLevel === 'taskmaster' ? (
                     <input
                         type="number"
@@ -1152,10 +1132,10 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
                 )}
             </td>
             
-            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
 
-            <td className={`p-1 w-24 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Cost to Date / % Comp) * 100"><p>{formatCurrency(projectedCost)}</p></Tooltip></td>
-            <td className="p-1 text-center w-12">
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Cost to Date / % Comp) * 100"><p>{formatCurrency(projectedCost)}</p></Tooltip></td>
+            <td className="p-1 text-center">
                  {accessLevel === 'taskmaster' && (
                      <button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
                  )}
@@ -1176,58 +1156,92 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
         onRenameGroup(groupKey, editableTitle);
     };
 
+    // Common colgroup for consistent column widths
+    const TableColGroup = () => (
+        <colgroup>
+            <col style={{ width: '20%' }} /> {/* Activity Description */}
+            <col style={{ width: '12%' }} /> {/* Charge Code */}
+            <col style={{ width: '7%' }} />  {/* Est. Hrs */}
+            <col style={{ width: '9%' }} />  {/* Budget */}
+            <col style={{ width: '7%' }} />  {/* % of Project */}
+            <col style={{ width: '7%' }} />  {/* % Comp */}
+            <col style={{ width: '9%' }} />  {/* Actual Cost */}
+            <col style={{ width: '9%' }} />  {/* Earned */}
+            <col style={{ width: '9%' }} />  {/* Proj. Cost */}
+            <col style={{ width: '11%' }} /> {/* Actions/Controls */}
+        </colgroup>
+    );
+
     return (
         <div className={`border-b ${currentTheme.borderColor}`}>
-            <div className={`w-full p-2 text-left font-bold flex justify-between items-center ${colorClass}`}>
-                <div className="flex-grow flex items-center">
-                    <motion.svg onClick={onToggle}
-                        animate={{ rotate: isCollapsed ? 0 : 180 }}
-                        transition={{ duration: 0.2 }}
-                        xmlns="http://www.w3.org/2000/svg" className="cursor-pointer h-5 w-5 transition-transform flex-shrink-0 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </motion.svg>
-                    {isEditingTitle ? (
-                         <input
-                            type="text" value={editableTitle}
-                            onChange={(e) => setEditableTitle(e.target.value)}
-                            onBlur={handleTitleSave}
-                            onKeyPress={(e) => { if (e.key === 'Enter') handleTitleSave(); }}
-                            className="bg-transparent text-white font-bold text-xs p-1 rounded-md outline-none ring-1 ring-blue-400"
-                            autoFocus onClick={e => e.stopPropagation()}
-                         />
-                     ) : (
-                         <span className="font-bold text-xs cursor-text" onClick={(e) => { e.stopPropagation(); if (accessLevel === 'taskmaster') setIsEditingTitle(true); }}>
-                            {title}
-                         </span>
-                    )}
-                    <div className="flex-grow grid grid-cols-8 text-xs ml-4">
-                        <span></span> 
-                        <span className="text-center">{groupTotals.estimated.toFixed(2)}</span>
-                        <span className="text-center">{formatCurrency(groupTotals.budget)}</span>
-                        <span></span> 
-                        <span className="text-center">{groupTotals.percentComplete.toFixed(2)}%</span>
-                        <span className="text-center">{formatCurrency(groupTotals.earnedValue)}</span>
-                        <span className="text-center">{formatCurrency(groupTotals.actualCost)}</span>
-                        <span className="text-center">{formatCurrency(groupTotals.projected)}</span> 
-                    </div>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0 ml-4">
-                     {accessLevel === 'taskmaster' && (
-                        <TutorialHighlight tutorialKey="projectWideActivities">
-                           <div className="flex items-center gap-1 text-white text-xs">
-                               <input type="checkbox" checked={isProjectWide} onChange={() => onToggleProjectWide(groupKey)} onClick={(e) => e.stopPropagation()} id={`project-wide-${groupKey}`} />
-                               <label htmlFor={`project-wide-${groupKey}`} className="cursor-pointer">Project-Wide</label>
-                           </div>
-                        </TutorialHighlight>
-                     )}
-                     <select value={rateType} onChange={(e) => { e.stopPropagation(); onRateTypeChange(groupKey, e.target.value); }} onClick={(e) => e.stopPropagation()} className="bg-white/20 text-white text-xs rounded p-1">
-                        <option value="Detailing Rate">Detailing Rate</option>
-                        <option value="VDC Rate">VDC Rate</option>
-                     </select>
-                     {accessLevel === 'taskmaster' && ( 
-                         <button onClick={(e) => { e.stopPropagation(); onDeleteGroup(groupKey); }} className="text-white hover:text-red-300 font-bold text-lg">&times;</button>
-                     )}
-                </div>
+            {/* Header bar using table structure for alignment */}
+            <div className={`w-full ${colorClass}`}>
+                <table className="w-full text-sm table-fixed">
+                    <TableColGroup />
+                    <tbody>
+                        <tr>
+                            {/* Arrow + Title - Activity Description column */}
+                            <td className="p-2 font-bold text-white">
+                                <div className="flex items-center">
+                                    <motion.svg onClick={onToggle}
+                                        animate={{ rotate: isCollapsed ? 0 : 180 }}
+                                        transition={{ duration: 0.2 }}
+                                        xmlns="http://www.w3.org/2000/svg" className="cursor-pointer h-5 w-5 transition-transform flex-shrink-0 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </motion.svg>
+                                    {isEditingTitle ? (
+                                        <input
+                                            type="text" value={editableTitle}
+                                            onChange={(e) => setEditableTitle(e.target.value)}
+                                            onBlur={handleTitleSave}
+                                            onKeyPress={(e) => { if (e.key === 'Enter') handleTitleSave(); }}
+                                            className="bg-transparent text-white font-bold text-xs p-1 rounded-md outline-none ring-1 ring-blue-400 w-20"
+                                            autoFocus onClick={e => e.stopPropagation()}
+                                        />
+                                    ) : (
+                                        <span className="font-bold text-xs cursor-text" onClick={(e) => { e.stopPropagation(); if (accessLevel === 'taskmaster') setIsEditingTitle(true); }}>
+                                            {title}
+                                        </span>
+                                    )}
+                                </div>
+                            </td>
+                            {/* Empty - Charge Code column */}
+                            <td className="p-2"></td>
+                            {/* Est. Hrs */}
+                            <td className="p-2 text-center text-white text-xs font-bold">{groupTotals.estimated.toFixed(2)}</td>
+                            {/* Budget */}
+                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.budget)}</td>
+                            {/* Empty - % of Project column */}
+                            <td className="p-2"></td>
+                            {/* % Complete */}
+                            <td className="p-2 text-center text-white text-xs font-bold">{groupTotals.percentComplete.toFixed(2)}%</td>
+                            {/* Actual Cost */}
+                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.actualCost)}</td>
+                            {/* Earned */}
+                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.earnedValue)}</td>
+                            {/* Projected */}
+                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.projected)}</td>
+                            {/* Controls - Actions column */}
+                            <td className="p-2">
+                                <div className="flex items-center gap-2 justify-end">
+                                    {accessLevel === 'taskmaster' && (
+                                        <div className="flex items-center gap-1 text-white text-xs">
+                                            <input type="checkbox" checked={isProjectWide} onChange={() => onToggleProjectWide(groupKey)} onClick={(e) => e.stopPropagation()} id={`project-wide-${groupKey}`} />
+                                            <label htmlFor={`project-wide-${groupKey}`} className="cursor-pointer whitespace-nowrap">Project-Wide</label>
+                                        </div>
+                                    )}
+                                    <select value={rateType} onChange={(e) => { e.stopPropagation(); onRateTypeChange(groupKey, e.target.value); }} onClick={(e) => e.stopPropagation()} className="bg-white/20 text-white text-xs rounded p-1">
+                                        <option value="Detailing Rate">Detailing Rate</option>
+                                        <option value="VDC Rate">VDC Rate</option>
+                                    </select>
+                                    {accessLevel === 'taskmaster' && ( 
+                                        <button onClick={(e) => { e.stopPropagation(); onDeleteGroup(groupKey); }} className="text-white hover:text-red-300 font-bold text-lg">&times;</button>
+                                    )}
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             <AnimatePresence>
             {!isCollapsed && (
@@ -1240,19 +1254,20 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                     className="overflow-hidden"
                 >
                     <div className="overflow-x-auto hide-scrollbar-on-hover" onClick={e => e.stopPropagation()}>
-                        <table className="min-w-full text-sm">
+                        <table className="w-full text-sm table-fixed">
+                            <TableColGroup />
                             <thead>
                                 <tr className={currentTheme.altRowBg}>
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
                                     <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>% of Project</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>% of Project</th>
                                     <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Calculated automatically from the Action Tracker section.">% Comp</Tooltip></th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actual Cost ($)</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Actions</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Actual Cost ($)</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
+                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
