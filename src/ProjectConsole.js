@@ -42,6 +42,18 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     const [projectDisciplines, setProjectDisciplines] = useState({});
     const [showChargeCodeManager, setShowChargeCodeManager] = useState(false);
     
+    // Status filter state - default to Operational (Controlling)
+    const [activeStatuses, setActiveStatuses] = useState(["Controlling"]);
+    
+    // Status definitions
+    const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
+    const statusDescriptions = {
+        Planning: "Estimating",
+        Conducting: "Setup",
+        Controlling: "Operational",
+        Archive: "Archived"
+    };
+    
     // Use a ref for caching to avoid dependency issues
     const disciplinesCacheRef = useRef({});
 
@@ -276,10 +288,17 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
         });
     }, []); // No dependencies needed since we're using the ref
 
-    // Filter projects based on search, detailer, and date range
+    // Filter projects based on search, detailer, date range, and status
     const filteredProjects = useMemo(() => {
         return projects
-            .filter(p => !p.archived) // Exclude archived projects
+            .filter(p => {
+                // Status filter - include archived projects only if Archive is selected
+                const projectStatus = p.status || 'Controlling'; // Default to Controlling if no status
+                if (projectStatus === 'Archive' || p.archived) {
+                    return activeStatuses.includes('Archive');
+                }
+                return activeStatuses.includes(projectStatus);
+            })
             .filter(p => {
                 const { query, detailerId, startDate, endDate } = filters;
                 const searchLower = query.toLowerCase();
@@ -315,7 +334,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
             })
             // Sort by project ID numerically
             .sort((a, b) => (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true }));
-    }, [projects, assignments, filters]);
+    }, [projects, assignments, filters, activeStatuses]);
 
     // Handle changes in the filter inputs
     const handleFilterChange = (e) => {
@@ -323,12 +342,44 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
         setFilters(prev => ({ ...prev, [name]: value }));
     };
 
+    // Handle status filter toggle
+    const handleStatusFilterToggle = (statusToToggle) => {
+        setActiveStatuses(prev => {
+            const newStatuses = new Set(prev);
+            if (newStatuses.has(statusToToggle)) {
+                newStatuses.delete(statusToToggle);
+            } else {
+                newStatuses.add(statusToToggle);
+            }
+            return Array.from(newStatuses);
+        });
+    };
+
     return (
         <div className="h-full flex flex-col p-4 gap-4">
             {/* Filter UI Section */}
             <TutorialHighlight tutorialKey="projectFilters">
             <div className={`flex-shrink-0 p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-md`}>
-                <h2 className={`text-xl font-bold mb-4 ${currentTheme.textColor}`}>Project Overview & Filters</h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className={`text-xl font-bold ${currentTheme.textColor}`}>Project Overview & Filters</h2>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-sm ${currentTheme.subtleText}`}>Status:</span>
+                        {projectStatuses.map(status => (
+                            <button
+                                key={status}
+                                onClick={() => handleStatusFilterToggle(status)}
+                                title={statusDescriptions[status]}
+                                className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                                    activeStatuses.includes(status) 
+                                        ? 'bg-blue-600 text-white' 
+                                        : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-gray-600`
+                                }`}
+                            >
+                                {statusDescriptions[status].charAt(0)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <input
                         type="text"
