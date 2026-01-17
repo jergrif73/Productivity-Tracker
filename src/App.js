@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, useRef, Suspense, lazy, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, onSnapshot, addDoc, doc, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { tutorialContent } from './tutorial-steps.js';
@@ -1099,7 +1099,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                                 </div>
                                 
                                 {/* Admin Console */}
-                                <div className={`absolute inset-0 transition-opacity duration-300 ${view === 'admin' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                                <div className={`absolute inset-0 transition-opacity duration-300 overflow-y-auto ${view === 'admin' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
                                     <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Admin Console" />}>
                                         <AdminConsole {...consoleProps} />
                                     </Suspense>

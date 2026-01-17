@@ -28,19 +28,55 @@ const formatCurrency = (value) => {
 
 // Helper function to convert legacy trade names to abbreviations
 const getTradeDisplayName = (trade) => {
+    if (!trade) return trade;
+    const normalized = trade.toLowerCase().trim();
     const displayMap = {
-        'BIM': 'VDC',
-        'Piping': 'MP',
-        'Duct': 'MH',
-        'Plumbing': 'PL',
-        'Coordination': 'Coord',
-        'Management': 'MGMT',
-        'Structural': 'ST',
-        'Fire Protection': 'FP',
-        'Process Piping': 'PP',
-        'Medical Gas': 'PJ',
+        // Standard mappings
+        'bim': 'VDC',
+        'piping': 'MP',
+        'duct': 'MH',
+        'plumbing': 'PL',
+        'coordination': 'Coord',
+        'management': 'MGMT',
+        'structural': 'ST',
+        'fire protection': 'FP',
+        'process piping': 'PP',
+        'processpiping': 'PP',
+        'medical gas': 'PJ',
+        // Additional common variations
+        'vdc': 'VDC',
+        'arnevdc': 'VDC',
+        'mechanical piping': 'MP',
+        'mech piping': 'MP',
+        'mp': 'MP',
+        'mechanical hvac': 'MH',
+        'mech hvac': 'MH',
+        'hvac': 'MH',
+        'sheetmetal': 'MH',
+        'sheet metal': 'MH',
+        'mh': 'MH',
+        'pl': 'PL',
+        'plumb': 'PL',
+        'fp': 'FP',
+        'fire': 'FP',
+        'fireprotection': 'FP',
+        'sprinkler': 'FP',
+        'st': 'ST',
+        'struct': 'ST',
+        'pp': 'PP',
+        'process': 'PP',
+        'pj': 'PJ',
+        'med gas': 'PJ',
+        'medgas': 'PJ',
+        'medicalgas': 'PJ',
+        'mgmt': 'MGMT',
+        'mgt': 'MGMT',
+        'coord': 'Coord',
+        'gis': 'GIS/GPS',
+        'gps': 'GIS/GPS',
+        'gis/gps': 'GIS/GPS',
     };
-    return displayMap[trade] || trade;
+    return displayMap[normalized] || trade;
 };
 
 const Tooltip = ({ text, children }) => {
@@ -393,7 +429,6 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
         if (project.startDate) {
             return new Date(project.startDate + 'T00:00:00');
         }
-        // Fallback to project creation date if available (Firestore timestamp)
         if (project.createdAt?.toDate) {
             return project.createdAt.toDate();
         }
@@ -411,11 +446,333 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [newDescription, setNewDescription] = useState('');
     const [dragState, setDragState] = useState(null);
     const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
-    const [draggedRowId, setDraggedRowId] = useState(null); // State for drag-and-drop reordering
+    const [draggedRowId, setDraggedRowId] = useState(null);
 
     const [firestoreHours, setFirestoreHours] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const debouncedChanges = useDebounce(pendingChanges, 1000);
+
+    // Forecast Configuration State
+    const [showForecastConfig, setShowForecastConfig] = useState(false);
+    const [forecastConfig, setForecastConfig] = useState({
+        rampUpWeeks: 2,
+        rampDownWeeks: 2,
+        calculationMode: 'duration', // 'duration' = calculate from weekly hrs, 'weekly' = calculate from duration
+        disciplines: {} // { MH: { totalHours: 773, weeklyHours: 40, durationWeeks: null }, ... }
+    });
+    const [activitiesData, setActivitiesData] = useState(null);
+
+    // Fetch activities data for discipline totals
+    useEffect(() => {
+        const activitiesRef = doc(db, `artifacts/${appId}/public/data/projectActivities`, project.id);
+        const unsubscribe = onSnapshot(activitiesRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setActivitiesData(docSnap.data());
+            }
+        });
+        return () => unsubscribe();
+    }, [db, appId, project.id]);
+
+    // Fetch forecast config from Firestore
+    useEffect(() => {
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_forecastConfig');
+        const unsubscribe = onSnapshot(configRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setForecastConfig(prev => ({ ...prev, ...docSnap.data() }));
+            }
+        });
+        return () => unsubscribe();
+    }, [db, appId, project.id]);
+
+    // Calculate discipline totals from activities
+    const disciplineTotals = useMemo(() => {
+        if (!activitiesData?.activities) return {};
+        const totals = {};
+        const rateTypes = activitiesData.rateTypes || {};
+        
+        Object.entries(activitiesData.activities).forEach(([discipline, activities]) => {
+            const rateType = rateTypes[discipline] || 'Detailing Rate';
+            const rate = rateType === 'VDC Rate' 
+                ? (project.vdcBlendedRate || project.blendedRate || 0) 
+                : (project.blendedRate || 0);
+            
+            const totalHours = (activities || []).reduce((sum, act) => {
+                return sum + (Number(act.estimatedHours) || 0);
+            }, 0);
+            
+            const totalBudget = (activities || []).reduce((sum, act) => {
+                const estHours = Number(act.estimatedHours) || 0;
+                return sum + Math.ceil(estHours * rate);
+            }, 0);
+            
+            if (totalHours > 0) {
+                totals[discipline] = { totalHours, totalBudget };
+            }
+        });
+        return totals;
+    }, [activitiesData, project.blendedRate, project.vdcBlendedRate]);
+
+    // Sync discipline totals to forecast config
+    const handleSyncFromActivities = () => {
+        if (Object.keys(disciplineTotals).length === 0) {
+            showToast('No activities found. Add activities in the Project Console first.', 'warning');
+            return;
+        }
+        
+        const newDisciplines = {};
+        Object.entries(disciplineTotals).forEach(([rawDiscipline, data]) => {
+            // Normalize discipline name to standard abbreviation
+            const discipline = getTradeDisplayName(rawDiscipline);
+            
+            // If this normalized name already exists, combine the hours
+            if (newDisciplines[discipline]) {
+                newDisciplines[discipline].totalHours += data.totalHours;
+            } else {
+                const existing = forecastConfig.disciplines[discipline] || {};
+                const weeklyHours = existing.weeklyHours || 40;
+                
+                // Calculate initial duration based on weekly hours and ramps
+                const result = calculateForecast(
+                    discipline,
+                    data.totalHours,
+                    weeklyHours,
+                    existing.durationWeeks,
+                    forecastConfig.rampUpWeeks,
+                    forecastConfig.rampDownWeeks,
+                    'duration'
+                );
+                
+                newDisciplines[discipline] = {
+                    totalHours: data.totalHours,
+                    weeklyHours: weeklyHours,
+                    durationWeeks: result.durationWeeks || Math.ceil(data.totalHours / weeklyHours) + forecastConfig.rampUpWeeks + forecastConfig.rampDownWeeks
+                };
+            }
+        });
+        
+        // Recalculate durations for any combined disciplines
+        Object.keys(newDisciplines).forEach(discipline => {
+            const d = newDisciplines[discipline];
+            const result = calculateForecast(
+                discipline,
+                d.totalHours,
+                d.weeklyHours,
+                null,
+                forecastConfig.rampUpWeeks,
+                forecastConfig.rampDownWeeks,
+                'duration'
+            );
+            d.durationWeeks = result.durationWeeks || Math.ceil(d.totalHours / d.weeklyHours) + forecastConfig.rampUpWeeks + forecastConfig.rampDownWeeks;
+        });
+        
+        const newConfig = { ...forecastConfig, disciplines: newDisciplines };
+        setForecastConfig(newConfig);
+        saveForecastConfig(newConfig);
+        showToast(`Synced ${Object.keys(newDisciplines).length} disciplines from Activities Breakdown`, 'success');
+    };
+
+    // Save forecast config to Firestore
+    const saveForecastConfig = async (config) => {
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_forecastConfig');
+        await setDoc(configRef, config, { merge: true });
+    };
+
+    // Calculate duration or weekly hours based on mode
+    const calculateForecast = (discipline, totalHours, weeklyHours, durationWeeks, rampUp, rampDown, mode) => {
+        if (mode === 'duration' && weeklyHours > 0) {
+            // Calculate duration from weekly hours
+            // Effective hours per week considering ramps:
+            // Ramp up: average = weeklyHours/2 for rampUp weeks
+            // Full: weeklyHours for middle weeks
+            // Ramp down: average = weeklyHours/2 for rampDown weeks
+            const rampUpHours = (weeklyHours / 2) * rampUp;
+            const rampDownHours = (weeklyHours / 2) * rampDown;
+            const remainingHours = totalHours - rampUpHours - rampDownHours;
+            
+            if (remainingHours <= 0) {
+                // All hours fit in ramp periods
+                const actualDuration = Math.ceil(totalHours / (weeklyHours / 2));
+                return { durationWeeks: Math.max(rampUp + rampDown, actualDuration), weeklyHours };
+            }
+            
+            const fullWeeks = Math.ceil(remainingHours / weeklyHours);
+            return { durationWeeks: rampUp + fullWeeks + rampDown, weeklyHours };
+        } else if (mode === 'weekly' && durationWeeks > 0) {
+            // Calculate weekly hours from duration
+            const fullWeeks = Math.max(0, durationWeeks - rampUp - rampDown);
+            // Total capacity = rampUp * (wh/2) + fullWeeks * wh + rampDown * (wh/2)
+            // totalHours = wh * (rampUp/2 + fullWeeks + rampDown/2)
+            // wh = totalHours / (rampUp/2 + fullWeeks + rampDown/2)
+            const effectiveWeeks = (rampUp / 2) + fullWeeks + (rampDown / 2);
+            if (effectiveWeeks <= 0) return { durationWeeks, weeklyHours: 0 };
+            const calculatedWeekly = Math.ceil(totalHours / effectiveWeeks);
+            return { durationWeeks, weeklyHours: calculatedWeekly };
+        }
+        return { durationWeeks, weeklyHours };
+    };
+
+    // Update discipline config
+    const handleDisciplineChange = (discipline, field, value) => {
+        const numValue = value === '' ? 0 : Number(value);
+        const currentDisc = forecastConfig.disciplines[discipline] || { totalHours: 0, weeklyHours: 40, durationWeeks: null };
+        
+        let updated = { ...currentDisc, [field]: numValue };
+        
+        // Recalculate based on mode
+        if (field === 'weeklyHours' && forecastConfig.calculationMode === 'duration') {
+            const result = calculateForecast(
+                discipline, 
+                updated.totalHours, 
+                numValue, 
+                updated.durationWeeks,
+                forecastConfig.rampUpWeeks,
+                forecastConfig.rampDownWeeks,
+                'duration'
+            );
+            updated.durationWeeks = result.durationWeeks;
+        } else if (field === 'durationWeeks' && forecastConfig.calculationMode === 'weekly') {
+            const result = calculateForecast(
+                discipline,
+                updated.totalHours,
+                updated.weeklyHours,
+                numValue,
+                forecastConfig.rampUpWeeks,
+                forecastConfig.rampDownWeeks,
+                'weekly'
+            );
+            updated.weeklyHours = result.weeklyHours;
+        }
+        
+        const newConfig = {
+            ...forecastConfig,
+            disciplines: { ...forecastConfig.disciplines, [discipline]: updated }
+        };
+        setForecastConfig(newConfig);
+        saveForecastConfig(newConfig);
+    };
+
+    // Update ramp settings and recalculate all
+    const handleRampChange = (field, value) => {
+        const numValue = Math.max(0, Number(value) || 0);
+        const newConfig = { ...forecastConfig, [field]: numValue };
+        
+        // Recalculate all disciplines
+        const updatedDisciplines = {};
+        Object.entries(newConfig.disciplines).forEach(([disc, data]) => {
+            const result = calculateForecast(
+                disc,
+                data.totalHours,
+                data.weeklyHours,
+                data.durationWeeks,
+                field === 'rampUpWeeks' ? numValue : newConfig.rampUpWeeks,
+                field === 'rampDownWeeks' ? numValue : newConfig.rampDownWeeks,
+                newConfig.calculationMode
+            );
+            updatedDisciplines[disc] = { ...data, ...result };
+        });
+        
+        newConfig.disciplines = updatedDisciplines;
+        setForecastConfig(newConfig);
+        saveForecastConfig(newConfig);
+    };
+
+    // Generate forecast rows and hours
+    const handleGenerateForecast = async () => {
+        if (Object.keys(forecastConfig.disciplines).length === 0) {
+            showToast('No disciplines configured. Sync from Activities first.', 'warning');
+            return;
+        }
+
+        const newRows = [];
+        const newHoursData = {};
+        const projectStartDate = project.startDate 
+            ? new Date(project.startDate + 'T00:00:00') 
+            : new Date();
+        
+        // Get Monday of start week
+        const monday = new Date(projectStartDate);
+        const day = monday.getDay();
+        const diff = monday.getDate() - day + (day === 0 ? -6 : 1);
+        monday.setDate(diff);
+        
+        const timestamp = Date.now();
+
+        Object.entries(forecastConfig.disciplines).forEach(([discipline, config], index) => {
+            // Ensure discipline name is normalized
+            const normalizedTrade = getTradeDisplayName(discipline);
+            const rowId = `row_${normalizedTrade.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}_${index}`;
+            newRows.push({
+                id: rowId,
+                trade: normalizedTrade,
+                description: `Auto-generated from Activities`
+            });
+
+            const { totalHours, weeklyHours, durationWeeks } = config;
+            const { rampUpWeeks, rampDownWeeks } = forecastConfig;
+            
+            if (!totalHours || totalHours <= 0) return;
+            if (!weeklyHours || weeklyHours <= 0) return;
+            
+            // Calculate actual duration if not set
+            const actualDuration = durationWeeks || Math.ceil(totalHours / weeklyHours) + rampUpWeeks + rampDownWeeks;
+            
+            const hoursPerWeek = {};
+            let remainingHours = totalHours;
+            const fullWeeks = Math.max(0, actualDuration - rampUpWeeks - rampDownWeeks);
+
+            for (let week = 0; week < actualDuration && remainingHours > 0; week++) {
+                const weekStart = new Date(monday);
+                weekStart.setDate(monday.getDate() + (week * 7));
+                const weekKey = weekStart.toISOString().split('T')[0];
+
+                let weekHours = 0;
+                if (week < rampUpWeeks && rampUpWeeks > 0) {
+                    // Ramp up: linear increase from ~0 to full
+                    const rampFactor = (week + 1) / rampUpWeeks;
+                    weekHours = Math.round(weeklyHours * rampFactor);
+                } else if (week >= rampUpWeeks + fullWeeks && rampDownWeeks > 0) {
+                    // Ramp down: linear decrease from full to ~0
+                    const rampWeek = week - rampUpWeeks - fullWeeks;
+                    const rampFactor = 1 - ((rampWeek + 1) / rampDownWeeks);
+                    weekHours = Math.round(weeklyHours * Math.max(0, rampFactor));
+                } else {
+                    // Full capacity
+                    weekHours = weeklyHours;
+                }
+
+                // Don't exceed remaining hours
+                weekHours = Math.min(weekHours, remainingHours);
+                remainingHours -= weekHours;
+                
+                if (weekHours > 0) {
+                    hoursPerWeek[weekKey] = weekHours;
+                }
+            }
+            
+            // If there are remaining hours, add them to the last week
+            if (remainingHours > 0 && Object.keys(hoursPerWeek).length > 0) {
+                const lastWeek = Object.keys(hoursPerWeek).pop();
+                hoursPerWeek[lastWeek] += remainingHours;
+            }
+
+            newHoursData[rowId] = hoursPerWeek;
+        });
+
+        // Save to Firestore
+        const batch = writeBatch(db);
+        const configRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, '_config');
+        batch.set(configRef, { rows: newRows });
+
+        Object.entries(newHoursData).forEach(([rowId, weekData]) => {
+            const rowRef = doc(db, `artifacts/${appId}/public/data/projects/${project.id}/weeklyHours`, rowId);
+            batch.set(rowRef, weekData);
+        });
+
+        await batch.commit();
+        setStartDate(monday);
+        setShowForecastConfig(false);
+        showToast(`Generated forecast for ${newRows.length} disciplines`, 'success');
+    };
 
     // Handler to sync with project start date
     const handleSyncWithStartDate = () => {
@@ -731,6 +1088,168 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                 Are you sure you want to permanently delete all weekly forecast hours and trades for this project? This action cannot be undone.
             </ConfirmationModal>
             <div className="mt-4 pt-4 border-t border-gray-500/50 space-y-2" onClick={(e) => e.stopPropagation()}>
+                {/* Forecast Configuration Panel */}
+                <div className="mb-4">
+                    <button 
+                        onClick={() => setShowForecastConfig(!showForecastConfig)}
+                        className={`w-full p-2 text-left text-sm font-semibold rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} flex justify-between items-center`}
+                    >
+                        <span>📊 Forecast Configuration</span>
+                        <span>{showForecastConfig ? '▲' : '▼'}</span>
+                    </button>
+                    
+                    {showForecastConfig && (
+                        <div 
+                            className={`mt-2 p-4 rounded-md border ${currentTheme.borderColor} ${currentTheme.cardBg}`}
+                        >
+                            {/* Sync and Generate Buttons */}
+                            <div className="flex gap-2 mb-4">
+                                <button 
+                                    onClick={handleSyncFromActivities}
+                                    className="flex-1 p-2 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                                >
+                                    🔄 Sync from Activities
+                                </button>
+                                <button 
+                                    onClick={handleGenerateForecast}
+                                    className="flex-1 p-2 text-xs rounded-md bg-green-600 text-white hover:bg-green-700"
+                                >
+                                    ⚡ Generate Forecast
+                                </button>
+                            </div>
+                            
+                            {/* Global Settings */}
+                            <div className="grid grid-cols-3 gap-4 mb-4 p-3 rounded-md bg-gray-700/30">
+                                <div>
+                                    <label className="block text-xs font-semibold mb-1">Ramp Up (weeks)</label>
+                                    <input 
+                                        type="number" 
+                                        min="0"
+                                        value={forecastConfig.rampUpWeeks}
+                                        onChange={(e) => handleRampChange('rampUpWeeks', e.target.value)}
+                                        className={`w-full p-2 text-sm rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold mb-1">Ramp Down (weeks)</label>
+                                    <input 
+                                        type="number" 
+                                        min="0"
+                                        value={forecastConfig.rampDownWeeks}
+                                        onChange={(e) => handleRampChange('rampDownWeeks', e.target.value)}
+                                        className={`w-full p-2 text-sm rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold mb-1">Calculation Mode</label>
+                                    <select 
+                                        value={forecastConfig.calculationMode}
+                                        onChange={(e) => {
+                                            const newConfig = { ...forecastConfig, calculationMode: e.target.value };
+                                            setForecastConfig(newConfig);
+                                            saveForecastConfig(newConfig);
+                                        }}
+                                        className={`w-full p-2 text-sm rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                                    >
+                                        <option value="duration">Weekly Hrs → Duration</option>
+                                        <option value="weekly">Duration → Weekly Hrs</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            {/* Discipline Configuration Table */}
+                            {Object.keys(forecastConfig.disciplines).length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className={currentTheme.headerBg}>
+                                                <th className="p-2 text-left">Discipline</th>
+                                                <th className="p-2 text-center">Total Hours</th>
+                                                <th className="p-2 text-center">
+                                                    Weekly Hrs
+                                                    {forecastConfig.calculationMode === 'weekly' && <span className="text-yellow-400 ml-1">*</span>}
+                                                </th>
+                                                <th className="p-2 text-center">
+                                                    Duration (wks)
+                                                    {forecastConfig.calculationMode === 'duration' && <span className="text-yellow-400 ml-1">*</span>}
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {Object.entries(forecastConfig.disciplines).map(([discipline, config]) => (
+                                                <tr key={discipline} className={`border-t ${currentTheme.borderColor}`}>
+                                                    <td className="p-2 font-semibold">{discipline}</td>
+                                                    <td className="p-2 text-center">
+                                                        <span className={`${currentTheme.subtleText}`}>{config.totalHours?.toLocaleString() || 0}</span>
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <input 
+                                                            type="number"
+                                                            min="1"
+                                                            value={config.weeklyHours || ''}
+                                                            onChange={(e) => handleDisciplineChange(discipline, 'weeklyHours', e.target.value)}
+                                                            disabled={forecastConfig.calculationMode === 'weekly'}
+                                                            className={`w-full p-1 text-center rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} ${forecastConfig.calculationMode === 'weekly' ? 'opacity-60' : ''}`}
+                                                        />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <input 
+                                                            type="number"
+                                                            min="1"
+                                                            value={config.durationWeeks || ''}
+                                                            onChange={(e) => handleDisciplineChange(discipline, 'durationWeeks', e.target.value)}
+                                                            disabled={forecastConfig.calculationMode === 'duration'}
+                                                            className={`w-full p-1 text-center rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder} ${forecastConfig.calculationMode === 'duration' ? 'opacity-60' : ''}`}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot className={`border-t-2 ${currentTheme.borderColor} font-semibold`}>
+                                            <tr>
+                                                <td className="p-2">Totals</td>
+                                                <td className="p-2 text-center">
+                                                    {Object.values(forecastConfig.disciplines).reduce((sum, d) => sum + (d.totalHours || 0), 0).toLocaleString()}
+                                                </td>
+                                                <td className="p-2 text-center">
+                                                    {Math.round(Object.values(forecastConfig.disciplines).reduce((sum, d) => sum + (d.weeklyHours || 0), 0))}
+                                                </td>
+                                                <td className="p-2 text-center">
+                                                    {Math.max(...Object.values(forecastConfig.disciplines).map(d => d.durationWeeks || 0))} (max)
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                    <p className="text-xs mt-2 text-yellow-400">* Calculated field based on mode</p>
+                                </div>
+                            ) : (
+                                <div className={`text-center p-4 ${currentTheme.subtleText}`}>
+                                    <p>No disciplines configured.</p>
+                                    <p className="text-xs mt-1">Click "Sync from Activities" to import disciplines from the Project Console's Activity Values Breakdown.</p>
+                                </div>
+                            )}
+                            
+                            {/* Available Disciplines from Activities */}
+                            {Object.keys(disciplineTotals).length > 0 && (
+                                <div className="mt-4 p-3 rounded-md bg-blue-900/30 border border-blue-500/50">
+                                    <p className="text-sm font-semibold mb-2">Available from Activities Breakdown:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {Object.entries(disciplineTotals).map(([disc, data]) => {
+                                            const normalizedName = getTradeDisplayName(disc);
+                                            return (
+                                                <span key={disc} className="px-2 py-1 bg-blue-600 rounded text-xs">
+                                                    {normalizedName !== disc ? `${disc} → ${normalizedName}` : normalizedName}: {data.totalHours.toLocaleString()} hrs
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-xs mt-2 text-blue-300">Click "Sync from Activities" to import these disciplines.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+                
                 <div className="flex justify-between items-center gap-2 mb-2">
                      <button onClick={() => setIsClearConfirmOpen(true)} className={`p-1 px-3 text-xs rounded-md bg-red-600 text-white hover:bg-red-700`}>
                         Clear Forecast
@@ -867,7 +1386,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
     const [editingProjectData, setEditingProjectData] = useState(null);
     const [employeeSortBy, setEmployeeSortBy] = useState('firstName');
     const [projectSortBy, setProjectSortBy] = useState('projectId');
-    const [activeStatuses, setActiveStatuses] = useState(["Planning", "Conducting", "Controlling"]);
+    const [activeStatuses, setActiveStatuses] = useState(["Controlling"]);
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [collapsedSections, setCollapsedSections] = useState({ addEmployee: true, addProject: true });
     const [confirmAction, setConfirmAction] = useState(null);
@@ -1359,7 +1878,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <div className={`p-4 ${currentTheme.consoleBg} h-full`}>
+                            <div className={`p-4 ${currentTheme.consoleBg}`}>
                                 <div
                                     className="cursor-pointer mb-4"
                                     onClick={() => setExpandedProjectId(null)}

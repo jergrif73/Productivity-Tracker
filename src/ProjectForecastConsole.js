@@ -27,20 +27,32 @@ const Tooltip = ({ text, children }) => {
 
 // --- Constants ---
 
-// Map old names to new abbreviations
+// Map old names to new abbreviations (case-insensitive handled in getDisplayName)
 const disciplineNameMap = {
-    "Piping": "MP", "Mechanical Piping": "MP",
-    "Duct": "MH", "Sheet Metal": "MH", "Sheet Metal / HVAC": "MH",
-    "Plumbing": "PL",
-    "Coordination": "Coord",
-    "VDC": "VDC",
-    "BIM": "VDC",  // Legacy BIM → VDC
-    "Structural": "ST",
-    "GIS/GPS": "GIS/GPS",
-    "Process Piping": "PP",
-    "Fire Protection": "FP",
-    "Medical Gas": "PJ",
-    "Management": "MGMT"
+    // Standard mappings
+    "Piping": "MP", "Mechanical Piping": "MP", "piping": "MP", "mp": "MP", "MP": "MP",
+    "Duct": "MH", "Sheet Metal": "MH", "Sheet Metal / HVAC": "MH", "sheetmetal": "MH", "sheet metal": "MH", "hvac": "MH", "mh": "MH", "MH": "MH",
+    "Plumbing": "PL", "plumbing": "PL", "plumb": "PL", "pl": "PL", "PL": "PL",
+    "Coordination": "Coord", "coordination": "Coord", "coord": "Coord", "Coord": "Coord",
+    "VDC": "VDC", "vdc": "VDC", "arnevdc": "VDC", "BIM": "VDC", "bim": "VDC",
+    "Structural": "ST", "structural": "ST", "struct": "ST", "st": "ST", "ST": "ST",
+    "GIS/GPS": "GIS/GPS", "gis/gps": "GIS/GPS", "gis": "GIS/GPS", "gps": "GIS/GPS",
+    "Process Piping": "PP", "process piping": "PP", "processpiping": "PP", "process": "PP", "pp": "PP", "PP": "PP",
+    "Fire Protection": "FP", "fire protection": "FP", "fireprotection": "FP", "fire": "FP", "sprinkler": "FP", "fp": "FP", "FP": "FP",
+    "Medical Gas": "PJ", "medical gas": "PJ", "medicalgas": "PJ", "medgas": "PJ", "med gas": "PJ", "pj": "PJ", "PJ": "PJ",
+    "Management": "MGMT", "management": "MGMT", "mgmt": "MGMT", "mgt": "MGMT", "MGMT": "MGMT"
+};
+
+// Helper function for case-insensitive lookup
+const getDisplayName = (tradeName) => {
+    if (!tradeName) return tradeName;
+    // First try exact match
+    if (disciplineNameMap[tradeName]) return disciplineNameMap[tradeName];
+    // Then try lowercase
+    const lower = tradeName.toLowerCase().trim();
+    if (disciplineNameMap[lower]) return disciplineNameMap[lower];
+    // Return original if no match
+    return tradeName;
 };
 
 const d3ColorMapping = {
@@ -169,8 +181,10 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 const rowIdToTradeMap = new Map(config.rows.map(row => [row.id, row.trade]));
 
                 hourDocs.forEach(hourDoc => {
-                    const trade = rowIdToTradeMap.get(hourDoc.id);
-                    if (trade) {
+                    const rawTrade = rowIdToTradeMap.get(hourDoc.id);
+                    if (rawTrade) {
+                        // Normalize trade name to standard abbreviation
+                        const trade = getDisplayName(rawTrade);
                         if (!hoursByTrade[trade]) {
                             hoursByTrade[trade] = {};
                         }
@@ -231,7 +245,10 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
             return;
         }
         
-        const tooltip = d3.select("body").append("div").attr("class", "absolute opacity-0 transition-opacity duration-300 bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg");
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "fixed bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg")
+            .style("opacity", 0)
+            .style("z-index", 9999);
 
         const getFortyHourTicks = (yMax) => {
             const ticks = [];
@@ -280,9 +297,9 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
             
             // Helper to get color - tries original name, then abbreviated name
             const getTradeColor = (tradeName) => {
+                const displayName = getDisplayName(tradeName);
+                if (d3ColorMapping[displayName]) return d3ColorMapping[displayName];
                 if (d3ColorMapping[tradeName]) return d3ColorMapping[tradeName];
-                const abbrev = disciplineNameMap[tradeName];
-                if (abbrev && d3ColorMapping[abbrev]) return d3ColorMapping[abbrev];
                 return d3ColorMapping.Default;
             };
             
@@ -291,7 +308,20 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .attr("d", d => line(d.values))
                 .style("stroke", d => getTradeColor(d.trade))
                 .style("fill", "none")
-                .style("stroke-width", "2.5px");
+                .style("stroke-width", "2.5px")
+                .style("cursor", "pointer")
+                .on("mouseover", function(event, d) {
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    const displayName = getDisplayName(d.trade);
+                    const totalHours = d.values.reduce((sum, v) => sum + v.hours, 0);
+                    tooltip.html(`<strong>${displayName}</strong><br/>Total: ${totalHours.toLocaleString()} hours`)
+                        .style("left", (event.clientX + 15) + "px").style("top", (event.clientY - 15) + "px");
+                    d3.select(this).style("stroke-width", "4px");
+                })
+                .on("mouseout", function() {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                    d3.select(this).style("stroke-width", "2.5px");
+                });
             
             trade.selectAll(".dot")
                 .data(d => d.values.filter(v => v.hours > 0))
@@ -301,12 +331,14 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .attr("cy", d => y(d.hours))
                 .attr("r", 4)
                 .style("fill", function() { return getTradeColor(d3.select(this.parentNode).datum().trade); })
+                .style("cursor", "pointer")
                 .on("mouseover", function(event, d) {
                     tooltip.transition().duration(200).style("opacity", .9);
                     const tradeName = d3.select(this.parentNode).datum().trade;
-                    const displayName = disciplineNameMap[tradeName] || tradeName;
-                    tooltip.html(`<strong>${displayName}</strong><br/>Week of ${d.date.toLocaleDateString()}<br/>Hours: <strong>${d.hours}</strong>`)
-                        .style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 15) + "px");
+                    const displayName = getDisplayName(tradeName);
+                    const weekDate = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    tooltip.html(`<strong>${displayName}</strong><br/>Week of ${weekDate}<br/>Hours: <strong>${d.hours.toLocaleString()}</strong>`)
+                        .style("left", (event.clientX + 15) + "px").style("top", (event.clientY - 15) + "px");
                     d3.select(this).attr("r", 6);
                 })
                 .on("mouseout", function() {
@@ -361,13 +393,13 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .enter().append("g")
                 .attr("class", "serie")
                 .attr("fill", d => {
-                    // Try original name first, then abbreviated name
-                    const gradientId = `gradient-${d.key.replace(/[^a-zA-Z0-9]/g, '-')}`;
-                    const abbrevName = disciplineNameMap[d.key];
-                    const abbrevGradientId = abbrevName ? `gradient-${abbrevName.replace(/[^a-zA-Z0-9]/g, '-')}` : null;
-                    // Check if original gradient exists, otherwise try abbreviated, otherwise use Default
-                    if (d3ColorMapping[d.key]) return `url(#${gradientId})`;
-                    if (abbrevName && d3ColorMapping[abbrevName]) return `url(#${abbrevGradientId})`;
+                    // Try display name first, then original name
+                    const displayName = getDisplayName(d.key);
+                    const gradientId = `gradient-${displayName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    const originalGradientId = `gradient-${d.key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    // Check if display name gradient exists, otherwise try original, otherwise use Default
+                    if (d3ColorMapping[displayName]) return `url(#${gradientId})`;
+                    if (d3ColorMapping[d.key]) return `url(#${originalGradientId})`;
                     return `url(#gradient-Default)`;
                 })
                 .selectAll("rect")
@@ -382,12 +414,12 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                 .on("mouseover", function(event, d) {
                     const serie = d3.select(this.parentNode).datum();
                     const trade = serie.key;
-                    const displayName = disciplineNameMap[trade] || trade;
+                    const displayName = getDisplayName(trade);
                     const hours = d.data[trade];
                     if (hours > 0) {
                         tooltip.transition().duration(200).style("opacity", .9);
                         tooltip.html(`<strong>${displayName}</strong>: ${hours.toFixed(1)} hrs`)
-                            .style("left", (event.pageX + 10) + "px").style("top", (event.pageY - 28) + "px");
+                            .style("left", (event.clientX + 10) + "px").style("top", (event.clientY - 28) + "px");
                         d3.select(this).attr('filter', 'url(#brightness)');
                     }
                 })
@@ -483,10 +515,10 @@ const ProjectForecastConsole = ({ db, appId, projects, currentTheme }) => {
                                 {/* Moved legend inside the scrollable container */}
                                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs pt-4 flex-shrink-0">
                                     {activeTrades.map(trade => {
-                                        const displayName = disciplineNameMap[trade] || trade;
+                                        const displayName = getDisplayName(trade);
                                         return (
                                             <div key={trade} className="flex items-center gap-2">
-                                                <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[trade] || d3ColorMapping[displayName] || d3ColorMapping.Default}}></div>
+                                                <div className="w-4 h-4 rounded-sm" style={{backgroundColor: d3ColorMapping[displayName] || d3ColorMapping[trade] || d3ColorMapping.Default}}></div>
                                                 <span className={currentTheme.textColor}>{displayName}</span>
                                             </div>
                                         );

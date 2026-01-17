@@ -120,7 +120,9 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
         const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
         
         const tooltip = d3.select("body").append("div")
-            .attr("class", "absolute opacity-0 transition-opacity duration-300 bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg")
+            .attr("class", "fixed bg-black text-white text-xs rounded-md p-2 pointer-events-none shadow-lg")
+            .style("opacity", 0)
+            .style("z-index", 9999);
 
         const xAxis = g.append("g")
             .attr("transform", `translate(0,${boundedHeight})`)
@@ -172,18 +174,53 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
             .style("stroke", d => ganttView === 'projects' ? color(d.projectId) : '#2563eb')
             .style("fill", "none")
             .style("stroke-width", "2px")
+            .style("cursor", "pointer")
             .on("mouseover", function(event, d) {
-                if (ganttView === 'totals') return;
                 tooltip.transition().duration(200).style("opacity", .9);
-                tooltip.html(`<strong>${d.projectName}</strong><br/>ID: ${d.projectNumber}`)
-                    .style("left", (event.pageX + 5) + "px")
-                    .style("top", (event.pageY - 28) + "px");
+                const totalHours = d.values.reduce((sum, v) => sum + v.hours, 0);
+                if (ganttView === 'totals') {
+                    tooltip.html(`<strong>Total Hours</strong><br/>Sum: ${totalHours.toLocaleString()} hrs`)
+                        .style("left", (event.clientX + 5) + "px")
+                        .style("top", (event.clientY - 28) + "px");
+                } else {
+                    tooltip.html(`<strong>${d.projectName}</strong><br/>Project #: ${d.projectNumber}<br/>Total: ${totalHours.toLocaleString()} hrs`)
+                        .style("left", (event.clientX + 5) + "px")
+                        .style("top", (event.clientY - 28) + "px");
+                }
                 d3.select(this).style('stroke-width', '4px');
             })
             .on("mouseout", function(d) {
-                if (ganttView === 'totals') return;
                 tooltip.transition().duration(500).style("opacity", 0);
                 d3.select(this).style('stroke-width', '2px');
+            });
+
+        // Add dots for each data point
+        project.selectAll(".dot")
+            .data(d => d.values.filter(v => v.hours > 0).map(v => ({ ...v, projectName: d.projectName, projectNumber: d.projectNumber, projectId: d.projectId })))
+            .enter().append("circle")
+            .attr("class", "dot")
+            .attr("cx", d => x(d.date))
+            .attr("cy", d => y(d.hours))
+            .attr("r", 4)
+            .style("fill", d => ganttView === 'projects' ? color(d.projectId) : '#2563eb')
+            .style("cursor", "pointer")
+            .on("mouseover", function(event, d) {
+                tooltip.transition().duration(200).style("opacity", .9);
+                const weekDate = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                if (ganttView === 'totals') {
+                    tooltip.html(`<strong>Total Hours</strong><br/>Week of ${weekDate}<br/>Hours: <strong>${d.hours.toLocaleString()}</strong>`)
+                        .style("left", (event.clientX + 15) + "px")
+                        .style("top", (event.clientY - 15) + "px");
+                } else {
+                    tooltip.html(`<strong>${d.projectName}</strong><br/>Project #: ${d.projectNumber}<br/>Week of ${weekDate}<br/>Hours: <strong>${d.hours.toLocaleString()}</strong>`)
+                        .style("left", (event.clientX + 15) + "px")
+                        .style("top", (event.clientY - 15) + "px");
+                }
+                d3.select(this).attr("r", 6);
+            })
+            .on("mouseout", function() {
+                tooltip.transition().duration(500).style("opacity", 0);
+                d3.select(this).attr("r", 4);
             });
 
         return () => { tooltip.remove() };
@@ -248,12 +285,12 @@ const GanttConsole = ({ projects, assignments, currentTheme }) => {
                     <div className="p-4">
                         <svg ref={svgRef} width={width} height={height} style={{ maxWidth: 'none' }}></svg> {/* Changed height to full height */}
                     </div>
-                    {ganttView === 'projects' && (
-                        <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm pt-2 px-4 border-t pb-8" style={{ minHeight: '8rem' }}>
+                    {ganttView === 'projects' && projectData.length > 0 && (
+                        <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-xs pt-4 px-4 border-t pb-4">
                             {projectData.map(p => (
-                                <div key={p.projectId} className="flex flex-col items-center">
-                                    <div className="w-1/4 h-4" style={{ backgroundColor: color(p.projectId), minWidth: '20px' }}></div>
-                                    <span className={`transform -rotate-90 whitespace-nowrap mt-4 ${currentTheme.textColor}`}>{p.projectNumber}</span>
+                                <div key={p.projectId} className="flex items-center gap-2 overflow-hidden">
+                                    <div className="w-4 h-4 rounded-sm flex-shrink-0" style={{ backgroundColor: color(p.projectId) }}></div>
+                                    <span className={`${currentTheme.textColor} truncate`}>{p.projectNumber} - {p.projectName}</span>
                                 </div>
                             ))}
                         </div>
