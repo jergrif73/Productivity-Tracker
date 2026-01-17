@@ -388,7 +388,22 @@ const statusDescriptions = {
 };
 
 const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
-    const [startDate, setStartDate] = useState(new Date());
+    // Initialize startDate based on project.startDate or default to today
+    const getInitialStartDate = () => {
+        if (project.startDate) {
+            return new Date(project.startDate + 'T00:00:00');
+        }
+        // Fallback to project creation date if available (Firestore timestamp)
+        if (project.createdAt?.toDate) {
+            return project.createdAt.toDate();
+        }
+        if (project.createdAt) {
+            return new Date(project.createdAt);
+        }
+        return new Date();
+    };
+    
+    const [startDate, setStartDate] = useState(getInitialStartDate);
     const [timelineRows, setTimelineRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -401,6 +416,22 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     const [firestoreHours, setFirestoreHours] = useState({});
     const [pendingChanges, setPendingChanges] = useState({});
     const debouncedChanges = useDebounce(pendingChanges, 1000);
+
+    // Handler to sync with project start date
+    const handleSyncWithStartDate = () => {
+        if (project.startDate) {
+            setStartDate(new Date(project.startDate + 'T00:00:00'));
+            showToast(`Synced to project start date: ${project.startDate}`, 'success');
+        } else if (project.createdAt?.toDate) {
+            setStartDate(project.createdAt.toDate());
+            showToast('Synced to project creation date', 'success');
+        } else if (project.createdAt) {
+            setStartDate(new Date(project.createdAt));
+            showToast('Synced to project creation date', 'success');
+        } else {
+            showToast('No start date or creation date available', 'warning');
+        }
+    };
 
     const displayHours = useMemo(() => {
         const merged = JSON.parse(JSON.stringify(firestoreHours));
@@ -706,6 +737,9 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                     </button>
                     <div className="flex items-center gap-2">
                         <button onClick={() => handleDateNav(-28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'<< 4w'}</button>
+                        <button onClick={handleSyncWithStartDate} className={`p-1 px-2 text-xs border rounded-md bg-purple-600 text-white hover:bg-purple-700`}>
+                            Sync Start
+                        </button>
                         <button onClick={() => setStartDate(new Date())} className={`p-1 px-2 text-xs border rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} ${currentTheme.borderColor} hover:bg-opacity-75`}>Today</button>
                         <button onClick={() => handleDateNav(28)} className={`p-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-opacity-75`}>{'4w >>'}</button>
                     </div>
@@ -826,7 +860,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     // ... (rest of AdminConsole state remains the same) ...
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
-    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '' });
 
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
@@ -1164,7 +1198,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             
             await setDoc(doc(db, `artifacts/${appId}/public/data/projectActivities`, newProjectId), projectActivitiesData);
             
-            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning' });
+            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '' });
             showToast("Project added with standard activities.", "success");
         }
     };
@@ -1552,6 +1586,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <option key={status} value={status}>{statusDescriptions[status]}</option>
                                                         ))}
                                                     </select>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Start Date:</label><input type="date" value={newProject.startDate} onChange={e => setNewProject({...newProject, startDate: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Project Manager:</label><input type="text" value={newProject.projectManager} onChange={e => setNewProject({...newProject, projectManager: e.target.value})} placeholder="PM Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">VDC Rate ($/hr):</label><input type="number" value={newProject.vdcBlendedRate} onChange={e => setNewProject({...newProject, vdcBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
@@ -1579,6 +1615,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                                                 {projectStatuses.map(status => (<option key={status} value={status}>{statusDescriptions[status]}</option>))}
                                                             </select>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Start Date:</label><input type="date" name="startDate" value={editingProjectData.startDate || ''} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Project Manager:</label><input name="projectManager" value={editingProjectData.projectManager || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="PM Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Detailing Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">VDC Rate ($/hr):</label><input name="vdcBlendedRate" value={editingProjectData.vdcBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="VDC Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
@@ -1591,7 +1629,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <div className="flex justify-between items-center">
                                                                 <div>
                                                                     <p className="font-semibold">{p.name} ({p.projectId})</p>
-                                                                    <p className={`text-xs ${currentTheme.subtleText}`}>Budget: {formatCurrency(p.initialBudget)} | Detailing Rate: ${p.blendedRate || 0}/hr | VDC Rate: ${p.vdcBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}</p>
+                                                                    <p className={`text-xs ${currentTheme.subtleText}`}>
+                                                                        {p.startDate && `Start: ${p.startDate} | `}
+                                                                        {p.projectManager && `PM: ${p.projectManager} | `}
+                                                                        Budget: {formatCurrency(p.initialBudget)} | Detailing Rate: ${p.blendedRate || 0}/hr | VDC Rate: ${p.vdcBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}
+                                                                    </p>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 flex-shrink-0">
                                                                     {projectStatuses.map(status => (<Tooltip key={status} text={statusDescriptions[status]}><button onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(p.id, status); }} className={`px-2 py-1 text-xs rounded-md transition-colors ${currentStatus === status ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-blue-400`}`}>{statusDescriptions[status].charAt(0)}</button></Tooltip>))}

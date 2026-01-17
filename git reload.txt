@@ -1,5 +1,5 @@
 git add .
-git commit -m "Revised Positions and Definitions"
+git commit -m "Updated Project Console again"
 git push origin main
 
 
