@@ -317,33 +317,30 @@ const ProjectDetailView = ({
         setCsvImportState({ pendingData: staging, showModal: true });
     };
 
-    const applyCSVChanges = (reviewedRows) => {
-        const newActivitiesByGroup = { ...projectData.activities };
-        const disciplines = projectData.actionTrackerDisciplines || allDisciplines || [];
+    const applyCSVChanges = async (reviewedRows) => {
+        const newActivitiesByGroup = JSON.parse(JSON.stringify(projectData.activities || {}));
         
         let addedCount = 0;
         let updatedCount = 0;
 
-        // Separate New vs Updates
-        const newItemsToAdd = [];
-
         reviewedRows.forEach(item => {
             if (!item.selection.row) return; // Skip unchecked rows
+            if (!item.targetGroup) return; // Skip rows without a target group
 
             if (item.existingData) {
-                // UPDATE Logic
+                // UPDATE Logic - update existing activity
                 const { group, index } = item.existingData;
                 
                 if (newActivitiesByGroup[group] && newActivitiesByGroup[group][index]) {
                     const activity = { ...newActivitiesByGroup[group][index] };
                     let changed = false;
 
-                    if (item.selection.code) {
+                    if (item.selection.code && item.csvData.chargeCode) {
                         activity.chargeCode = item.csvData.chargeCode;
                         changed = true;
                     }
                     if (item.selection.hours) {
-                        activity.estimatedHours = item.csvData.estimatedHours;
+                        activity.estimatedHours = Number(item.csvData.estimatedHours) || 0;
                         changed = true;
                     }
 
@@ -353,38 +350,45 @@ const ProjectDetailView = ({
                     }
                 }
             } else {
-                // NEW Logic
-                // Only use values if specific cell checkboxes are checked (though usually for New rows, defaults are true)
-                newItemsToAdd.push({
-                    id: `csv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    description: item.csvData.description,
-                    chargeCode: item.selection.code ? item.csvData.chargeCode : '',
-                    estimatedHours: item.selection.hours ? Number(item.csvData.estimatedHours) : 0,
-                    percentComplete: 0,
-                    costToDate: 0,
-                    subsets: []
-                });
+                // NEW Logic - add to the user-selected targetGroup
+                const targetGroup = item.targetGroup;
+                
+                // Initialize group array if it doesn't exist
+                if (!newActivitiesByGroup[targetGroup]) {
+                    newActivitiesByGroup[targetGroup] = [];
+                }
+                
+                // Check for duplicates
+                const normalizedDesc = normalizeDesc(item.csvData.description);
+                const isDuplicate = newActivitiesByGroup[targetGroup].some(
+                    existingAct => normalizeDesc(existingAct.description) === normalizedDesc
+                );
+                
+                if (!isDuplicate) {
+                    const newActivity = {
+                        id: `csv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        description: item.csvData.description,
+                        chargeCode: item.selection.code ? item.csvData.chargeCode : '',
+                        estimatedHours: item.selection.hours ? Number(item.csvData.estimatedHours) : 0,
+                        percentComplete: 0,
+                        costToDate: 0,
+                        subsets: []
+                    };
+                    newActivitiesByGroup[targetGroup].push(newActivity);
+                    addedCount++;
+                }
             }
         });
 
-        // Batch add new items
-        if (newItemsToAdd.length > 0) {
-            const groupedNew = groupActivities(newItemsToAdd, disciplines);
-            Object.entries(groupedNew).forEach(([key, acts]) => {
-                if (!newActivitiesByGroup[key]) newActivitiesByGroup[key] = [];
-                // Double check duplicates just in case
-                const existingDescs = new Set(newActivitiesByGroup[key].map(a => normalizeDesc(a.description)));
-                acts.forEach(act => {
-                    if (!existingDescs.has(normalizeDesc(act.description))) {
-                        newActivitiesByGroup[key].push(act);
-                        addedCount++;
-                    }
-                });
-            });
-        }
-
         if (addedCount > 0 || updatedCount > 0) {
-            handleSaveData({ activities: newActivitiesByGroup });
+            // Update local state immediately for instant UI feedback
+            setProjectData(prev => ({
+                ...prev,
+                activities: newActivitiesByGroup
+            }));
+            
+            // Also save to Firebase (which will eventually trigger onSnapshot as well)
+            await handleSaveData({ activities: newActivitiesByGroup });
             showToast(`Import Success: ${addedCount} added, ${updatedCount} updated.`, "success");
         } else {
             showToast("No changes applied.", "info");
@@ -839,6 +843,7 @@ const ProjectDetailView = ({
                 isOpen={csvImportState.showModal}
                 stagingData={csvImportState.pendingData}
                 currentTheme={currentTheme}
+                disciplines={projectData?.actionTrackerDisciplines || allDisciplines || []}
                 onClose={() => setCsvImportState({ pendingData: null, showModal: false })}
                 onConfirm={applyCSVChanges}
             />

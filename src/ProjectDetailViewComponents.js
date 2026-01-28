@@ -102,19 +102,46 @@ export const groupActivities = (activityArray, actionTrackerDisciplines) => {
         const disciplines = actionTrackerDisciplines || [];
         
         if (/^mh\s*/i.test(desc)) {
-            const match = disciplines.find(d => d.label.toLowerCase().includes('duct') || d.label.toLowerCase().includes('sheet'));
-            groupKeyToUse = match?.key || 'sheetmetal';
+            // Match by key 'duct' or 'sheetmetal', or label containing 'duct', 'sheet', or 'mh'
+            const match = disciplines.find(d => 
+                d.key === 'duct' || d.key === 'sheetmetal' ||
+                d.label.toLowerCase().includes('duct') || 
+                d.label.toLowerCase().includes('sheet') ||
+                d.label.toLowerCase() === 'mh'
+            );
+            groupKeyToUse = match?.key || 'duct';
         } else if (/^mp\s*/i.test(desc)) {
-            const match = disciplines.find(d => d.label.toLowerCase().includes('piping') || d.label.toLowerCase().includes('pipe'));
+            // Match by key 'piping' or label containing 'piping', 'pipe', or 'mp'
+            const match = disciplines.find(d => 
+                d.key === 'piping' ||
+                d.label.toLowerCase().includes('piping') || 
+                d.label.toLowerCase().includes('pipe') ||
+                d.label.toLowerCase() === 'mp'
+            );
             groupKeyToUse = match?.key || 'piping';
         } else if (/^pl\s*/i.test(desc)) {
-            const match = disciplines.find(d => d.label.toLowerCase().includes('plumb'));
+            // Match by key 'plumbing' or label containing 'plumb' or 'pl'
+            const match = disciplines.find(d => 
+                d.key === 'plumbing' ||
+                d.label.toLowerCase().includes('plumb') ||
+                d.label.toLowerCase() === 'pl'
+            );
             groupKeyToUse = match?.key || 'plumbing';
         } else if (managementKeywords.some(keyword => desc.includes(keyword.toLowerCase()))) {
-            const match = disciplines.find(d => d.label.toLowerCase().includes('manage') || d.label.toLowerCase().includes('coord'));
+            // Match by key 'management' or label containing 'manage', 'mgmt', or 'coord'
+            const match = disciplines.find(d => 
+                d.key === 'management' ||
+                d.label.toLowerCase().includes('manage') || 
+                d.label.toLowerCase().includes('mgmt') ||
+                d.label.toLowerCase().includes('coord')
+            );
             groupKeyToUse = match?.key || 'management';
         } else if (vdcKeywords.some(keyword => desc.includes(keyword.toLowerCase()))) {
-            const match = disciplines.find(d => d.label.toLowerCase().includes('vdc'));
+            // Match by key 'vdc' or label containing 'vdc'
+            const match = disciplines.find(d => 
+                d.key === 'vdc' ||
+                d.label.toLowerCase().includes('vdc')
+            );
             groupKeyToUse = match?.key || 'vdc';
         } else {
             const disciplineMatch = disciplines.find(d => desc.toUpperCase().startsWith(d.label.substring(0, 2).toUpperCase()));
@@ -165,14 +192,110 @@ export const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children,
 };
 
 // --- NEW Interactive CSV Review Modal ---
-export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, currentTheme }) => {
+export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, currentTheme, disciplines: propDisciplines = [] }) => {
     const [rows, setRows] = useState([]);
 
+    // Default disciplines as fallback - memoized to prevent unnecessary re-renders
+    const defaultDisciplines = useMemo(() => [
+        { key: 'duct', label: 'MH' },
+        { key: 'piping', label: 'MP' },
+        { key: 'plumbing', label: 'PL' },
+        { key: 'management', label: 'MGMT' },
+        { key: 'vdc', label: 'VDC' }
+    ], []);
+    
+    // Use prop disciplines if available, otherwise use defaults - memoized
+    const disciplines = useMemo(() => {
+        return propDisciplines && propDisciplines.length > 0 ? propDisciplines : defaultDisciplines;
+    }, [propDisciplines, defaultDisciplines]);
+
+    // Only run once when stagingData changes (not when disciplines changes)
     useEffect(() => {
         if (stagingData) {
-            setRows(stagingData);
+            // Auto-match logic for suggesting a discipline group
+            const suggestGroup = (description, discList) => {
+                const desc = (description || '').toLowerCase().trim();
+                const managementKeywords = ['detailing management', 'project content development', 'project coordination management'];
+                const vdcKeywords = ['project vdc admin', 'project setup', 'project data management', 'project closeout'];
+                
+                if (/^mh\s*/i.test(desc)) {
+                    const match = discList.find(d => 
+                        d.key === 'duct' || d.key === 'sheetmetal' ||
+                        d.label.toLowerCase().includes('duct') || 
+                        d.label.toLowerCase().includes('sheet') ||
+                        d.label.toLowerCase() === 'mh'
+                    );
+                    return match?.key || 'duct';
+                } else if (/^mp\s*/i.test(desc)) {
+                    const match = discList.find(d => 
+                        d.key === 'piping' ||
+                        d.label.toLowerCase().includes('piping') || 
+                        d.label.toLowerCase().includes('pipe') ||
+                        d.label.toLowerCase() === 'mp'
+                    );
+                    return match?.key || 'piping';
+                } else if (/^pl\s*/i.test(desc)) {
+                    const match = discList.find(d => 
+                        d.key === 'plumbing' ||
+                        d.label.toLowerCase().includes('plumb') ||
+                        d.label.toLowerCase() === 'pl'
+                    );
+                    return match?.key || 'plumbing';
+                } else if (/^pp\s*/i.test(desc)) {
+                    const match = discList.find(d => 
+                        d.key === 'processpiping' || d.key === 'process' ||
+                        d.label.toLowerCase().includes('process') ||
+                        d.label.toLowerCase() === 'pp'
+                    );
+                    return match?.key || 'processpiping';
+                } else if (/^st\s*/i.test(desc)) {
+                    const match = discList.find(d => 
+                        d.key === 'structural' ||
+                        d.label.toLowerCase().includes('struct') ||
+                        d.label.toLowerCase() === 'st'
+                    );
+                    return match?.key || 'structural';
+                } else if (/^fp\s*/i.test(desc)) {
+                    const match = discList.find(d => 
+                        d.key === 'fireprotection' || d.key === 'fire' ||
+                        d.label.toLowerCase().includes('fire') ||
+                        d.label.toLowerCase() === 'fp'
+                    );
+                    return match?.key || 'fireprotection';
+                } else if (managementKeywords.some(keyword => desc.includes(keyword))) {
+                    const match = discList.find(d => 
+                        d.key === 'management' ||
+                        d.label.toLowerCase().includes('manage') || 
+                        d.label.toLowerCase().includes('mgmt')
+                    );
+                    return match?.key || 'management';
+                } else if (vdcKeywords.some(keyword => desc.includes(keyword))) {
+                    const match = discList.find(d => 
+                        d.key === 'vdc' ||
+                        d.label.toLowerCase().includes('vdc')
+                    );
+                    return match?.key || 'vdc';
+                }
+                
+                // Try to match by first two characters of description to discipline label
+                const firstTwo = desc.substring(0, 2).toUpperCase();
+                const labelMatch = discList.find(d => d.label.toUpperCase().startsWith(firstTwo));
+                if (labelMatch) return labelMatch.key;
+                
+                return ''; // No match - user must select
+            };
+
+            // Get disciplines for matching (use prop or defaults)
+            const discList = propDisciplines && propDisciplines.length > 0 ? propDisciplines : defaultDisciplines;
+
+            // Add suggested group to each row
+            const rowsWithGroups = stagingData.map(row => ({
+                ...row,
+                targetGroup: row.existingData?.group || suggestGroup(row.csvData.description, discList)
+            }));
+            setRows(rowsWithGroups);
         }
-    }, [stagingData]);
+    }, [stagingData, propDisciplines, defaultDisciplines]);
 
     const handleRowToggle = (index) => {
         setRows(prev => prev.map((r, i) => i === index ? { ...r, selection: { ...r.selection, row: !r.selection.row } } : r));
@@ -182,18 +305,24 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
         setRows(prev => prev.map((r, i) => i === index ? { ...r, selection: { ...r.selection, [field]: !r.selection[field] } } : r));
     };
 
+    const handleGroupChange = (index, newGroup) => {
+        setRows(prev => prev.map((r, i) => i === index ? { ...r, targetGroup: newGroup } : r));
+    };
+
     const handleSelectAll = (select) => {
         setRows(prev => prev.map(r => ({ ...r, selection: { ...r.selection, row: select } })));
+    };
+
+    const handleSelectAllColumn = (field, select) => {
+        setRows(prev => prev.map(r => ({ ...r, selection: { ...r.selection, [field]: select } })));
     };
 
     if (!isOpen) return null;
 
     const DiffCell = ({ original, incoming, isSelected, onToggle }) => {
-        // Use strict equality with string conversion to catch '120' vs 120 as match without lint errors
         const isDiff = String(original ?? '') !== String(incoming ?? '');
         const isNew = (original === undefined || original === null || original === '') && (incoming !== undefined && incoming !== '' && incoming !== 0);
         
-        // If it's a match, show plain text
         if (!isDiff && !isNew) {
             return (
                 <div className="flex items-center gap-2 opacity-60">
@@ -233,16 +362,24 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
         );
     };
 
+    // Count selected in each column
+    const selectedRows = rows.filter(r => r.selection.row).length;
+    const selectedCodes = rows.filter(r => r.selection.code).length;
+    const selectedHours = rows.filter(r => r.selection.hours).length;
+    const allCodesSelected = selectedCodes === rows.length;
+    const allHoursSelected = selectedHours === rows.length;
+    const noGroupSelected = rows.filter(r => r.selection.row && !r.targetGroup).length;
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-80 z-[100] flex justify-center items-center backdrop-blur-md">
-            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-xl shadow-2xl w-full max-w-6xl border ${currentTheme.borderColor} flex flex-col max-h-[90vh]`}>
+            <div className={`${currentTheme.cardBg} ${currentTheme.textColor} p-6 rounded-xl shadow-2xl w-full max-w-7xl border ${currentTheme.borderColor} flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-700/50">
                     <div>
                         <h3 className="text-xl font-bold text-blue-400 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             Review CSV Import
                         </h3>
-                        <p className="text-sm opacity-60 mt-1">Review changes below. Select rows and specific cells to apply updates.</p>
+                        <p className="text-sm opacity-60 mt-1">Review changes below. Select rows, columns, and assign discipline groups.</p>
                     </div>
                     <div className="flex gap-2">
                         <button onClick={() => handleSelectAll(true)} className="text-xs px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition-colors">Select All Rows</button>
@@ -255,15 +392,49 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
                         <thead className="sticky top-0 bg-gray-800 z-10 shadow-sm">
                             <tr className="text-xs uppercase text-gray-400">
                                 <th className="p-3 w-10 text-center border-b border-gray-700">#</th>
-                                <th className="p-3 border-b border-gray-700 w-1/3">Activity</th>
-                                <th className="p-3 border-b border-gray-700">Charge Code</th>
-                                <th className="p-3 border-b border-gray-700">Est. Hours</th>
-                                <th className="p-3 w-28 text-center border-b border-gray-700">Change Type</th>
+                                <th className="p-3 border-b border-gray-700 w-1/4">Activity</th>
+                                <th className="p-3 border-b border-gray-700">
+                                    <div className="flex items-center justify-between">
+                                        <span>Charge Code</span>
+                                        <div className="flex gap-1">
+                                            <button 
+                                                onClick={() => handleSelectAllColumn('code', true)} 
+                                                className={`px-1.5 py-0.5 text-[9px] rounded ${allCodesSelected ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                                                title="Select all codes"
+                                            >All</button>
+                                            <button 
+                                                onClick={() => handleSelectAllColumn('code', false)} 
+                                                className="px-1.5 py-0.5 text-[9px] rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                                title="Deselect all codes"
+                                            >None</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-3 border-b border-gray-700">
+                                    <div className="flex items-center justify-between">
+                                        <span>Est. Hours</span>
+                                        <div className="flex gap-1">
+                                            <button 
+                                                onClick={() => handleSelectAllColumn('hours', true)} 
+                                                className={`px-1.5 py-0.5 text-[9px] rounded ${allHoursSelected ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                                                title="Select all hours"
+                                            >All</button>
+                                            <button 
+                                                onClick={() => handleSelectAllColumn('hours', false)} 
+                                                className="px-1.5 py-0.5 text-[9px] rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
+                                                title="Deselect all hours"
+                                            >None</button>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th className="p-3 border-b border-gray-700 w-36">Discipline Group</th>
+                                <th className="p-3 w-24 text-center border-b border-gray-700">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {rows.map((row, i) => {
                                 const isRowSelected = row.selection.row;
+                                const noGroup = !row.targetGroup;
                                 return (
                                     <tr key={i} className={`group hover:bg-white/5 transition-colors ${!isRowSelected ? 'opacity-50 grayscale-[0.5]' : ''}`}>
                                         <td className="p-3 text-center border-b border-gray-800">
@@ -275,12 +446,12 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
                                             />
                                         </td>
                                         <td className="p-3 font-medium border-b border-gray-800">
-                                            <div className="truncate max-w-sm" title={row.csvData.description}>
+                                            <div className="truncate max-w-xs" title={row.csvData.description}>
                                                 {row.csvData.description}
                                             </div>
                                             {row.existingData && (
                                                 <div className="text-[10px] text-gray-500 mt-0.5">
-                                                    ID: {row.existingData.id} • Group: {row.existingData.group}
+                                                    Existing: {row.existingData.group}
                                                 </div>
                                             )}
                                         </td>
@@ -300,8 +471,20 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
                                                 onToggle={() => handleCellToggle(i, 'hours')}
                                             />
                                         </td>
+                                        <td className="p-3 border-b border-gray-800 relative">
+                                            <select
+                                                value={row.targetGroup || ''}
+                                                onChange={(e) => handleGroupChange(i, e.target.value)}
+                                                className={`w-full px-2 py-1.5 text-sm rounded border cursor-pointer ${noGroup ? 'border-red-500 bg-red-900/20' : 'border-gray-600 bg-gray-700'} text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                            >
+                                                <option value="">-- Select --</option>
+                                                {disciplines.map(d => (
+                                                    <option key={d.key} value={d.key}>{d.label} ({d.key})</option>
+                                                ))}
+                                            </select>
+                                        </td>
                                         <td className="p-3 text-center border-b border-gray-800">
-                                            <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide min-w-[80px]
+                                            <span className={`inline-flex items-center justify-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide min-w-[60px]
                                                 ${row.status === 'New' ? 'bg-blue-900/50 text-blue-200 border border-blue-700/50' : 
                                                   row.status === 'Update' ? 'bg-yellow-900/50 text-yellow-200 border border-yellow-700/50' : 
                                                   'bg-gray-800 text-gray-400 border border-gray-700'}`}>
@@ -316,8 +499,13 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
                 </div>
 
                 <div className="flex justify-between items-center pt-4">
-                    <div className="text-xs text-gray-400">
-                        <strong className="text-white">{rows.filter(r => r.selection.row).length}</strong> rows selected for import
+                    <div className="text-xs text-gray-400 space-x-4">
+                        <span><strong className="text-white">{selectedRows}</strong> rows selected</span>
+                        <span><strong className="text-white">{selectedCodes}</strong> codes</span>
+                        <span><strong className="text-white">{selectedHours}</strong> hours</span>
+                        {noGroupSelected > 0 && (
+                            <span className="text-red-400"><strong>{noGroupSelected}</strong> missing group!</span>
+                        )}
                     </div>
                     <div className="flex gap-3">
                         <button 
@@ -328,7 +516,8 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
                         </button>
                         <button 
                             onClick={() => onConfirm(rows)} 
-                            className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg shadow-blue-900/30 transition-all font-bold text-sm flex items-center gap-2"
+                            disabled={noGroupSelected > 0}
+                            className={`px-5 py-2.5 rounded-lg text-white shadow-lg transition-all font-bold text-sm flex items-center gap-2 ${noGroupSelected > 0 ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-blue-900/30'}`}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                             Apply Changes

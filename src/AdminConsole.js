@@ -1674,6 +1674,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             }));
             
             // Group activities by discipline - keys must match actionTrackerDisciplines keys
+            const vdcKeywords = ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'];
             const groupedActivities = {
                 duct: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
                 piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
@@ -1683,7 +1684,9 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                         keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
                     )
                 ),
-                vdc: standardActivities.filter(act => act.description === 'VDC Support')
+                vdc: standardActivities.filter(act => 
+                    vdcKeywords.some(keyword => act.description.toLowerCase().includes(keyword.toLowerCase()))
+                )
             };
             
             // Create default disciplines
