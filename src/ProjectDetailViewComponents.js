@@ -1244,6 +1244,7 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
         return (cost / percent) * 100;
     };
     const projectedCost = calculateProjectedCost(localCostToDate, localPercentComplete);
+    const remainingHours = (Number(localEstimatedHours) || 0) * (1 - (Number(localPercentComplete) / 100));
 
     // Save handlers - only save to Firestore on blur
     const handleDescriptionBlur = () => {
@@ -1324,6 +1325,7 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
 
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Cost to Date / % Comp) * 100"><p>{formatCurrency(projectedCost)}</p></Tooltip></td>
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="Est. Hrs × (1 - % Comp)"><p>{remainingHours.toFixed(2)}</p></Tooltip></td>
             <td className="p-1 text-center">
                  {accessLevel === 'taskmaster' && (
                      <button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
@@ -1348,16 +1350,17 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
     // Common colgroup for consistent column widths
     const TableColGroup = () => (
         <colgroup>
-            <col style={{ width: '20%' }} /> {/* Activity Description */}
+            <col style={{ width: '14%' }} /> {/* Activity Description */}
             <col style={{ width: '12%' }} /> {/* Charge Code */}
-            <col style={{ width: '7%' }} />  {/* Est. Hrs */}
-            <col style={{ width: '9%' }} />  {/* Budget */}
+            <col style={{ width: '6%' }} />  {/* Est. Hrs */}
+            <col style={{ width: '8%' }} />  {/* Budget */}
             <col style={{ width: '7%' }} />  {/* % of Project */}
-            <col style={{ width: '7%' }} />  {/* % Comp */}
+            <col style={{ width: '6%' }} />  {/* % Comp */}
             <col style={{ width: '9%' }} />  {/* Actual Cost */}
-            <col style={{ width: '9%' }} />  {/* Earned */}
+            <col style={{ width: '8%' }} />  {/* Earned */}
             <col style={{ width: '9%' }} />  {/* Proj. Cost */}
-            <col style={{ width: '11%' }} /> {/* Actions/Controls */}
+            <col style={{ width: '9%' }} />  {/* Remaining Hrs */}
+            <col style={{ width: '12%' }} /> {/* Actions/Controls */}
         </colgroup>
     );
 
@@ -1370,7 +1373,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                     <tbody>
                         <tr>
                             {/* Arrow + Title - Activity Description column */}
-                            <td className="p-2 font-bold text-white">
+                            <td className="p-1 font-bold text-white">
                                 <div className="flex items-center">
                                     <motion.svg onClick={onToggle}
                                         animate={{ rotate: isCollapsed ? 0 : 180 }}
@@ -1395,23 +1398,25 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                 </div>
                             </td>
                             {/* Empty - Charge Code column */}
-                            <td className="p-2"></td>
+                            <td className="p-1"></td>
                             {/* Est. Hrs */}
-                            <td className="p-2 text-center text-white text-xs font-bold">{groupTotals.estimated.toFixed(2)}</td>
+                            <td className="p-1 text-center text-white text-xs font-bold">{groupTotals.estimated.toFixed(2)}</td>
                             {/* Budget */}
-                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.budget)}</td>
+                            <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.budget)}</td>
                             {/* Empty - % of Project column */}
-                            <td className="p-2"></td>
+                            <td className="p-1"></td>
                             {/* % Complete */}
-                            <td className="p-2 text-center text-white text-xs font-bold">{groupTotals.percentComplete.toFixed(2)}%</td>
+                            <td className="p-1 text-center text-white text-xs font-bold">{groupTotals.percentComplete.toFixed(2)}%</td>
                             {/* Actual Cost */}
-                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.actualCost)}</td>
+                            <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.actualCost)}</td>
                             {/* Earned */}
-                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.earnedValue)}</td>
-                            {/* Projected */}
-                            <td className="p-2 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.projected)}</td>
+                            <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.earnedValue)}</td>
+                            {/* Projected Cost */}
+                            <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.projected)}</td>
+                            {/* Remaining Hours */}
+                            <td className="p-1 text-center text-white text-xs font-bold">{(groupTotals.remainingHours || 0).toFixed(2)}</td>
                             {/* Controls - Actions column */}
-                            <td className="p-2">
+                            <td className="p-1">
                                 <div className="flex items-center gap-2 justify-end">
                                     {accessLevel === 'taskmaster' && (
                                         <div className="flex items-center gap-1 text-white text-xs">
@@ -1447,16 +1452,17 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                             <TableColGroup />
                             <thead>
                                 <tr className={currentTheme.altRowBg}>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
-                                    <th className={`p-2 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>% of Project</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Calculated automatically from the Action Tracker section.">% Comp</Tooltip></th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Actual Cost ($)</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
-                                    <th className={`p-2 text-center font-semibold ${currentTheme.textColor}`}>Actions</th>
+                                    <th className={`p-1 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
+                                    <th className={`p-1 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>% of Project</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Calculated automatically from the Action Tracker section.">% Comp</Tooltip></th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Actual Cost ($)</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Est. Hrs × (1 - % Comp)">Remaining Hrs</Tooltip></th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1477,7 +1483,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                 ))}
                                  {accessLevel === 'taskmaster' && ( 
                                      <tr>
-                                        <td colSpan="10"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                                        <td colSpan="11"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
                                     </tr>
                                  )}
                             </tbody>

@@ -637,22 +637,24 @@ const ProjectDetailView = ({
 
     // Calculation Memos 
     const calculateGroupTotals = useCallback((activities, proj, rateType) => {
+        const rateToUse = rateType === 'VDC Rate' ? (proj.vdcBlendedRate || proj.blendedRate || 0) : (proj.blendedRate || 0);
         return (activities || []).reduce((acc, activity) => {
             const estHours = Number(activity?.estimatedHours || 0);
             const costToDate = Number(activity?.costToDate || 0);
             const percentComplete = Number(activity?.percentComplete || 0);
-            const rateToUse = rateType === 'VDC Rate' ? (proj.vdcBlendedRate || proj.blendedRate || 0) : (proj.blendedRate || 0);
             
             const budget = Math.ceil(estHours * rateToUse);
             const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
+            const remainingHours = estHours * (1 - (percentComplete / 100));
 
             acc.estimated += estHours;
             acc.budget += budget;
             acc.actualCost += costToDate;
             acc.earnedValue += budget * (percentComplete / 100);
-            acc.projected += projectedCost; 
+            acc.projected += projectedCost;
+            acc.remainingHours += remainingHours;
             return acc;
-        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, percentComplete: 0 }); 
+        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, percentComplete: 0 }); 
     }, []); 
 
     const activityTotals = useMemo(() => {
@@ -816,10 +818,11 @@ const ProjectDetailView = ({
                  acc.budget += totals.budget;
                  acc.earnedValue += totals.earnedValue;
                  acc.actualCost += totals.actualCost;
-                 acc.projected += totals.projected; 
+                 acc.projected += totals.projected;
+                 acc.remainingHours += totals.remainingHours || 0;
             }
             return acc;
-        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0 }); 
+        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0, remainingHours: 0 }); 
     }, [groupTotals, projectData?.actionTrackerDisciplines]); 
 
     // --- Render logic ---
@@ -1238,7 +1241,7 @@ const ProjectDetailView = ({
                                                         currentTheme={currentTheme}
                                                         totalProjectHours={activityTotals.estimated}
                                                         accessLevel={accessLevel}
-                                                        groupTotals={groupTotals[groupKey] || { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, percentComplete: 0 }}
+                                                        groupTotals={groupTotals[groupKey] || { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, percentComplete: 0 }}
                                                         rateType={rateType}
                                                         onRateTypeChange={handleSetRateType}
                                                         onDeleteGroup={handleDeleteActivityGroup}
@@ -1255,29 +1258,31 @@ const ProjectDetailView = ({
                                     <div className={`w-full mt-2 ${currentTheme.altRowBg}`}>
                                         <table className="w-full text-sm table-fixed">
                                             <colgroup>
-                                                <col style={{ width: '20%' }} />
+                                                <col style={{ width: '14%' }} />
                                                 <col style={{ width: '12%' }} />
+                                                <col style={{ width: '6%' }} />
+                                                <col style={{ width: '8%' }} />
                                                 <col style={{ width: '7%' }} />
+                                                <col style={{ width: '6%' }} />
                                                 <col style={{ width: '9%' }} />
-                                                <col style={{ width: '7%' }} />
-                                                <col style={{ width: '7%' }} />
+                                                <col style={{ width: '8%' }} />
                                                 <col style={{ width: '9%' }} />
                                                 <col style={{ width: '9%' }} />
-                                                <col style={{ width: '9%' }} />
-                                                <col style={{ width: '11%' }} />
+                                                <col style={{ width: '12%' }} />
                                             </colgroup>
                                             <tbody>
                                                 <tr>
-                                                    <td className="p-2 font-bold text-xs">Grand Totals</td>
-                                                    <td className="p-2"></td>
-                                                    <td className="p-2 text-center text-xs font-bold">{grandTotals.estimated.toFixed(2)}</td>
-                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.budget)}</td>
-                                                    <td className="p-2"></td>
-                                                    <td className="p-2 text-center text-xs font-bold">--</td>
-                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.actualCost)}</td>
-                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.earnedValue)}</td>
-                                                    <td className="p-2 text-center text-xs font-bold">{formatCurrency(grandTotals.projected)}</td>
-                                                    <td className="p-2"></td>
+                                                    <td className="p-1 font-bold text-xs">Grand Totals</td>
+                                                    <td className="p-1"></td>
+                                                    <td className="p-1 text-center text-xs font-bold">{grandTotals.estimated.toFixed(2)}</td>
+                                                    <td className="p-1 text-center text-xs font-bold">{formatCurrency(grandTotals.budget)}</td>
+                                                    <td className="p-1"></td>
+                                                    <td className="p-1 text-center text-xs font-bold">--</td>
+                                                    <td className="p-1 text-center text-xs font-bold">{formatCurrency(grandTotals.actualCost)}</td>
+                                                    <td className="p-1 text-center text-xs font-bold">{formatCurrency(grandTotals.earnedValue)}</td>
+                                                    <td className="p-1 text-center text-xs font-bold">{formatCurrency(grandTotals.projected)}</td>
+                                                    <td className="p-1 text-center text-xs font-bold">{grandTotals.remainingHours.toFixed(2)}</td>
+                                                    <td className="p-1"></td>
                                                 </tr>
                                             </tbody>
                                         </table>
