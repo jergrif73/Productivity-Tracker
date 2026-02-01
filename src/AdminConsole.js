@@ -1089,6 +1089,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
             </ConfirmationModal>
             <div className="mt-4 pt-4 border-t border-gray-500/50 space-y-2" onClick={(e) => e.stopPropagation()}>
                 {/* Forecast Configuration Panel */}
+                <TutorialHighlight tutorialKey="forecastConfiguration">
                 <div className="mb-4">
                     <button 
                         onClick={() => setShowForecastConfig(!showForecastConfig)}
@@ -1249,6 +1250,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
                         </div>
                     )}
                 </div>
+                </TutorialHighlight>
                 
                 <div className="flex justify-between items-center gap-2 mb-2">
                      <button onClick={() => setIsClearConfirmOpen(true)} className={`p-1 px-3 text-xs rounded-md bg-red-600 text-white hover:bg-red-700`}>

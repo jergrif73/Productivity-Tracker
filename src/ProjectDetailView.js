@@ -646,6 +646,13 @@ const ProjectDetailView = ({
             const budget = Math.ceil(estHours * rateToUse);
             const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
             const remainingHours = estHours * (1 - (percentComplete / 100));
+            
+            // Hrs to Comp = (Actual Cost / Rate) * ((100 - % Comp) / % Comp)
+            let hrsToComp = 0;
+            if (percentComplete > 0 && rateToUse > 0) {
+                const hoursUsed = costToDate / rateToUse;
+                hrsToComp = hoursUsed * ((100 - percentComplete) / percentComplete);
+            }
 
             acc.estimated += estHours;
             acc.budget += budget;
@@ -653,8 +660,9 @@ const ProjectDetailView = ({
             acc.earnedValue += budget * (percentComplete / 100);
             acc.projected += projectedCost;
             acc.remainingHours += remainingHours;
+            acc.hrsToComp += hrsToComp;
             return acc;
-        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, percentComplete: 0 }); 
+        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, hrsToComp: 0, percentComplete: 0 }); 
     }, []); 
 
     const activityTotals = useMemo(() => {
@@ -820,9 +828,10 @@ const ProjectDetailView = ({
                  acc.actualCost += totals.actualCost;
                  acc.projected += totals.projected;
                  acc.remainingHours += totals.remainingHours || 0;
+                 acc.hrsToComp += totals.hrsToComp || 0;
             }
             return acc;
-        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0, remainingHours: 0 }); 
+        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0, remainingHours: 0, hrsToComp: 0 }); 
     }, [groupTotals, projectData?.actionTrackerDisciplines]); 
 
     // --- Render logic ---
@@ -960,7 +969,9 @@ const ProjectDetailView = ({
              {(accessLevel === 'taskmaster' || accessLevel === 'tcl') && (
                 <>
                     {accessLevel === 'taskmaster' && (
-                        <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
+                        <TutorialHighlight tutorialKey="financialSummary">
+                            <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
+                        </TutorialHighlight>
                     )}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {accessLevel === 'taskmaster' && (
@@ -1148,12 +1159,15 @@ const ProjectDetailView = ({
                                     <h3 className="text-lg font-semibold">Activity Values Breakdown</h3>
                                      <div className="flex items-center gap-2">
                                          {/* CSV Import Button */}
+                                         <TutorialHighlight tutorialKey="csvImport">
                                          <label className={`text-xs px-2 py-1 rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText} cursor-pointer flex items-center gap-1 hover:opacity-80 transition-opacity`}>
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                             Import CSV
                                             <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
                                          </label>
+                                         </TutorialHighlight>
                                          {/* Timestamp Button */}
+                                         <TutorialHighlight tutorialKey="actualCostTimestamp">
                                          <button 
                                             onClick={() => {
                                                 const now = new Date().toISOString();
@@ -1166,6 +1180,7 @@ const ProjectDetailView = ({
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                             {projectData?.actualCostUpdatedAt ? new Date(projectData.actualCostUpdatedAt).toLocaleDateString() : 'Stamp'}
                                          </button>
+                                         </TutorialHighlight>
                                          <span className="text-gray-500">|</span>
 
                                         {availableDisciplinesToAdd.length === 0 ? (
@@ -1241,7 +1256,7 @@ const ProjectDetailView = ({
                                                         currentTheme={currentTheme}
                                                         totalProjectHours={activityTotals.estimated}
                                                         accessLevel={accessLevel}
-                                                        groupTotals={groupTotals[groupKey] || { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, percentComplete: 0 }}
+                                                        groupTotals={groupTotals[groupKey] || { estimated: 0, used: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, hrsToComp: 0, percentComplete: 0 }}
                                                         rateType={rateType}
                                                         onRateTypeChange={handleSetRateType}
                                                         onDeleteGroup={handleDeleteActivityGroup}
@@ -1259,7 +1274,7 @@ const ProjectDetailView = ({
                                         <table className="w-full text-sm table-fixed">
                                             <colgroup>
                                                 <col style={{ width: '14%' }} />
-                                                <col style={{ width: '12%' }} />
+                                                <col style={{ width: '9%' }} />
                                                 <col style={{ width: '6%' }} />
                                                 <col style={{ width: '8%' }} />
                                                 <col style={{ width: '7%' }} />
@@ -1268,7 +1283,8 @@ const ProjectDetailView = ({
                                                 <col style={{ width: '8%' }} />
                                                 <col style={{ width: '9%' }} />
                                                 <col style={{ width: '9%' }} />
-                                                <col style={{ width: '12%' }} />
+                                                <col style={{ width: '8%' }} />
+                                                <col style={{ width: '7%' }} />
                                             </colgroup>
                                             <tbody>
                                                 <tr>
@@ -1282,6 +1298,7 @@ const ProjectDetailView = ({
                                                     <td className="p-1 text-center text-xs font-bold">{formatCurrency(grandTotals.earnedValue)}</td>
                                                     <td className="p-1 text-center text-xs font-bold">{formatCurrency(grandTotals.projected)}</td>
                                                     <td className="p-1 text-center text-xs font-bold">{grandTotals.remainingHours.toFixed(2)}</td>
+                                                    <td className="p-1 text-center text-xs font-bold">{grandTotals.hrsToComp.toFixed(2)}</td>
                                                     <td className="p-1"></td>
                                                 </tr>
                                             </tbody>

@@ -156,7 +156,7 @@ export const tutorialContent = {
       {
         key: "financialSummary",
         title: "Financial Summary (Taskmaster)",
-        content: "This dashboard provides a high-level overview of the project's financial health, based on the data from the Activity Breakdown below. Hover over any metric for a tooltip explaining its calculation.",
+        content: "This dashboard provides a high-level overview of the project's financial health, including Allocated Hrs, Spent to Date, Earned Value, Cost to Complete, Est. Final Cost, Variance, and Productivity. Hover over any metric for a tooltip explaining its calculation.",
         roles: ['taskmaster']
       },
       {
@@ -192,7 +192,25 @@ export const tutorialContent = {
       {
         key: "activityBreakdown",
         title: "Activity Values Breakdown (Taskmaster)",
-        content: "Define all billable activities here. Input 'Est. Hrs' and 'Hrs Used'. The '% Comp' field is calculated from the 'Action Tracker'. Disciplines are displayed as abbreviations (MH=Duct, MP=Piping, PL=Plumbing, etc.). Use the 'Stamp' button to record when Actual Cost was last updated.",
+        content: "Define all billable activities here. Key columns include: Est. Hrs (estimated hours), Budget (Est. Hrs × Rate), % Comp (fed from Action Tracker), Actual Cost (manual input), Earned Value (Budget × % Comp), Proj. Cost (projected final cost), Remaining Hrs (Est. Hrs × (1 - % Comp)), and Hrs to Comp (hours needed to finish based on current productivity).",
+        roles: ['taskmaster']
+      },
+      {
+        key: "csvImport",
+        title: "CSV Import (Taskmaster)",
+        content: "Click 'Import CSV' to bulk-load activities from a spreadsheet. The review modal lets you select which rows to import, assign discipline groups, and preview changes before applying. Download the template from the app for the correct format.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "actualCostTimestamp",
+        title: "Actual Cost Timestamp (Taskmaster)",
+        content: "Click the 'Stamp' button to record when Actual Cost values were last updated. This timestamp appears on reports and helps track when financial data was last refreshed from external sources.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "activityGrandTotals",
+        title: "Grand Totals Row",
+        content: "The Grand Totals row at the bottom summarizes all disciplines: total Est. Hrs, Budget, Actual Cost, Earned Value, Proj. Cost, Remaining Hrs, and Hrs to Comp. This gives you a quick project-wide financial snapshot.",
         roles: ['taskmaster']
       },
       {
@@ -204,7 +222,7 @@ export const tutorialContent = {
       {
         key: "alphabeticalSorting",
         title: "Alphabetical Sorting",
-        content: "The trade sections within the 'Activity Values Breakdown' are now automatically sorted alphabetically, making it easier to locate a specific discipline.",
+        content: "The trade sections within the 'Activity Values Breakdown' are automatically sorted alphabetically, making it easier to locate a specific discipline.",
         roles: ['taskmaster']
       },
       {
@@ -448,13 +466,19 @@ export const tutorialContent = {
         {
             key: "addProjectFields",
             title: "Adding New Projects",
-            content: "When creating a project, enter the project ID, name, budget, and blended rate. The blended rate is used to calculate financial metrics throughout the application.",
+            content: "When creating a project, enter the project ID, name, budget, blended rate, start date, and project manager. The blended rate is used to calculate financial metrics throughout the application.",
             roles: ['taskmaster']
         },
         {
             key: "editProjectDetails",
             title: "Editing Project Details",
             content: "Click 'Edit' on any project row to modify its details including name, budget, blended rate, and status. Changes here affect all related calculations.",
+            roles: ['taskmaster']
+        },
+        {
+            key: "forecastConfiguration",
+            title: "Forecast Configuration",
+            content: "Click '📊 Forecast Configuration' to auto-generate weekly forecasts. Use 'Sync from Activities' to pull discipline hours from the Project Console's Activity Breakdown. Set ramp-up/down weeks, adjust weekly hours or duration, then click 'Generate Forecast' to populate the timeline below.",
             roles: ['taskmaster']
         },
         {
