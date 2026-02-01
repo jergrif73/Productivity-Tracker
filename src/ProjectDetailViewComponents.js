@@ -167,7 +167,7 @@ export const Tooltip = ({ text, children }) => {
         <div className="relative flex items-center justify-center" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
             {children}
             {visible && text && (
-                <div className="absolute bottom-full mb-2 w-max max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md z-20 shadow-lg border border-gray-700 pointer-events-none">
+                <div className="absolute top-full mt-2 w-max max-w-xs px-3 py-2 bg-gray-900 text-white text-xs rounded-md z-50 shadow-lg border border-gray-700 pointer-events-none">
                     <p className="font-mono whitespace-pre-wrap text-left">{text}</p>
                 </div>
             )}
@@ -1245,6 +1245,16 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
     };
     const projectedCost = calculateProjectedCost(localCostToDate, localPercentComplete);
     const remainingHours = (Number(localEstimatedHours) || 0) * (1 - (Number(localPercentComplete) / 100));
+    
+    // Hrs to Comp = (Actual Cost / Rate) * ((100 - % Comp) / % Comp)
+    const calculateHrsToComp = () => {
+        const cost = Number(localCostToDate) || 0;
+        const percent = Number(localPercentComplete) || 0;
+        if (percent <= 0 || rateToUse <= 0) return 0;
+        const hoursUsed = cost / rateToUse;
+        return hoursUsed * ((100 - percent) / percent);
+    };
+    const hrsToComp = calculateHrsToComp();
 
     // Save handlers - only save to Firestore on blur
     const handleDescriptionBlur = () => {
@@ -1326,6 +1336,7 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
 
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Cost to Date / % Comp) * 100"><p>{formatCurrency(projectedCost)}</p></Tooltip></td>
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="Est. Hrs × (1 - % Comp)"><p>{remainingHours.toFixed(2)}</p></Tooltip></td>
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Actual Cost ÷ Rate) × ((100 - % Comp) ÷ % Comp)"><p>{hrsToComp.toFixed(2)}</p></Tooltip></td>
             <td className="p-1 text-center">
                  {accessLevel === 'taskmaster' && (
                      <button onClick={() => onDelete(groupKey, index)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
@@ -1351,7 +1362,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
     const TableColGroup = () => (
         <colgroup>
             <col style={{ width: '14%' }} /> {/* Activity Description */}
-            <col style={{ width: '12%' }} /> {/* Charge Code */}
+            <col style={{ width: '9%' }} />  {/* Charge Code */}
             <col style={{ width: '6%' }} />  {/* Est. Hrs */}
             <col style={{ width: '8%' }} />  {/* Budget */}
             <col style={{ width: '7%' }} />  {/* % of Project */}
@@ -1360,7 +1371,8 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
             <col style={{ width: '8%' }} />  {/* Earned */}
             <col style={{ width: '9%' }} />  {/* Proj. Cost */}
             <col style={{ width: '9%' }} />  {/* Remaining Hrs */}
-            <col style={{ width: '12%' }} /> {/* Actions/Controls */}
+            <col style={{ width: '8%' }} />  {/* Hrs to Comp */}
+            <col style={{ width: '7%' }} />  {/* Actions/Controls */}
         </colgroup>
     );
 
@@ -1397,8 +1409,15 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                     )}
                                 </div>
                             </td>
-                            {/* Empty - Charge Code column */}
-                            <td className="p-1"></td>
+                            {/* Charge Code column - Project Wide checkbox */}
+                            <td className="p-1">
+                                {accessLevel === 'taskmaster' && (
+                                    <div className="flex items-center gap-1 text-white text-xs">
+                                        <input type="checkbox" checked={isProjectWide} onChange={() => onToggleProjectWide(groupKey)} onClick={(e) => e.stopPropagation()} id={`project-wide-${groupKey}`} />
+                                        <label htmlFor={`project-wide-${groupKey}`} className="cursor-pointer whitespace-nowrap">Project-Wide</label>
+                                    </div>
+                                )}
+                            </td>
                             {/* Est. Hrs */}
                             <td className="p-1 text-center text-white text-xs font-bold">{groupTotals.estimated.toFixed(2)}</td>
                             {/* Budget */}
@@ -1415,15 +1434,11 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                             <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.projected)}</td>
                             {/* Remaining Hours */}
                             <td className="p-1 text-center text-white text-xs font-bold">{(groupTotals.remainingHours || 0).toFixed(2)}</td>
+                            {/* Hrs to Comp */}
+                            <td className="p-1 text-center text-white text-xs font-bold">{(groupTotals.hrsToComp || 0).toFixed(2)}</td>
                             {/* Controls - Actions column */}
                             <td className="p-1">
                                 <div className="flex items-center gap-2 justify-end">
-                                    {accessLevel === 'taskmaster' && (
-                                        <div className="flex items-center gap-1 text-white text-xs">
-                                            <input type="checkbox" checked={isProjectWide} onChange={() => onToggleProjectWide(groupKey)} onClick={(e) => e.stopPropagation()} id={`project-wide-${groupKey}`} />
-                                            <label htmlFor={`project-wide-${groupKey}`} className="cursor-pointer whitespace-nowrap">Project-Wide</label>
-                                        </div>
-                                    )}
                                     <select value={rateType} onChange={(e) => { e.stopPropagation(); onRateTypeChange(groupKey, e.target.value); }} onClick={(e) => e.stopPropagation()} className="bg-white/20 text-white text-xs rounded p-1">
                                         <option value="Detailing Rate">Detailing Rate</option>
                                         <option value="VDC Rate">VDC Rate</option>
@@ -1462,6 +1477,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Est. Hrs × (1 - % Comp)">Remaining Hrs</Tooltip></th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="(Actual Cost ÷ Rate) × ((100 - % Comp) ÷ % Comp)">Hrs to Comp</Tooltip></th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Actions</th>
                                 </tr>
                             </thead>
@@ -1483,7 +1499,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                 ))}
                                  {accessLevel === 'taskmaster' && ( 
                                      <tr>
-                                        <td colSpan="11"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                                        <td colSpan="12"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
                                     </tr>
                                  )}
                             </tbody>

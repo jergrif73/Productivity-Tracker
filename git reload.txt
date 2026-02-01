@@ -1,5 +1,5 @@
 git add .
-git commit -m "Updated Forecasting structure and interface. Phase 1"
+git commit -m "Updated Project Console Projected Hours Left"
 git push origin main
 
 
