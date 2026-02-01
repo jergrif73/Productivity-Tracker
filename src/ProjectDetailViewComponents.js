@@ -1312,9 +1312,9 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
             </td>
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text={`Est. Hours * Rate (Raw: ${formatCurrency(rawBudget)})`}><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Est. Hrs / Total Est. Hrs) * 100"><p>{percentOfProject.toFixed(2)}%</p></Tooltip></td>
-            <td className={`p-1 text-center ${currentTheme.altRowBg}`}>
-                <Tooltip text="Fed from Action Tracker">
-                    <p>{Number(localPercentComplete || 0).toFixed(2)}%</p>
+            <td className={`p-1 text-center ${currentTheme.altRowBg} ${(Number(localCostToDate) > 0 && Number(localPercentComplete) === 0) ? 'bg-red-600/40 border border-red-500 rounded' : ''}`}>
+                <Tooltip text={Number(localCostToDate) > 0 && Number(localPercentComplete) === 0 ? "⚠️ Actual Cost exists but 0% Complete!" : "Fed from Action Tracker"}>
+                    <p className={`${(Number(localCostToDate) > 0 && Number(localPercentComplete) === 0) ? 'text-red-400 font-bold animate-pulse' : ''}`}>{Number(localPercentComplete || 0).toFixed(2)}%</p>
                 </Tooltip>
             </td>
             
