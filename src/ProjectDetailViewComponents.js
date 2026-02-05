@@ -1318,15 +1318,17 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
                 </Tooltip>
             </td>
             
-            <td className={`p-1 text-center`}>
+            <td className={`p-1 text-center ${(Number(localCostToDate) === 0 && Number(localPercentComplete) > 0) ? 'bg-yellow-600/40 border border-yellow-500 rounded' : ''}`}>
                 {accessLevel === 'taskmaster' ? (
+                    <Tooltip text={Number(localCostToDate) === 0 && Number(localPercentComplete) > 0 ? "⚠️ % Comp entered but no Actual Cost!" : ""}>
                     <input
                         type="number"
                         value={localCostToDate}
                         onChange={(e) => setLocalCostToDate(e.target.value)}
                         onBlur={handleCostToDateBlur}
-                        className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
+                        className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText} ${(Number(localCostToDate) === 0 && Number(localPercentComplete) > 0) ? 'text-yellow-400 font-bold' : ''}`}
                     />
+                    </Tooltip>
                 ) : (
                     <p>{formatCurrency(localCostToDate)}</p>
                 )}

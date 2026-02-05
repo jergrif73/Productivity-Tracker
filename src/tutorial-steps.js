@@ -214,6 +214,12 @@ export const tutorialContent = {
         roles: ['taskmaster']
       },
       {
+        key: "dataValidationWarnings",
+        title: "Data Validation Warnings",
+        content: "The Activity Breakdown highlights potential data entry issues: A RED pulsing '% Comp' cell means Actual Cost was entered but no progress recorded. A YELLOW 'Actual Cost' cell means progress was reported but no cost entered. These flags help catch incomplete data entry.",
+        roles: ['taskmaster']
+      },
+      {
         key: "projectWideActivities",
         title: "Project-Wide Activities (Taskmaster)",
         content: "In the 'Activity Values Breakdown', you can check the 'Project-Wide' box for an entire trade section. This moves it to a separate area in the Action Tracker where TCLs can report a single progress percentage for that trade, independent of the 'Mains'.",

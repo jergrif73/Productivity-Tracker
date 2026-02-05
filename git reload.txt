@@ -1,5 +1,5 @@
 git add .
-git commit -m "Updated Project Console Projected Hours Left"
+git commit -m "Updated Tutorial Steps"
 git push origin main
 
 
