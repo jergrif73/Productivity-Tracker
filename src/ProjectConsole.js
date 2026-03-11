@@ -425,7 +425,11 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                 <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleProjectClick(p.id)}>
                                     <div>
                                         <h3 className="text-lg font-semibold">{p.name}</h3>
-                                        <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>
+                                            Project ID: {p.projectId}
+                                            {p.projectManager && <span className="ml-3">PM: {p.projectManager}</span>}
+                                            {p.projectedDurationWeeks && <span className="ml-3">Duration: {p.projectedDurationWeeks} wks</span>}
+                                        </p>
                                     </div>
                                     <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
