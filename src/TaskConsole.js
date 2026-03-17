@@ -305,7 +305,7 @@ const CustomSelect = ({ options, value, onChange, placeholder, currentTheme, cla
     );
 };
 
-const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDelete, currentTheme, appId }) => {
+const TaskDetailModal = ({ db, task, projects, detailers, taskLanes, onSave, onClose, onDelete, currentTheme, appId }) => {
     const [taskData, setTaskData] = useState(null);
     const [newSubTask, setNewSubTask] = useState({ name: '', detailerId: '', dueDate: '' });
     const [editingSubTaskId, setEditingSubTaskId] = useState(null);
@@ -565,7 +565,18 @@ const TaskDetailModal = ({ db, task, projects, detailers, onSave, onClose, onDel
                             currentTheme={currentTheme}
                         />
                         <input type="date" name="dueDate" value={taskData.dueDate} onChange={handleChange} className={formElementClasses}/>
-                        <p className={`p-2 text-sm ${currentTheme.subtleText}`}>Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
+                        <select
+                            name="laneId"
+                            value={taskData.laneId || ''}
+                            onChange={handleChange}
+                            className={formElementClasses}
+                        >
+                            <option value="">Bucket: New Requests</option>
+                            {(taskLanes || []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(lane => (
+                                <option key={lane.id} value={lane.id}>{lane.name}</option>
+                            ))}
+                        </select>
+                        <p className={`p-2 text-sm col-span-2 ${currentTheme.subtleText}`}>Entry: {new Date(taskData.entryDate).toLocaleDateString()}</p>
                     </div>
                 </div>
 
@@ -878,13 +889,15 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
 
         try {
             if (isNew) {
-                // For new tasks, ensure it goes to 'New Requests' lane initially
-                const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
-                if (!newRequestsLane) {
-                    showToast("Error: 'New Requests' lane not found. Cannot create task.", 'error');
-                    return;
+                // Use the laneId set in the form, or fall back to 'New Requests'
+                if (!finalTaskData.laneId) {
+                    const newRequestsLane = taskLanes.find(l => l.name === "New Requests");
+                    if (!newRequestsLane) {
+                        showToast("Error: 'New Requests' lane not found. Cannot create task.", 'error');
+                        return;
+                    }
+                    finalTaskData.laneId = newRequestsLane.id;
                 }
-                finalTaskData.laneId = newRequestsLane.id; // New tasks always start here
                 const { id, ...data } = finalTaskData;
                 await addDoc(collection(db, `artifacts/${appId}/public/data/tasks`), data);
                 showToast("Task created!", "success");
@@ -1074,6 +1087,7 @@ const TaskConsole = ({ db, tasks, detailers, projects, taskLanes, appId, showToa
                             task={editingTask}
                             detailers={detailers}
                             projects={projects}
+                            taskLanes={taskLanes}
                             onClose={handleCloseModal}
                             onSave={handleSaveTask}
                             // Pass the new hard delete function

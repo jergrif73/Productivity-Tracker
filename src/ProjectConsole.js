@@ -425,11 +425,23 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                 <motion.div layout="position" className="flex justify-between items-start cursor-pointer" onClick={() => handleProjectClick(p.id)}>
                                     <div>
                                         <h3 className="text-lg font-semibold">{p.name}</h3>
-                                        <p className={`text-sm ${currentTheme.subtleText}`}>
-                                            Project ID: {p.projectId}
-                                            {p.projectManager && <span className="ml-3">PM: {p.projectManager}</span>}
-                                            {p.projectedDurationWeeks && <span className="ml-3">Duration: {p.projectedDurationWeeks} wks</span>}
-                                        </p>
+                                        <p className={`text-sm ${currentTheme.subtleText}`}>Project ID: {p.projectId}</p>
+                                        <div className={`mt-1 text-xs ${currentTheme.subtleText} grid grid-cols-2 gap-x-6 gap-y-0.5`}>
+                                            {(() => {
+                                                const complexityMap = { 'Tier 1': 'Tier 1 – Low', 'Tier 2': 'Tier 2 – Medium', 'Tier 3': 'Tier 3 – High', 'Tier 4': 'Tier 4 – Critical' };
+                                                const deliverableMap = null;
+                                                const contractTypeMap = { 'Lump Sum': 'Lump Sum (Fixed Price)', 'Cost-Plus': 'Cost-Plus (Reimbursed Costs + Fee)', 'T&M': 'Time and Materials (T&M)', 'Unit Price': 'Unit Price (Set Rate per Unit)', 'GMP': 'Guaranteed Maximum Price (GMP)' };
+                                                const resolvedContract = p.contractType === 'Other' ? (p.contractTypeCustom || 'Other') : (contractTypeMap[p.contractType] || '—');
+                                                return (<>
+                                                    <p><span className="opacity-60">Start:</span> {p.startDate || '—'}</p>
+                                                    <p><span className="opacity-60">PM:</span> {p.projectManager || '—'}</p>
+                                                    <p><span className="opacity-60">Duration:</span> {p.projectedDurationWeeks ? `${p.projectedDurationWeeks} wks` : '—'}</p>
+                                                    <p><span className="opacity-60">Contract:</span> {resolvedContract}</p>
+                                                    <p><span className="opacity-60">Complexity:</span> {complexityMap[p.complexityTier] || '—'}</p>
+                                                    <p><span className="opacity-60">Deliverables:</span> {p.deliverableTier || '—'}</p>
+                                                </>);
+                                            })()}
+                                        </div>
                                     </div>
                                     <motion.div animate={{ rotate: isExpanded ? 90 : 0 }} transition={{ duration: 0.2 }}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

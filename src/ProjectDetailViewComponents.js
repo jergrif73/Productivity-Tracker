@@ -531,7 +531,7 @@ export const CSVReviewModal = ({ isOpen, onClose, onConfirm, stagingData, curren
 
 // --- Financial Summary Component ---
 
-export const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget }) => {
+export const FinancialSummary = ({ project, activityTotals, currentTheme, currentBudget, grandTotals }) => {
     if (!project || !activityTotals) return null;
     const allocatedHours = activityTotals.estimated;
     const spentToDate = activityTotals.totalActualCost;
@@ -540,12 +540,16 @@ export const FinancialSummary = ({ project, activityTotals, currentTheme, curren
     const costToComplete = projectedFinalCost - spentToDate;
     const productivity = spentToDate > 0 ? earnedValue / spentToDate : 0;
     const variance = currentBudget - projectedFinalCost;
+    const remainingHours = grandTotals?.remainingHours ?? 0;
+    const hrsToComp = grandTotals?.hrsToComp ?? 0;
 
     return (
         <TutorialHighlight tutorialKey="financialSummary">
-            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-center`}>
+            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-4 text-center`}>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Current Budget</p><p className="text-lg font-bold">{formatCurrency(currentBudget)}</p></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Allocated Hrs</p><Tooltip text="Sum of all Est. Hrs in Activity Tracker"><p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p></Tooltip></div>
+                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Remaining Hrs</p><Tooltip text="Est. Hrs × (1 − % Complete) per activity"><p className="text-lg font-bold">{remainingHours.toFixed(2)}</p></Tooltip></div>
+                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Proj. Hrs to Complete</p><Tooltip text="Hrs Used × ((100 − % Complete) / % Complete) per activity"><p className="text-lg font-bold">{hrsToComp.toFixed(2)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p><Tooltip text="Sum of (Hrs Used * Rate) for each activity"><p className="text-lg font-bold">{formatCurrency(spentToDate)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Earned Value</p><Tooltip text="Sum of (Budget * % Comp) for each activity"><p className="text-lg font-bold">{formatCurrency(earnedValue)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p><Tooltip text={"Projected Final Cost - Spent to Date"}><p className="text-lg font-bold">{formatCurrency(costToComplete)}</p></Tooltip></div>

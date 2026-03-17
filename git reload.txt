@@ -1,5 +1,5 @@
 git add .
-git commit -m "Added Actual Cost Lack of Input Warning"
+git commit -m "Added PM and Project Duration to the Projects Headers"
 git push origin main
 
 

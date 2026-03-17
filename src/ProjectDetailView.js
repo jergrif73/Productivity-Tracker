@@ -970,7 +970,7 @@ const ProjectDetailView = ({
                 <>
                     {accessLevel === 'taskmaster' && (
                         <TutorialHighlight tutorialKey="financialSummary">
-                            <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} />
+                            <FinancialSummary project={project} activityTotals={activityTotals} currentTheme={currentTheme} currentBudget={currentBudget} grandTotals={grandTotals} />
                         </TutorialHighlight>
                     )}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
