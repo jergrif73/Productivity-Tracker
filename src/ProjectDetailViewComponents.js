@@ -1197,7 +1197,7 @@ export const ActionTracker = ({ mainItems, activities, totalProjectHours, onUpda
 };
 
 
-export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme, totalProjectHours, accessLevel, rateType }) => {
+export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, onDelete, project, currentTheme, totalProjectHours, accessLevel, rateType, onDragStart, onDragOver, onDrop, isDragging }) => {
     const { percentComplete = 0, costToDate = 0, estimatedHours = 0 } = activity;
     
     // Local state for text inputs to prevent cursor jumping
@@ -1286,15 +1286,27 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
     };
 
     return (
-        <tr key={activity.id} className={currentTheme.cardBg}>
+        <tr 
+            key={activity.id} 
+            className={`${currentTheme.cardBg} ${isDragging ? 'opacity-50' : ''}`}
+            draggable={accessLevel === 'taskmaster'}
+            onDragStart={(e) => onDragStart && onDragStart(e, index)}
+            onDragOver={(e) => onDragOver && onDragOver(e, index)}
+            onDrop={(e) => onDrop && onDrop(e, index)}
+        >
             <td className="p-1">
-                <input 
-                    type="text" 
-                    value={localDescription} 
-                    onChange={(e) => setLocalDescription(e.target.value)} 
-                    onBlur={handleDescriptionBlur}
-                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
-                />
+                <div className="flex items-center gap-1">
+                    {accessLevel === 'taskmaster' && (
+                        <span className="cursor-grab text-gray-400 hover:text-gray-200" title="Drag to reorder">⋮⋮</span>
+                    )}
+                    <input 
+                        type="text" 
+                        value={localDescription} 
+                        onChange={(e) => setLocalDescription(e.target.value)} 
+                        onBlur={handleDescriptionBlur}
+                        className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
+                    />
+                </div>
             </td>
             <td className="p-1">
                 <input 
@@ -1353,15 +1365,36 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
 });
 
 
-export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, isCollapsed, onToggle, project, currentTheme, totalProjectHours, accessLevel, groupTotals, rateType, onRateTypeChange, onDeleteGroup, onRenameGroup, isProjectWide, onToggleProjectWide }) => {
+export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, colorClass, onAdd, onDelete, onChange, onReorderActivity, isCollapsed, onToggle, project, currentTheme, totalProjectHours, accessLevel, groupTotals, rateType, onRateTypeChange, onDeleteGroup, onRenameGroup, isProjectWide, onToggleProjectWide, onDragStartGroup, onDragOverGroup, onDropGroup, isDraggingGroup }) => {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [editableTitle, setEditableTitle] = useState(title);
+    const [draggedActivityIndex, setDraggedActivityIndex] = useState(null);
 
     useEffect(() => { setEditableTitle(title); }, [title]);
 
     const handleTitleSave = () => {
         setIsEditingTitle(false);
         onRenameGroup(groupKey, editableTitle);
+    };
+
+    // Activity drag handlers
+    const handleActivityDragStart = (e, index) => {
+        setDraggedActivityIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index);
+    };
+
+    const handleActivityDragOver = (e, index) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleActivityDrop = (e, dropIndex) => {
+        e.preventDefault();
+        if (draggedActivityIndex !== null && draggedActivityIndex !== dropIndex && onReorderActivity) {
+            onReorderActivity(groupKey, draggedActivityIndex, dropIndex);
+        }
+        setDraggedActivityIndex(null);
     };
 
     // Common colgroup for consistent column widths
@@ -1383,7 +1416,13 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
     );
 
     return (
-        <div className={`border-b ${currentTheme.borderColor}`}>
+        <div 
+            className={`border-b ${currentTheme.borderColor} ${isDraggingGroup ? 'opacity-50' : ''}`}
+            draggable={accessLevel === 'taskmaster'}
+            onDragStart={(e) => onDragStartGroup && onDragStartGroup(e, groupKey)}
+            onDragOver={(e) => { e.preventDefault(); onDragOverGroup && onDragOverGroup(e, groupKey); }}
+            onDrop={(e) => { e.preventDefault(); onDropGroup && onDropGroup(e, groupKey); }}
+        >
             {/* Header bar using table structure for alignment */}
             <div className={`w-full ${colorClass}`}>
                 <table className="w-full text-sm table-fixed">
@@ -1393,6 +1432,9 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                             {/* Arrow + Title - Activity Description column */}
                             <td className="p-1 font-bold text-white">
                                 <div className="flex items-center">
+                                    {accessLevel === 'taskmaster' && (
+                                        <span className="cursor-grab text-white/60 hover:text-white mr-1" title="Drag to reorder discipline">⋮⋮</span>
+                                    )}
                                     <motion.svg onClick={onToggle}
                                         animate={{ rotate: isCollapsed ? 0 : 180 }}
                                         transition={{ duration: 0.2 }}
@@ -1501,6 +1543,10 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                         totalProjectHours={totalProjectHours}
                                         accessLevel={accessLevel}
                                         rateType={rateType}
+                                        onDragStart={handleActivityDragStart}
+                                        onDragOver={handleActivityDragOver}
+                                        onDrop={handleActivityDrop}
+                                        isDragging={draggedActivityIndex === index}
                                     />
                                 ))}
                                  {accessLevel === 'taskmaster' && ( 

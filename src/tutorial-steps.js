@@ -226,9 +226,15 @@ export const tutorialContent = {
         roles: ['taskmaster']
       },
       {
-        key: "alphabeticalSorting",
-        title: "Alphabetical Sorting",
-        content: "The trade sections within the 'Activity Values Breakdown' are automatically sorted alphabetically, making it easier to locate a specific discipline.",
+        key: "dragReorderDisciplines",
+        title: "Reorder Disciplines (Drag & Drop)",
+        content: "Drag discipline sections to reorder them. Grab the ⋮⋮ handle on the left side of any discipline header and drag it above or below other disciplines. Your custom order is saved and persists across sessions.",
+        roles: ['taskmaster']
+      },
+      {
+        key: "dragReorderActivities",
+        title: "Reorder Activities (Drag & Drop)",
+        content: "Within each discipline, drag activities to reorder them. Grab the ⋮⋮ handle next to any activity description and drag it to a new position. This lets you organize activities by priority, phase, or any logical grouping.",
         roles: ['taskmaster']
       },
       {

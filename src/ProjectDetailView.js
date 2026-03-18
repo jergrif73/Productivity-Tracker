@@ -73,6 +73,7 @@ const ProjectDetailView = ({
     const [newActivityGroup, setNewActivityGroup] = useState('');
     const [confirmAction, setConfirmAction] = useState(null);
     const [csvImportState, setCsvImportState] = useState({ pendingData: null, showModal: false }); // New CSV State
+    const [draggedDiscipline, setDraggedDiscipline] = useState(null); // Discipline drag state
     const docRef = useMemo(() => doc(db, `artifacts/${appId}/public/data/projectActivities`, projectId), [projectId, db, appId]);
 
     // Firestore listener for projectActivities
@@ -634,6 +635,62 @@ const ProjectDetailView = ({
         const newWide = current.includes(groupKey) ? current.filter(k => k !== groupKey) : [...current, groupKey]; 
         handleSaveData({ projectWideActivities: newWide }); 
     }, [projectData, handleSaveData]);
+
+    // Discipline drag handlers
+    const handleDragStartGroup = useCallback((e, groupKey) => {
+        setDraggedDiscipline(groupKey);
+        e.dataTransfer.effectAllowed = 'move';
+    }, []);
+
+    const handleDragOverGroup = useCallback((e, groupKey) => {
+        e.preventDefault();
+    }, []);
+
+    const handleDropGroup = useCallback((e, targetGroupKey) => {
+        e.preventDefault();
+        if (!draggedDiscipline || draggedDiscipline === targetGroupKey) {
+            setDraggedDiscipline(null);
+            return;
+        }
+        
+        // Get current discipline order or create from existing keys
+        const currentOrder = projectData?.disciplineOrder || 
+            Object.keys(projectData?.activities || {});
+        
+        const fromIndex = currentOrder.indexOf(draggedDiscipline);
+        const toIndex = currentOrder.indexOf(targetGroupKey);
+        
+        if (fromIndex === -1 || toIndex === -1) {
+            setDraggedDiscipline(null);
+            return;
+        }
+        
+        const newOrder = [...currentOrder];
+        newOrder.splice(fromIndex, 1);
+        newOrder.splice(toIndex, 0, draggedDiscipline);
+        
+        handleSaveData({ disciplineOrder: newOrder });
+        showToast('Discipline order updated', 'success');
+        setDraggedDiscipline(null);
+    }, [draggedDiscipline, projectData, handleSaveData, showToast]);
+
+    // Activity reorder handler
+    const handleReorderActivity = useCallback((groupKey, fromIndex, toIndex) => {
+        const activities = JSON.parse(JSON.stringify(projectData?.activities || {}));
+        const groupActivities = [...(activities[groupKey] || [])];
+        
+        if (fromIndex < 0 || fromIndex >= groupActivities.length || 
+            toIndex < 0 || toIndex >= groupActivities.length) {
+            return;
+        }
+        
+        const [movedItem] = groupActivities.splice(fromIndex, 1);
+        groupActivities.splice(toIndex, 0, movedItem);
+        
+        activities[groupKey] = groupActivities;
+        handleSaveData({ activities });
+        showToast('Activity order updated', 'success');
+    }, [projectData, handleSaveData, showToast]);
 
     // Calculation Memos 
     const calculateGroupTotals = useCallback((activities, proj, rateType) => {
@@ -1224,8 +1281,24 @@ const ProjectDetailView = ({
                                             expandedActiveTrades.includes(groupKey) && disciplineKeys.includes(groupKey)
                                         );
                                         
+                                        // Use custom discipline order if available, otherwise fall back to alphabetical
+                                        const disciplineOrder = projectData?.disciplineOrder || [];
+                                        
                                         return filtered 
                                             .sort(([groupA], [groupB]) => {
+                                                // First check if both are in custom order
+                                                const indexA = disciplineOrder.indexOf(groupA);
+                                                const indexB = disciplineOrder.indexOf(groupB);
+                                                
+                                                // If both have custom positions, use those
+                                                if (indexA !== -1 && indexB !== -1) {
+                                                    return indexA - indexB;
+                                                }
+                                                // If only one has position, it comes first
+                                                if (indexA !== -1) return -1;
+                                                if (indexB !== -1) return 1;
+                                                
+                                                // Fall back to alphabetical for unordered disciplines
                                                 const customLabelA = currentDisciplines.find(d => d.key === groupA)?.label;
                                                 const labelA = abbreviateDisciplineLabel(customLabelA || standardToCustomMapping[`${groupA}_label`] || groupA);
                                                 const customLabelB = currentDisciplines.find(d => d.key === groupB)?.label;
@@ -1250,6 +1323,7 @@ const ProjectDetailView = ({
                                                         onAdd={handleAddActivity}
                                                         onDelete={handleDeleteActivity}
                                                         onChange={handleUpdateActivity}
+                                                        onReorderActivity={handleReorderActivity}
                                                         isCollapsed={!!collapsedSections[sectionId]}
                                                         onToggle={() => handleToggleCollapse(sectionId)}
                                                         project={project}
@@ -1263,6 +1337,10 @@ const ProjectDetailView = ({
                                                         onRenameGroup={handleRenameActivityGroup}
                                                         isProjectWide={(projectData.projectWideActivities || []).includes(groupKey)}
                                                         onToggleProjectWide={handleToggleProjectWide}
+                                                        onDragStartGroup={handleDragStartGroup}
+                                                        onDragOverGroup={handleDragOverGroup}
+                                                        onDropGroup={handleDropGroup}
+                                                        isDraggingGroup={draggedDiscipline === groupKey}
                                                     />
                                                  );
                                             });
