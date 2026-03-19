@@ -1381,7 +1381,7 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
 const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast }) => {
     // ... (rest of AdminConsole state remains the same) ...
     const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
-    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '' });
+    const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '', projectedDurationWeeks: '', complexityTier: '', deliverableTier: '', contractType: '', contractTypeCustom: '' });
 
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [editingProjectId, setEditingProjectId] = useState(null);
@@ -1634,28 +1634,6 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             const newProjectId = projectDocRef.id;
             
             // Initialize projectActivities document with standard activities
-            const standardChargeCodes = [
-                { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
-                { description: "MH Spooling", chargeCode: "9615261" },
-                { description: "MH Deliverables", chargeCode: "9615361" },
-                { description: "MH Internal Changes", chargeCode: "9615461" },
-                { description: "MH External Changes", chargeCode: "9615561" },
-                { description: "MP  Modeling / Coordinating", chargeCode: "9616161" },
-                { description: "MP Spooling", chargeCode: "9616261" },
-                { description: "MP Deliverables", chargeCode: "9616361" },
-                { description: "MP Internal Changes", chargeCode: "9616461" },
-                { description: "MP External Changes ", chargeCode: "9616561" },
-                { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
-                { description: "PL Spooling", chargeCode: "9618261" },
-                { description: "PL Deliverables", chargeCode: "9618361" },
-                { description: "PL Internal Changes", chargeCode: "9618461" },
-                { description: "PL External Changes", chargeCode: "9618561" },
-                { description: "Detailing Management", chargeCode: "9619161" },
-                { description: "Project Content Development", chargeCode: "9619261" },
-                { description: "Project Coordination Management", chargeCode: "9630762" },
-                { description: "VDC Support", chargeCode: "9631062" }
-            ];
-            
             // Normalize function
             const normalizeDesc = (str = '') => {
                 return String(str)
@@ -1664,31 +1642,51 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                     .trim();
             };
             
-            // Create activities with normalized descriptions
-            const standardActivities = standardChargeCodes.map(item => ({
-                id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
-                description: normalizeDesc(item.description),
-                chargeCode: item.chargeCode,
+            // Helper to create activity object
+            const createActivity = (description, chargeCode) => ({
+                id: `std_${chargeCode}_${Math.random().toString(16).slice(2)}`,
+                description: normalizeDesc(description),
+                chargeCode,
                 estimatedHours: 0,
                 hoursUsed: 0,
                 percentComplete: 0,
                 subsets: []
-            }));
+            });
             
             // Group activities by discipline - keys must match actionTrackerDisciplines keys
-            const vdcKeywords = ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'];
             const groupedActivities = {
-                duct: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
-                piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
-                plumbing: standardActivities.filter(act => /^PL\s*/i.test(act.description)),
-                management: standardActivities.filter(act => 
-                    ['Detailing Management', 'Project Content Development', 'Project Coordination Management'].some(
-                        keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
-                    )
-                ),
-                vdc: standardActivities.filter(act => 
-                    vdcKeywords.some(keyword => act.description.toLowerCase().includes(keyword.toLowerCase()))
-                )
+                duct: [
+                    createActivity("MH Modeling / Coordinating", "9615161"),
+                    createActivity("MH Spooling", "9615261"),
+                    createActivity("MH Deliverables", "9615361"),
+                    createActivity("MH Internal Changes", "9615461"),
+                    createActivity("MH External Changes", "9615561")
+                ],
+                piping: [
+                    createActivity("MP Modeling / Coordinating", "9616161"),
+                    createActivity("MP Spooling", "9616261"),
+                    createActivity("MP Deliverables", "9616361"),
+                    createActivity("MP Internal Changes", "9616461"),
+                    createActivity("MP External Changes", "9616561")
+                ],
+                plumbing: [
+                    createActivity("PL Modeling / Coordinating", "9618161"),
+                    createActivity("PL Spooling", "9618261"),
+                    createActivity("PL Deliverables", "9618361"),
+                    createActivity("PL Internal Changes", "9618461"),
+                    createActivity("PL External Changes", "9618561")
+                ],
+                management: [
+                    createActivity("Detailing Management", "9619161")
+                ],
+                vdc: [
+                    createActivity("Project Content Development", "9619261"),
+                    createActivity("Project Coordination Management", "9619361")
+                ],
+                vdcsupport: [
+                    createActivity("VDC Support", "9631062"),
+                    createActivity("Project Coordination Management", "9630762")
+                ]
             };
             
             // Create default disciplines
@@ -1697,17 +1695,19 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                 { key: 'piping', label: 'MP' },
                 { key: 'plumbing', label: 'PL' },
                 { key: 'management', label: 'MGMT' },
-                { key: 'vdc', label: 'VDC' }
+                { key: 'vdc', label: 'VDC' },
+                { key: 'vdcsupport', label: 'VDC Support' }
             ];
             
             // Create the projectActivities document
-            // VDC defaults to VDC Rate, all others to Detailing Rate
+            // VDC Support defaults to VDC Rate, all others to Detailing Rate
             const defaultRateTypes = {
                 duct: 'Detailing Rate',
                 piping: 'Detailing Rate',
                 plumbing: 'Detailing Rate',
                 management: 'Detailing Rate',
-                vdc: 'VDC Rate'
+                vdc: 'Detailing Rate',
+                vdcsupport: 'VDC Rate'
             };
             
             const projectActivitiesData = {
@@ -1722,7 +1722,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
             
             await setDoc(doc(db, `artifacts/${appId}/public/data/projectActivities`, newProjectId), projectActivitiesData);
             
-            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '' });
+            setNewProject({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '', projectedDurationWeeks: '', complexityTier: '', deliverableTier: '', contractType: '', contractTypeCustom: '' });
             showToast("Project added with standard activities.", "success");
         }
     };
@@ -2110,8 +2110,15 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <option key={status} value={status}>{statusDescriptions[status]}</option>
                                                         ))}
                                                     </select>
-                                                    <div className="flex items-center gap-2"><label className="w-32">Start Date:</label><input type="date" value={newProject.startDate} onChange={e => setNewProject({...newProject, startDate: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Proj. Start Date:</label><input type="date" value={newProject.startDate} onChange={e => setNewProject({...newProject, startDate: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">Project Manager:</label><input type="text" value={newProject.projectManager} onChange={e => setNewProject({...newProject, projectManager: e.target.value})} placeholder="PM Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Proj. Duration (wks):</label><input type="number" min="0" value={newProject.projectedDurationWeeks} onChange={e => setNewProject({...newProject, projectedDurationWeeks: e.target.value})} placeholder="e.g. 26" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Complexity Tier:</label><select value={newProject.complexityTier} onChange={e => setNewProject({...newProject, complexityTier: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}><option value="">-- Select --</option><option value="Tier 1">Tier 1 – Low</option><option value="Tier 2">Tier 2 – Medium</option><option value="Tier 3">Tier 3 – High</option><option value="Tier 4">Tier 4 – Critical</option></select></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Deliverable Tier:</label><select value={newProject.deliverableTier} onChange={e => setNewProject({...newProject, deliverableTier: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}><option value="">-- Select --</option><option value="Tier 1">Tier 1</option><option value="Tier 2">Tier 2</option><option value="Tier 3">Tier 3</option><option value="Tier 4">Tier 4</option></select></div>
+                                                    <div className="flex items-center gap-2"><label className="w-32">Contract Type:</label><select value={newProject.contractType} onChange={e => setNewProject({...newProject, contractType: e.target.value, contractTypeCustom: ''})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}><option value="">-- Select --</option><option value="Lump Sum">Lump Sum (Fixed Price)</option><option value="Cost-Plus">Cost-Plus (Reimbursed Costs + Fee)</option><option value="T&M">Time and Materials (T&M)</option><option value="Unit Price">Unit Price (Set Rate per Unit)</option><option value="GMP">Guaranteed Maximum Price (GMP)</option><option value="Other">Other...</option></select></div>
+                                                    {newProject.contractType === 'Other' && (
+                                                        <div className="flex items-center gap-2"><label className="w-32">Custom Type:</label><input type="text" value={newProject.contractTypeCustom} onChange={e => setNewProject({...newProject, contractTypeCustom: e.target.value})} placeholder="Describe contract type" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
+                                                    )}
                                                     <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input type="number" value={newProject.initialBudget} onChange={e => setNewProject({...newProject, initialBudget: e.target.value})} placeholder="e.g. 50000" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input type="number" value={newProject.blendedRate} onChange={e => setNewProject({...newProject, blendedRate: e.target.value})} placeholder="e.g. 75" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
                                                     <div className="flex items-center gap-2"><label className="w-32">VDC Rate ($/hr):</label><input type="number" value={newProject.vdcBlendedRate} onChange={e => setNewProject({...newProject, vdcBlendedRate: e.target.value})} placeholder="e.g. 95" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} /></div>
@@ -2139,8 +2146,15 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                             <select name="status" value={editingProjectData.status} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}>
                                                                 {projectStatuses.map(status => (<option key={status} value={status}>{statusDescriptions[status]}</option>))}
                                                             </select>
-                                                            <div className="flex items-center gap-2"><label className="w-32">Start Date:</label><input type="date" name="startDate" value={editingProjectData.startDate || ''} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Proj. Start Date:</label><input type="date" name="startDate" value={editingProjectData.startDate || ''} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Project Manager:</label><input name="projectManager" value={editingProjectData.projectManager || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="PM Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Proj. Duration (wks):</label><input type="number" min="0" name="projectedDurationWeeks" value={editingProjectData.projectedDurationWeeks || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="e.g. 26" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Complexity Tier:</label><select name="complexityTier" value={editingProjectData.complexityTier || ''} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}><option value="">-- Select --</option><option value="Tier 1">Tier 1 – Low</option><option value="Tier 2">Tier 2 – Medium</option><option value="Tier 3">Tier 3 – High</option><option value="Tier 4">Tier 4 – Critical</option></select></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Deliverable Tier:</label><select name="deliverableTier" value={editingProjectData.deliverableTier || ''} onChange={e => handleEditDataChange(e, 'project')} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}><option value="">-- Select --</option><option value="Tier 1">Tier 1</option><option value="Tier 2">Tier 2</option><option value="Tier 3">Tier 3</option><option value="Tier 4">Tier 4</option></select></div>
+                                                            <div className="flex items-center gap-2"><label className="w-32">Contract Type:</label><select name="contractType" value={editingProjectData.contractType || ''} onChange={e => setEditingProjectData(prev => ({ ...prev, contractType: e.target.value, contractTypeCustom: '' }))} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}><option value="">-- Select --</option><option value="Lump Sum">Lump Sum (Fixed Price)</option><option value="Cost-Plus">Cost-Plus (Reimbursed Costs + Fee)</option><option value="T&M">Time and Materials (T&M)</option><option value="Unit Price">Unit Price (Set Rate per Unit)</option><option value="GMP">Guaranteed Maximum Price (GMP)</option><option value="Other">Other...</option></select></div>
+                                                            {editingProjectData.contractType === 'Other' && (
+                                                                <div className="flex items-center gap-2"><label className="w-32">Custom Type:</label><input type="text" name="contractTypeCustom" value={editingProjectData.contractTypeCustom || ''} onChange={e => handleEditDataChange(e, 'project')} placeholder="Describe contract type" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} /></div>
+                                                            )}
                                                             <div className="flex items-center gap-2"><label className="w-32">Initial Budget ($):</label><input name="initialBudget" value={editingProjectData.initialBudget || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Initial Budget ($)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">Detailing Rate ($/hr):</label><input name="blendedRate" value={editingProjectData.blendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="Detailing Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
                                                             <div className="flex items-center gap-2"><label className="w-32">VDC Rate ($/hr):</label><input name="vdcBlendedRate" value={editingProjectData.vdcBlendedRate || 0} onChange={e => handleEditDataChange(e, 'project')} placeholder="VDC Rate ($/hr)" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}/></div>
@@ -2154,8 +2168,11 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast 
                                                                 <div>
                                                                     <p className="font-semibold">{p.name} ({p.projectId})</p>
                                                                     <p className={`text-xs ${currentTheme.subtleText}`}>
-                                                                        {p.startDate && `Start: ${p.startDate} | `}
+                                                                        {p.startDate && `Proj. Start: ${p.startDate} | `}
                                                                         {p.projectManager && `PM: ${p.projectManager} | `}
+                                                                        {p.complexityTier && `Complexity: ${p.complexityTier} | `}
+                                                                        {p.deliverableTier && `Deliverables: ${p.deliverableTier} | `}
+                                                                        {p.contractType && `Contract: ${p.contractType === 'Other' ? (p.contractTypeCustom || 'Other') : p.contractType} | `}
                                                                         Budget: {formatCurrency(p.initialBudget)} | Detailing Rate: ${p.blendedRate || 0}/hr | VDC Rate: ${p.vdcBlendedRate || 0}/hr | Contingency: {formatCurrency(p.contingency)}
                                                                     </p>
                                                                 </div>
