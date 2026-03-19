@@ -27,27 +27,31 @@ export const normalizeDesc = (str = '') => {
 };
 
 export const standardActivitiesToAdd = [
-    { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
+    // MH (Duct/Sheet Metal)
+    { description: "MH Modeling / Coordinating", chargeCode: "9615161" },
     { description: "MH Spooling", chargeCode: "9615261" },
     { description: "MH Deliverables", chargeCode: "9615361" },
     { description: "MH Internal Changes", chargeCode: "9615461" },
     { description: "MH External Changes", chargeCode: "9615561" },
-    { description: "MP  Modeling / Coordinating", chargeCode: "9616161" },
+    // MP (Mechanical Piping)
+    { description: "MP Modeling / Coordinating", chargeCode: "9616161" },
     { description: "MP Spooling", chargeCode: "9616261" },
     { description: "MP Deliverables", chargeCode: "9616361" },
     { description: "MP Internal Changes", chargeCode: "9616461" },
-    { description: "MP External Changes ", chargeCode: "9616561" },
+    { description: "MP External Changes", chargeCode: "9616561" },
+    // PL (Plumbing)
     { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
     { description: "PL Spooling", chargeCode: "9618261" },
     { description: "PL Deliverables", chargeCode: "9618361" },
     { description: "PL Internal Changes", chargeCode: "9618461" },
     { description: "PL External Changes", chargeCode: "9618561" },
+    // MGMT (Management)
     { description: "Detailing Management", chargeCode: "9619161" },
+    // VDC (Detailing Rate)
     { description: "Project Content Development", chargeCode: "9619261" },
-    { description: "Project VDC Admin", chargeCode: "9630062" },
-    { description: "Project Setup", chargeCode: "9630162" },
-    { description: "Project Data Management", chargeCode: "9630262" },
-    { description: "Project Closeout", chargeCode: "9630562" },
+    { description: "Project Coordination Management", chargeCode: "9619361" },
+    // VDC Support (VDC Rate)
+    { description: "VDC Support", chargeCode: "9631062" },
     { description: "Project Coordination Management", chargeCode: "9630762" }
 ];
 

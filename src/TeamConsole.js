@@ -96,56 +96,56 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
             });
             
             // Initialize projectActivities with standard activities
-            const standardChargeCodes = [
-                { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
-                { description: "MH Spooling", chargeCode: "9615261" },
-                { description: "MH Deliverables", chargeCode: "9615361" },
-                { description: "MH Internal Changes", chargeCode: "9615461" },
-                { description: "MH External Changes", chargeCode: "9615561" },
-                { description: "MP  Modeling / Coordinating", chargeCode: "9616161" },
-                { description: "MP Spooling", chargeCode: "9616261" },
-                { description: "MP Deliverables", chargeCode: "9616361" },
-                { description: "MP Internal Changes", chargeCode: "9616461" },
-                { description: "MP External Changes ", chargeCode: "9616561" },
-                { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
-                { description: "PL Spooling", chargeCode: "9618261" },
-                { description: "PL Deliverables", chargeCode: "9618361" },
-                { description: "PL Internal Changes", chargeCode: "9618461" },
-                { description: "PL External Changes", chargeCode: "9618561" },
-                { description: "Detailing Management", chargeCode: "9619161" },
-                { description: "Project Content Development", chargeCode: "9619261" },
-                { description: "Project Coordination Management", chargeCode: "9630762" },
-                { description: "VDC Support", chargeCode: "9631062" }
-            ];
-            
             const normalizeDesc = (str = '') => String(str).replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
             
-            const standardActivities = standardChargeCodes.map(item => ({
-                id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
-                description: normalizeDesc(item.description),
-                chargeCode: item.chargeCode,
+            // Helper to create activity object
+            const createActivity = (description, chargeCode) => ({
+                id: `std_${chargeCode}_${Math.random().toString(16).slice(2)}`,
+                description: normalizeDesc(description),
+                chargeCode,
                 estimatedHours: 0,
                 hoursUsed: 0,
                 percentComplete: 0,
                 subsets: []
-            }));
+            });
             
-            const vdcKeywords = ['Project VDC Admin', 'Project Setup', 'Project Data Management', 'Project Closeout'];
+            // Group activities by discipline - keys must match actionTrackerDisciplines keys
             const groupedActivities = {
-                duct: standardActivities.filter(act => /^MH\s*/i.test(act.description)),
-                piping: standardActivities.filter(act => /^MP\s*/i.test(act.description)),
-                plumbing: standardActivities.filter(act => /^PL\s*/i.test(act.description)),
-                management: standardActivities.filter(act => 
-                    ['Detailing Management', 'Project Content Development', 'Project Coordination Management'].some(
-                        keyword => act.description.toLowerCase().includes(keyword.toLowerCase())
-                    )
-                ),
-                vdc: standardActivities.filter(act => 
-                    vdcKeywords.some(keyword => act.description.toLowerCase().includes(keyword.toLowerCase()))
-                )
+                duct: [
+                    createActivity("MH Modeling / Coordinating", "9615161"),
+                    createActivity("MH Spooling", "9615261"),
+                    createActivity("MH Deliverables", "9615361"),
+                    createActivity("MH Internal Changes", "9615461"),
+                    createActivity("MH External Changes", "9615561")
+                ],
+                piping: [
+                    createActivity("MP Modeling / Coordinating", "9616161"),
+                    createActivity("MP Spooling", "9616261"),
+                    createActivity("MP Deliverables", "9616361"),
+                    createActivity("MP Internal Changes", "9616461"),
+                    createActivity("MP External Changes", "9616561")
+                ],
+                plumbing: [
+                    createActivity("PL Modeling / Coordinating", "9618161"),
+                    createActivity("PL Spooling", "9618261"),
+                    createActivity("PL Deliverables", "9618361"),
+                    createActivity("PL Internal Changes", "9618461"),
+                    createActivity("PL External Changes", "9618561")
+                ],
+                management: [
+                    createActivity("Detailing Management", "9619161")
+                ],
+                vdc: [
+                    createActivity("Project Content Development", "9619261"),
+                    createActivity("Project Coordination Management", "9619361")
+                ],
+                vdcsupport: [
+                    createActivity("VDC Support", "9631062"),
+                    createActivity("Project Coordination Management", "9630762")
+                ]
             };
             
-            // VDC defaults to VDC Rate, all others to Detailing Rate
+            // VDC Support defaults to VDC Rate, all others to Detailing Rate
             const projectActivitiesData = {
                 activities: groupedActivities,
                 actionTrackerDisciplines: [
@@ -153,7 +153,8 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
                     { key: 'piping', label: 'MP' },
                     { key: 'plumbing', label: 'PL' },
                     { key: 'management', label: 'MGMT' },
-                    { key: 'vdc', label: 'VDC' }
+                    { key: 'vdc', label: 'VDC' },
+                    { key: 'vdcsupport', label: 'VDC Support' }
                 ],
                 actionTrackerData: {},
                 budgetImpacts: [],
@@ -164,7 +165,8 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
                     piping: 'Detailing Rate',
                     plumbing: 'Detailing Rate',
                     management: 'Detailing Rate',
-                    vdc: 'VDC Rate'
+                    vdc: 'Detailing Rate',
+                    vdcsupport: 'VDC Rate'
                 }
             };
             

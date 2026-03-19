@@ -45,6 +45,9 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     // Status filter state - default to Operational (Controlling)
     const [activeStatuses, setActiveStatuses] = useState(["Controlling"]);
     
+    // Sort state - 'id' or 'name'
+    const [sortBy, setSortBy] = useState('id');
+    
     // Status definitions
     const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
     const statusDescriptions = {
@@ -332,9 +335,14 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
 
                 return (nameMatch || idMatch) && detailerMatch && dateMatch;
             })
-            // Sort by project ID numerically
-            .sort((a, b) => (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true }));
-    }, [projects, assignments, filters, activeStatuses]);
+            // Sort by project ID or Name based on sortBy state
+            .sort((a, b) => {
+                if (sortBy === 'name') {
+                    return (a.name || '').localeCompare(b.name || '');
+                }
+                return (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true });
+            });
+    }, [projects, assignments, filters, activeStatuses, sortBy]);
 
     // Handle changes in the filter inputs
     const handleFilterChange = (e) => {
@@ -378,6 +386,29 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                 {statusDescriptions[status].charAt(0)}
                             </button>
                         ))}
+                        <span className={`text-sm ${currentTheme.subtleText} ml-4`}>Sort:</span>
+                        <button
+                            onClick={() => setSortBy('id')}
+                            title="Sort by Project ID"
+                            className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                                sortBy === 'id' 
+                                    ? 'bg-blue-600 text-white' 
+                                    : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-gray-600`
+                            }`}
+                        >
+                            ID
+                        </button>
+                        <button
+                            onClick={() => setSortBy('name')}
+                            title="Sort by Project Name"
+                            className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                                sortBy === 'name' 
+                                    ? 'bg-blue-600 text-white' 
+                                    : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-gray-600`
+                            }`}
+                        >
+                            Name
+                        </button>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

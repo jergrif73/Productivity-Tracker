@@ -150,30 +150,33 @@ const ProjectDetailView = ({
                     });
                 } else {
                     // Document doesn't exist - create it automatically with standard activities
-                    // ... (Activity creation logic - largely static, keeping concise)
                     const standardChargeCodes = [
-                        { description: "MH  Modeling / Coordinating", chargeCode: "9615161" },
-                        { description: "MH Spooling", chargeCode: "9615261" },
-                        { description: "MH Deliverables", chargeCode: "9615361" },
-                        { description: "MH Internal Changes", chargeCode: "9615461" },
-                        { description: "MH External Changes", chargeCode: "9615561" },
-                        { description: "MP  Modeling / Coordinating", chargeCode: "9616161" },
-                        { description: "MP Spooling", chargeCode: "9616261" },
-                        { description: "MP Deliverables", chargeCode: "9616361" },
-                        { description: "MP Internal Changes", chargeCode: "9616461" },
-                        { description: "MP External Changes ", chargeCode: "9616561" },
-                        { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
-                        { description: "PL Spooling", chargeCode: "9618261" },
-                        { description: "PL Deliverables", chargeCode: "9618361" },
-                        { description: "PL Internal Changes", chargeCode: "9618461" },
-                        { description: "PL External Changes", chargeCode: "9618561" },
-                        { description: "Detailing Management", chargeCode: "9619161" },
-                        { description: "Project Content Development", chargeCode: "9619261" },
-                        { description: "Project VDC Admin", chargeCode: "9630062" },
-                        { description: "Project Setup", chargeCode: "9630162" },
-                        { description: "Project Data Management", chargeCode: "9630262" },
-                        { description: "Project Closeout", chargeCode: "9630562" },
-                        { description: "Project Coordination Management​", chargeCode: "9630762" }
+                        // MH (Duct/Sheet Metal)
+                        { description: "MH Modeling / Coordinating", chargeCode: "9615161", group: "duct" },
+                        { description: "MH Spooling", chargeCode: "9615261", group: "duct" },
+                        { description: "MH Deliverables", chargeCode: "9615361", group: "duct" },
+                        { description: "MH Internal Changes", chargeCode: "9615461", group: "duct" },
+                        { description: "MH External Changes", chargeCode: "9615561", group: "duct" },
+                        // MP (Mechanical Piping)
+                        { description: "MP Modeling / Coordinating", chargeCode: "9616161", group: "piping" },
+                        { description: "MP Spooling", chargeCode: "9616261", group: "piping" },
+                        { description: "MP Deliverables", chargeCode: "9616361", group: "piping" },
+                        { description: "MP Internal Changes", chargeCode: "9616461", group: "piping" },
+                        { description: "MP External Changes", chargeCode: "9616561", group: "piping" },
+                        // PL (Plumbing)
+                        { description: "PL Modeling / Coordinating", chargeCode: "9618161", group: "plumbing" },
+                        { description: "PL Spooling", chargeCode: "9618261", group: "plumbing" },
+                        { description: "PL Deliverables", chargeCode: "9618361", group: "plumbing" },
+                        { description: "PL Internal Changes", chargeCode: "9618461", group: "plumbing" },
+                        { description: "PL External Changes", chargeCode: "9618561", group: "plumbing" },
+                        // MGMT (Management)
+                        { description: "Detailing Management", chargeCode: "9619161", group: "management" },
+                        // VDC (Detailing Rate)
+                        { description: "Project Content Development", chargeCode: "9619261", group: "vdc" },
+                        { description: "Project Coordination Management", chargeCode: "9619361", group: "vdc" },
+                        // VDC Support (VDC Rate)
+                        { description: "VDC Support", chargeCode: "9631062", group: "vdcsupport" },
+                        { description: "Project Coordination Management", chargeCode: "9630762", group: "vdcsupport" }
                     ];
                     
                     const standardActivities = standardChargeCodes.map(item => ({
@@ -183,24 +186,38 @@ const ProjectDetailView = ({
                         estimatedHours: 0,
                         hoursUsed: 0,
                         percentComplete: 0,
-                        subsets: []
+                        subsets: [],
+                        group: item.group
                     }));
                     
-                    const groupedActivities = groupActivities(standardActivities, [
-                        { key: 'duct', label: 'MH' },
-                        { key: 'piping', label: 'MP' },
-                        { key: 'plumbing', label: 'PL' },
-                        { key: 'management', label: 'MGMT' },
-                        { key: 'vdc', label: 'VDC' }
-                    ]);
+                    // Group activities by discipline
+                    const groupedActivities = {
+                        duct: standardActivities.filter(a => a.group === 'duct'),
+                        piping: standardActivities.filter(a => a.group === 'piping'),
+                        plumbing: standardActivities.filter(a => a.group === 'plumbing'),
+                        management: standardActivities.filter(a => a.group === 'management'),
+                        vdc: standardActivities.filter(a => a.group === 'vdc'),
+                        vdcsupport: standardActivities.filter(a => a.group === 'vdcsupport')
+                    };
                     
                     const defaultDisciplines = [
                         { key: 'duct', label: 'MH' },
                         { key: 'piping', label: 'MP' },
                         { key: 'plumbing', label: 'PL' },
                         { key: 'management', label: 'MGMT' },
-                        { key: 'vdc', label: 'VDC' }
+                        { key: 'vdc', label: 'VDC' },
+                        { key: 'vdcsupport', label: 'VDC Support' }
                     ];
+                    
+                    // VDC Support defaults to VDC Rate, all others to Detailing Rate
+                    const defaultRateTypes = {
+                        duct: 'Detailing Rate',
+                        piping: 'Detailing Rate',
+                        plumbing: 'Detailing Rate',
+                        management: 'Detailing Rate',
+                        vdc: 'Detailing Rate',
+                        vdcsupport: 'VDC Rate'
+                    };
                     
                     const projectActivitiesData = {
                         activities: groupedActivities,
@@ -208,7 +225,8 @@ const ProjectDetailView = ({
                         actionTrackerData: {},
                         budgetImpacts: [],
                         mainItems: [],
-                        projectWideActivities: []
+                        projectWideActivities: [],
+                        rateTypes: defaultRateTypes
                     };
                     
                     setDoc(docRef, projectActivitiesData).then(() => {
@@ -1090,15 +1108,15 @@ const ProjectDetailView = ({
 
              {/* Layout: Mains/Action Tracker (Left), Activity Breakdown (Right) */}
             <div className="flex flex-col md:flex-row gap-6">
-                {/* Left Column: Mains Management & Action Tracker */}
+                {/* Left Column: Area Mains Management & Action Tracker */}
                 <div className="w-full md:w-1/3 flex flex-col gap-6">
-                     {/* Mains Management */}
+                     {/* Area Mains Management */}
                     {accessLevel === 'taskmaster' && (
                         <TutorialHighlight tutorialKey="mainsManagement">
                             <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm`}>
                                 {/* Mains Collapse Button & Content */}
                                 <button onClick={() => handleToggleCollapse('mainsManagement')} className="w-full text-left font-bold flex justify-between items-center mb-2">
-                                    <h3 className="text-lg font-semibold">Mains Management</h3>
+                                    <h3 className="text-lg font-semibold">Area Mains Management</h3>
                                     <motion.svg animate={{ rotate: collapsedSections.mainsManagement ? 0 : 180 }} xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></motion.svg>
                                 </button>
                                 <AnimatePresence>

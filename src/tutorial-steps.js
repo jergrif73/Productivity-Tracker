@@ -173,7 +173,7 @@ export const tutorialContent = {
       },
       {
         key: "mainsManagement",
-        title: "Mains Management (Taskmaster)",
+        title: "Area Mains Management (Taskmaster)",
         content: "Define the major phases or areas of your project here. These 'Mains' appear in the Action Tracker, allowing TCLs to report progress against them.",
         roles: ['taskmaster']
       },
