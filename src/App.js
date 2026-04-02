@@ -764,6 +764,19 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     };
 
     const [toasts, setToasts] = useState([]);
+    const [tysonAlert, setTysonAlert] = useState(false);
+
+    useEffect(() => {
+        const handleTysonShortcut = (e) => {
+            if (e.altKey && e.shiftKey && e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                setTysonAlert(true);
+                setTimeout(() => setTysonAlert(false), 4000);
+            }
+        };
+        document.addEventListener('keydown', handleTysonShortcut);
+        return () => document.removeEventListener('keydown', handleTysonShortcut);
+    }, []);
 
     const themeClasses = {
         light: { mainBg: 'bg-gray-100', headerBg: 'bg-white', cardBg: 'bg-white', textColor: 'text-gray-800', subtleText: 'text-gray-600', borderColor: 'border-gray-200', altRowBg: 'bg-blue-50', navBg: 'bg-gray-200', navBtn: 'text-gray-600 hover:bg-gray-300', navBtnActive: 'bg-white text-blue-600 shadow', consoleBg: 'bg-gray-50', inputBg: 'bg-white', inputText: 'text-gray-900', inputBorder: 'border-gray-300', buttonBg: 'bg-gray-200', buttonText: 'text-gray-800' },
@@ -989,6 +1002,16 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                     `}
                 </style>
                 <Toaster toasts={toasts} />
+                {tysonAlert && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-80" onClick={() => setTysonAlert(false)}>
+                        <div className="text-center animate-bounce">
+                            <div className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 select-none" style={{ textShadow: '0 0 40px rgba(168,85,247,0.8), 0 0 80px rgba(236,72,153,0.6)' }}>
+                                TYSON IS GAY
+                            </div>
+                            <div className="text-2xl mt-4 text-gray-400 font-mono">confirmed by WPT v69.0</div>
+                        </div>
+                    </div>
+                )}
                 <TutorialWidget />
                 <div className={`w-full h-full flex flex-col ${currentTheme.textColor}`}>
                     <header className={`p-4 border-b space-y-4 flex-shrink-0 ${currentTheme.headerBg} ${currentTheme.borderColor}`}>

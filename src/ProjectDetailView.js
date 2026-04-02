@@ -720,13 +720,15 @@ const ProjectDetailView = ({
             
             const budget = Math.ceil(estHours * rateToUse);
             const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
+            const projectedHours = rateToUse > 0 ? projectedCost / rateToUse : estHours;
             const remainingHours = estHours * (1 - (percentComplete / 100));
-            
+
             // Hrs to Comp = (Actual Cost / Rate) * ((100 - % Comp) / % Comp)
             let hrsToComp = 0;
-            if (percentComplete > 0 && rateToUse > 0) {
+            if (percentComplete > 0 && percentComplete < 100 && rateToUse > 0) {
                 const hoursUsed = costToDate / rateToUse;
                 hrsToComp = hoursUsed * ((100 - percentComplete) / percentComplete);
+                if (!isFinite(hrsToComp)) hrsToComp = 0;
             }
 
             acc.estimated += estHours;
@@ -734,33 +736,36 @@ const ProjectDetailView = ({
             acc.actualCost += costToDate;
             acc.earnedValue += budget * (percentComplete / 100);
             acc.projected += projectedCost;
+            acc.projectedHours += projectedHours;
             acc.remainingHours += remainingHours;
             acc.hrsToComp += hrsToComp;
             return acc;
-        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, remainingHours: 0, hrsToComp: 0, percentComplete: 0 }); 
+        }, { estimated: 0, budget: 0, actualCost: 0, earnedValue: 0, projected: 0, projectedHours: 0, remainingHours: 0, hrsToComp: 0, percentComplete: 0 }); 
     }, []); 
 
     const activityTotals = useMemo(() => {
-        if (!projectData?.activities || !project) return { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 };
+        if (!projectData?.activities || !project) return { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0, totalProjectedHours: 0 };
         const allActivitiesFlat = Object.entries(projectData.activities).flatMap(([groupKey, acts]) => {
             const rateType = projectData.rateTypes?.[groupKey] || 'Detailing Rate';
-            return (acts || []).map(act => ({ ...act, rateType })); 
+            return (acts || []).map(act => ({ ...act, rateType }));
         });
         return allActivitiesFlat.reduce((acc, activity) => {
              const estHours = Number(activity?.estimatedHours || 0);
              const costToDate = Number(activity?.costToDate || 0);
              const percentComplete = Number(activity?.percentComplete || 0);
              const rate = activity.rateType === 'VDC Rate' ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
-             
+
              const budget = Math.ceil(estHours * rate);
              const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
+             const projectedHours = rate > 0 ? projectedCost / rate : estHours;
 
              acc.estimated += estHours;
              acc.totalActualCost += costToDate;
              acc.totalEarnedValue += budget * (percentComplete / 100);
              acc.totalProjectedCost += projectedCost;
+             acc.totalProjectedHours += projectedHours;
              return acc;
-        }, { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0 }); 
+        }, { estimated: 0, totalActualCost: 0, totalEarnedValue: 0, totalProjectedCost: 0, totalProjectedHours: 0 });
     }, [projectData?.activities, projectData?.rateTypes, project]); 
 
     const groupTotals = useMemo(() => {
@@ -902,11 +907,12 @@ const ProjectDetailView = ({
                  acc.earnedValue += totals.earnedValue;
                  acc.actualCost += totals.actualCost;
                  acc.projected += totals.projected;
+                 acc.projectedHours += totals.projectedHours || 0;
                  acc.remainingHours += totals.remainingHours || 0;
                  acc.hrsToComp += totals.hrsToComp || 0;
             }
             return acc;
-        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0, remainingHours: 0, hrsToComp: 0 }); 
+        }, { estimated: 0, budget: 0, earnedValue: 0, actualCost: 0, projected: 0, projectedHours: 0, remainingHours: 0, hrsToComp: 0 });
     }, [groupTotals, projectData?.actionTrackerDisciplines]); 
 
     // --- Render logic ---
@@ -963,6 +969,66 @@ const ProjectDetailView = ({
                     </div>
                 </motion.div>
             )}
+
+            {/* Project Info Banner */}
+            <div className={`p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm mb-4 ${currentTheme.cardBg}`}>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+                    {project.projectManager && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Project Manager</p>
+                            <p className="font-semibold">{project.projectManager}</p>
+                        </div>
+                    )}
+                    {project.startDate && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Start Date</p>
+                            <p className="font-semibold">{project.startDate}</p>
+                        </div>
+                    )}
+                    {project.projectedDurationWeeks && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Duration</p>
+                            <p className="font-semibold">{project.projectedDurationWeeks} weeks</p>
+                        </div>
+                    )}
+                    {project.complexityTier && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Complexity</p>
+                            <p className="font-semibold">{project.complexityTier}</p>
+                        </div>
+                    )}
+                    {project.deliverableTier && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Deliverable Tier</p>
+                            <p className="font-semibold">{project.deliverableTier}</p>
+                        </div>
+                    )}
+                    {project.contractType && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Contract Type</p>
+                            <p className="font-semibold">{project.contractType === 'Custom' ? (project.contractTypeCustom || 'Custom') : project.contractType}</p>
+                        </div>
+                    )}
+                    {project.contingency > 0 && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Contingency</p>
+                            <p className="font-semibold">${Number(project.contingency).toLocaleString()}</p>
+                        </div>
+                    )}
+                    {project.vdcBlendedRate > 0 && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>VDC Rate</p>
+                            <p className="font-semibold">${Number(project.vdcBlendedRate).toFixed(2)}/hr</p>
+                        </div>
+                    )}
+                    {project.dashboardUrl && (
+                        <div>
+                            <p className={`text-xs ${currentTheme.subtleText}`}>Dashboard</p>
+                            <a href={project.dashboardUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs truncate block">{project.dashboardUrl.replace(/^https?:\/\//, '').substring(0, 30)}...</a>
+                        </div>
+                    )}
+                </div>
+            </div>
 
              {/* Trade Filters */}
             <TutorialHighlight tutorialKey="tradeFiltersProjectConsole">

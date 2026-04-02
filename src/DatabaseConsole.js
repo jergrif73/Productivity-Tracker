@@ -547,7 +547,7 @@ const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
 };
 
 
-const ProjectActivitiesEditor = ({ item, collectionName, onBack, onSave, currentTheme, allData }) => {
+const ProjectActivitiesEditor = ({ item, collectionName, collectionDisplayName, onBack, onSave, currentTheme, allData }) => {
     const [editableItem, setEditableItem] = useState(JSON.parse(JSON.stringify(item))); // Deep copy
     const projectName = allData.projects?.find(p => p.id === item.id)?.name || item.id;
 
@@ -697,7 +697,7 @@ const ProjectActivitiesEditor = ({ item, collectionName, onBack, onSave, current
         <div className={`flex-grow flex flex-col p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm min-h-0`}>
             <div className="flex-shrink-0 mb-4 flex justify-between items-center">
                 <div>
-                    <button onClick={onBack} className="text-blue-400 hover:underline mb-2">&larr; Back to {collectionName}</button>
+                    <button onClick={onBack} className="text-blue-400 hover:underline mb-2">&larr; Back to {collectionDisplayName || collectionName}</button>
                     <h2 className="text-xl font-bold">Editing Details for: {projectName}</h2>
                 </div>
             </div>
@@ -724,6 +724,31 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
     const [editingItem, setEditingItem] = useState(null);
     const [sortBy, setSortBy] = useState('lastName'); // New state for specific sorting
+
+    const collectionDisplayNames = useMemo(() => ({
+        'detailers': 'Team Members',
+        'projects': 'Projects',
+        'assignments': 'Assignments',
+        'tasks': 'Tasks',
+        'taskLanes': 'Task Lanes',
+        'jobFamilyData': 'Job Families',
+        'unionLocals': 'Union Locals',
+        'projectActivities': 'Project Activities'
+    }), []);
+
+    const collectionSingularNames = useMemo(() => ({
+        'detailers': 'Team Member',
+        'projects': 'Project',
+        'assignments': 'Assignment',
+        'tasks': 'Task',
+        'taskLanes': 'Task Lane',
+        'jobFamilyData': 'Job Family',
+        'unionLocals': 'Union Local',
+        'projectActivities': 'Project Activity'
+    }), []);
+
+    const getDisplayName = (collectionKey) => collectionDisplayNames[collectionKey] || collectionKey;
+    const getSingularName = (collectionKey) => collectionSingularNames[collectionKey] || collectionKey;
 
     const collectionsToFetch = useMemo(() => [
         'detailers', 'projects', 'assignments', 'tasks',
@@ -764,7 +789,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                 { header: 'Employee ID', accessor: 'employeeId' },
              ]
         },
-        'projects': { 
+        'projects': {
             customEditor: ProjectEditor,
             displayColumns: [
                 { header: 'Name', accessor: 'name' },
@@ -772,6 +797,14 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                 { header: 'Status', accessor: 'status' },
                 { header: 'Initial Budget', accessor: item => `$${Number(item.initialBudget || 0).toLocaleString()}` },
                 { header: 'Blended Rate', accessor: item => `$${Number(item.blendedRate || 0).toFixed(2)}/hr` },
+                { header: 'VDC Rate', accessor: item => `$${Number(item.vdcBlendedRate || 0).toFixed(2)}/hr` },
+                { header: 'Contingency', accessor: item => `$${Number(item.contingency || 0).toLocaleString()}` },
+                { header: 'Start Date', accessor: 'startDate' },
+                { header: 'Project Manager', accessor: 'projectManager' },
+                { header: 'Duration (wks)', accessor: 'projectedDurationWeeks' },
+                { header: 'Complexity', accessor: 'complexityTier' },
+                { header: 'Deliverable Tier', accessor: 'deliverableTier' },
+                { header: 'Contract Type', accessor: item => item.contractType === 'Custom' ? (item.contractTypeCustom || 'Custom') : (item.contractType || '') },
             ]
         },
         'assignments': {
@@ -854,7 +887,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         const { collectionName, docId } = itemToDelete;
         try {
             await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, docId));
-            showToast(`Successfully deleted item from ${collectionName}.`, 'success');
+            showToast(`Successfully deleted item from ${collectionDisplayNames[collectionName] || collectionName}.`, 'success');
         } catch (error) {
             showToast(`Error deleting item: ${error.message}`, 'error');
             console.error("Error deleting document:", error);
@@ -1003,6 +1036,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                  <EditorComponent
                     item={editingItem.item}
                     collectionName={editingItem.collectionName}
+                    collectionDisplayName={getDisplayName(editingItem.collectionName)}
                     onBack={() => setEditingItem(null)}
                     onSave={(item) => handleSaveItem(editingItem.collectionName, item)}
                     currentTheme={currentTheme}
@@ -1050,7 +1084,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                 >
                     Are you sure you want to permanently delete this item?
                     <br />
-                    <strong>{itemToDelete?.name}</strong> from <strong>{itemToDelete?.collectionName}</strong>
+                    <strong>{itemToDelete?.name}</strong> from <strong>{getDisplayName(itemToDelete?.collectionName)}</strong>
                     <br />
                     This action cannot be undone.
                 </ConfirmationModal>
@@ -1077,7 +1111,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                     onClick={() => handleSelectCollection(name)}
                                     className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center gap-2 ${selectedCollection === name ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
                                 >
-                                    {name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1').trim()}
+                                    {getDisplayName(name)}
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${selectedCollection === name ? 'bg-blue-800' : currentTheme.altRowBg}`}>{allData[name]?.length || 0}</span>
                                 </button>
                             ))}
@@ -1090,7 +1124,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                         <div className="flex-shrink-0 mb-4 flex justify-between items-center">
                             <input
                                 type="text"
-                                placeholder={`Search in ${selectedCollection}...`}
+                                placeholder={`Search in ${getDisplayName(selectedCollection)}...`}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className={`w-full max-w-sm p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
@@ -1114,7 +1148,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                 {config && !config.customEditor && (
                                     <TutorialHighlight tutorialKey="addDeleteData">
                                         <button onClick={() => setEditingItem({ item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                            Add New {selectedCollection.slice(0, -1)}
+                                            Add New {getSingularName(selectedCollection)}
                                         </button>
                                     </TutorialHighlight>
                                 )}

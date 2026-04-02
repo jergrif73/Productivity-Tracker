@@ -51,8 +51,8 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
     // Status definitions
     const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
     const statusDescriptions = {
-        Planning: "Estimating",
-        Conducting: "Setup",
+        Planning: "Estimated",
+        Conducting: "Booked but not Sold",
         Controlling: "Operational",
         Archive: "Archived"
     };
@@ -389,14 +389,14 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                         <span className={`text-sm ${currentTheme.subtleText} ml-4`}>Sort:</span>
                         <button
                             onClick={() => setSortBy('id')}
-                            title="Sort by Project ID"
+                            title="Sort by Project Number"
                             className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                                sortBy === 'id' 
-                                    ? 'bg-blue-600 text-white' 
+                                sortBy === 'id'
+                                    ? 'bg-blue-600 text-white'
                                     : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:bg-gray-600`
                             }`}
                         >
-                            ID
+                            Project #
                         </button>
                         <button
                             onClick={() => setSortBy('name')}
@@ -460,7 +460,6 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                         <div className={`mt-1 text-xs ${currentTheme.subtleText} grid grid-cols-2 gap-x-6 gap-y-0.5`}>
                                             {(() => {
                                                 const complexityMap = { 'Tier 1': 'Tier 1 – Low', 'Tier 2': 'Tier 2 – Medium', 'Tier 3': 'Tier 3 – High', 'Tier 4': 'Tier 4 – Critical' };
-                                                const deliverableMap = null;
                                                 const contractTypeMap = { 'Lump Sum': 'Lump Sum (Fixed Price)', 'Cost-Plus': 'Cost-Plus (Reimbursed Costs + Fee)', 'T&M': 'Time and Materials (T&M)', 'Unit Price': 'Unit Price (Set Rate per Unit)', 'GMP': 'Guaranteed Maximum Price (GMP)' };
                                                 const resolvedContract = p.contractType === 'Other' ? (p.contractTypeCustom || 'Other') : (contractTypeMap[p.contractType] || '—');
                                                 return (<>

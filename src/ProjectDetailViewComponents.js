@@ -28,31 +28,31 @@ export const normalizeDesc = (str = '') => {
 
 export const standardActivitiesToAdd = [
     // MH (Duct/Sheet Metal)
-    { description: "MH Modeling / Coordinating", chargeCode: "9615161" },
-    { description: "MH Spooling", chargeCode: "9615261" },
-    { description: "MH Deliverables", chargeCode: "9615361" },
-    { description: "MH Internal Changes", chargeCode: "9615461" },
-    { description: "MH External Changes", chargeCode: "9615561" },
+    { description: "MH Modeling / Coordinating", chargeCode: "9615161", baseLocation: "" },
+    { description: "MH Spooling", chargeCode: "9615261", baseLocation: "" },
+    { description: "MH Deliverables", chargeCode: "9615361", baseLocation: "" },
+    { description: "MH Internal Changes", chargeCode: "9615461", baseLocation: "" },
+    { description: "MH External Changes", chargeCode: "9615561", baseLocation: "" },
     // MP (Mechanical Piping)
-    { description: "MP Modeling / Coordinating", chargeCode: "9616161" },
-    { description: "MP Spooling", chargeCode: "9616261" },
-    { description: "MP Deliverables", chargeCode: "9616361" },
-    { description: "MP Internal Changes", chargeCode: "9616461" },
-    { description: "MP External Changes", chargeCode: "9616561" },
+    { description: "MP Modeling / Coordinating", chargeCode: "9616161", baseLocation: "" },
+    { description: "MP Spooling", chargeCode: "9616261", baseLocation: "" },
+    { description: "MP Deliverables", chargeCode: "9616361", baseLocation: "" },
+    { description: "MP Internal Changes", chargeCode: "9616461", baseLocation: "" },
+    { description: "MP External Changes", chargeCode: "9616561", baseLocation: "" },
     // PL (Plumbing)
-    { description: "PL Modeling / Coordinating", chargeCode: "9618161" },
-    { description: "PL Spooling", chargeCode: "9618261" },
-    { description: "PL Deliverables", chargeCode: "9618361" },
-    { description: "PL Internal Changes", chargeCode: "9618461" },
-    { description: "PL External Changes", chargeCode: "9618561" },
+    { description: "PL Modeling / Coordinating", chargeCode: "9618161", baseLocation: "" },
+    { description: "PL Spooling", chargeCode: "9618261", baseLocation: "" },
+    { description: "PL Deliverables", chargeCode: "9618361", baseLocation: "" },
+    { description: "PL Internal Changes", chargeCode: "9618461", baseLocation: "" },
+    { description: "PL External Changes", chargeCode: "9618561", baseLocation: "" },
     // MGMT (Management)
-    { description: "Detailing Management", chargeCode: "9619161" },
+    { description: "Detailing Management", chargeCode: "9619161", baseLocation: "" },
     // VDC (Detailing Rate)
-    { description: "Project Content Development", chargeCode: "9619261" },
-    { description: "Project Coordination Management", chargeCode: "9619361" },
+    { description: "Project Content Development", chargeCode: "9619261", baseLocation: "" },
+    { description: "Project Coordination Management", chargeCode: "9619361", baseLocation: "" },
     // VDC Support (VDC Rate)
-    { description: "VDC Support", chargeCode: "9631062" },
-    { description: "Project Coordination Management", chargeCode: "9630762" }
+    { description: "VDC Support", chargeCode: "9631062", baseLocation: "" },
+    { description: "Project Coordination Management", chargeCode: "9630762", baseLocation: "" }
 ];
 
 export const parseCSV = (text) => {
@@ -541,24 +541,27 @@ export const FinancialSummary = ({ project, activityTotals, currentTheme, curren
     const spentToDate = activityTotals.totalActualCost;
     const earnedValue = activityTotals.totalEarnedValue;
     const projectedFinalCost = activityTotals.totalProjectedCost;
+    const projectedHours = activityTotals.totalProjectedHours ?? 0;
     const costToComplete = projectedFinalCost - spentToDate;
     const productivity = spentToDate > 0 ? earnedValue / spentToDate : 0;
-    const variance = currentBudget - projectedFinalCost;
+    const initialBudget = project?.initialBudget || 0;
+    const variance = initialBudget - projectedFinalCost;
     const remainingHours = grandTotals?.remainingHours ?? 0;
     const hrsToComp = grandTotals?.hrsToComp ?? 0;
 
     return (
         <TutorialHighlight tutorialKey="financialSummary">
-            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-4 text-center`}>
+            <div className={`${currentTheme.cardBg} p-4 rounded-lg border ${currentTheme.borderColor} shadow-sm grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-4 text-center`}>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Current Budget</p><p className="text-lg font-bold">{formatCurrency(currentBudget)}</p></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Allocated Hrs</p><Tooltip text="Sum of all Est. Hrs in Activity Tracker"><p className="text-lg font-bold">{allocatedHours.toFixed(2)}</p></Tooltip></div>
+                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Proj. Hrs</p><Tooltip text="Projected Cost / Rate per activity"><p className="text-lg font-bold">{projectedHours.toFixed(2)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Remaining Hrs</p><Tooltip text="Est. Hrs × (1 − % Complete) per activity"><p className="text-lg font-bold">{remainingHours.toFixed(2)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Proj. Hrs to Complete</p><Tooltip text="Hrs Used × ((100 − % Complete) / % Complete) per activity"><p className="text-lg font-bold">{hrsToComp.toFixed(2)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Spent to Date</p><Tooltip text="Sum of (Hrs Used * Rate) for each activity"><p className="text-lg font-bold">{formatCurrency(spentToDate)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Earned Value</p><Tooltip text="Sum of (Budget * % Comp) for each activity"><p className="text-lg font-bold">{formatCurrency(earnedValue)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Cost to Complete</p><Tooltip text={"Projected Final Cost - Spent to Date"}><p className="text-lg font-bold">{formatCurrency(costToComplete)}</p></Tooltip></div>
-                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p><Tooltip text="Sum of (Projected Hrs * Rate)"><p className="text-lg font-bold">{formatCurrency(projectedFinalCost)}</p></Tooltip></div>
-                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Variance</p><Tooltip text="Current Budget - Est. Final Cost"><p className={`text-lg font-bold ${variance < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(variance)}</p></Tooltip></div>
+                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Est. Final Cost</p><Tooltip text="Sum of (Projected Cost / % Comp) per activity"><p className="text-lg font-bold">{formatCurrency(projectedFinalCost)}</p></Tooltip></div>
+                 <div><p className={`text-sm ${currentTheme.subtleText}`}>Variance</p><Tooltip text="Initial Budget - Est. Final Cost"><p className={`text-lg font-bold ${variance < 0 ? 'text-red-500' : 'text-green-500'}`}>{formatCurrency(variance)}</p></Tooltip></div>
                  <div><p className={`text-sm ${currentTheme.subtleText}`}>Productivity</p><Tooltip text="Earned Value / Spent to Date"><p className={`text-lg font-bold ${productivity < 1 ? 'text-red-500' : 'text-green-500'}`}>{productivity.toFixed(2)}</p></Tooltip></div>
             </div>
         </TutorialHighlight>
@@ -1207,27 +1210,32 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
     // Local state for text inputs to prevent cursor jumping
     const [localDescription, setLocalDescription] = useState(activity.description || '');
     const [localChargeCode, setLocalChargeCode] = useState(activity.chargeCode || '');
+    const [localBaseLocation, setLocalBaseLocation] = useState(activity.baseLocation || '');
     const [localEstimatedHours, setLocalEstimatedHours] = useState(estimatedHours);
     const [localCostToDate, setLocalCostToDate] = useState(costToDate);
     const [localPercentComplete, setLocalPercentComplete] = useState(percentComplete);
-    
+
     // Sync local state when activity prop changes (e.g., from another source)
     useEffect(() => {
         setLocalDescription(activity.description || '');
     }, [activity.description]);
-    
+
     useEffect(() => {
         setLocalChargeCode(activity.chargeCode || '');
     }, [activity.chargeCode]);
-    
+
+    useEffect(() => {
+        setLocalBaseLocation(activity.baseLocation || '');
+    }, [activity.baseLocation]);
+
     useEffect(() => {
         setLocalEstimatedHours(activity.estimatedHours || 0);
     }, [activity.estimatedHours]);
-    
+
     useEffect(() => {
         setLocalCostToDate(activity.costToDate || 0);
     }, [activity.costToDate]);
-    
+
     useEffect(() => {
         setLocalPercentComplete(activity.percentComplete || 0);
     }, [activity.percentComplete]);
@@ -1252,15 +1260,17 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
         return (cost / percent) * 100;
     };
     const projectedCost = calculateProjectedCost(localCostToDate, localPercentComplete);
+    const projectedHours = rateToUse > 0 ? projectedCost / rateToUse : (Number(localEstimatedHours) || 0);
     const remainingHours = (Number(localEstimatedHours) || 0) * (1 - (Number(localPercentComplete) / 100));
     
     // Hrs to Comp = (Actual Cost / Rate) * ((100 - % Comp) / % Comp)
     const calculateHrsToComp = () => {
         const cost = Number(localCostToDate) || 0;
         const percent = Number(localPercentComplete) || 0;
-        if (percent <= 0 || rateToUse <= 0) return 0;
+        if (percent <= 0 || percent >= 100 || rateToUse <= 0) return 0;
         const hoursUsed = cost / rateToUse;
-        return hoursUsed * ((100 - percent) / percent);
+        const result = hoursUsed * ((100 - percent) / percent);
+        return isFinite(result) ? result : 0;
     };
     const hrsToComp = calculateHrsToComp();
 
@@ -1276,7 +1286,13 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
             onChange(groupKey, index, 'chargeCode', localChargeCode);
         }
     };
-    
+
+    const handleBaseLocationBlur = () => {
+        if (localBaseLocation !== (activity.baseLocation || '')) {
+            onChange(groupKey, index, 'baseLocation', localBaseLocation);
+        }
+    };
+
     const handleEstimatedHoursBlur = () => {
         if (localEstimatedHours !== activity.estimatedHours) {
             onChange(groupKey, index, 'estimatedHours', localEstimatedHours);
@@ -1313,21 +1329,31 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
                 </div>
             </td>
             <td className="p-1">
-                <input 
-                    type="text" 
-                    value={localChargeCode} 
-                    onChange={(e) => setLocalChargeCode(e.target.value)} 
+                <input
+                    type="text"
+                    value={localChargeCode}
+                    onChange={(e) => setLocalChargeCode(e.target.value)}
                     onBlur={handleChargeCodeBlur}
-                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`} 
+                    className={`w-full p-1 bg-transparent rounded ${currentTheme.inputText}`}
+                />
+            </td>
+            <td className="p-1">
+                <input
+                    type="text"
+                    value={localBaseLocation}
+                    onChange={(e) => setLocalBaseLocation(e.target.value)}
+                    onBlur={handleBaseLocationBlur}
+                    placeholder="—"
+                    className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
                 />
             </td>
             <td className="p-1 text-center">
-                <input 
-                    type="number" 
-                    value={localEstimatedHours} 
-                    onChange={(e) => setLocalEstimatedHours(e.target.value)} 
+                <input
+                    type="number"
+                    value={localEstimatedHours}
+                    onChange={(e) => setLocalEstimatedHours(e.target.value)}
                     onBlur={handleEstimatedHoursBlur}
-                    className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`} 
+                    className={`w-full p-1 bg-transparent rounded text-center ${currentTheme.inputText}`}
                 />
             </td>
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text={`Est. Hours * Rate (Raw: ${formatCurrency(rawBudget)})`}><p>{formatCurrency(lineItemBudget)}</p></Tooltip></td>
@@ -1357,6 +1383,7 @@ export const ActivityRow = React.memo(({ activity, groupKey, index, onChange, on
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Budget * % Comp)"><p>{formatCurrency(earnedValue)}</p></Tooltip></td>
 
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Cost to Date / % Comp) * 100"><p>{formatCurrency(projectedCost)}</p></Tooltip></td>
+            <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="Projected Cost / Rate"><p>{projectedHours.toFixed(2)}</p></Tooltip></td>
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="Est. Hrs × (1 - % Comp)"><p>{remainingHours.toFixed(2)}</p></Tooltip></td>
             <td className={`p-1 text-center ${currentTheme.altRowBg}`}><Tooltip text="(Actual Cost ÷ Rate) × ((100 - % Comp) ÷ % Comp)"><p>{hrsToComp.toFixed(2)}</p></Tooltip></td>
             <td className="p-1 text-center">
@@ -1404,18 +1431,20 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
     // Common colgroup for consistent column widths
     const TableColGroup = () => (
         <colgroup>
-            <col style={{ width: '14%' }} /> {/* Activity Description */}
-            <col style={{ width: '9%' }} />  {/* Charge Code */}
-            <col style={{ width: '6%' }} />  {/* Est. Hrs */}
-            <col style={{ width: '8%' }} />  {/* Budget */}
-            <col style={{ width: '7%' }} />  {/* % of Project */}
-            <col style={{ width: '6%' }} />  {/* % Comp */}
-            <col style={{ width: '9%' }} />  {/* Actual Cost */}
-            <col style={{ width: '8%' }} />  {/* Earned */}
-            <col style={{ width: '9%' }} />  {/* Proj. Cost */}
-            <col style={{ width: '9%' }} />  {/* Remaining Hrs */}
-            <col style={{ width: '8%' }} />  {/* Hrs to Comp */}
-            <col style={{ width: '7%' }} />  {/* Actions/Controls */}
+            <col style={{ width: '12%' }} /> {/* Activity Description */}
+            <col style={{ width: '7%' }} />  {/* Charge Code */}
+            <col style={{ width: '6%' }} />  {/* Base Location */}
+            <col style={{ width: '5%' }} />  {/* Est. Hrs */}
+            <col style={{ width: '7%' }} />  {/* Budget */}
+            <col style={{ width: '5%' }} />  {/* % of Project */}
+            <col style={{ width: '5%' }} />  {/* % Comp */}
+            <col style={{ width: '7%' }} />  {/* Actual Cost */}
+            <col style={{ width: '7%' }} />  {/* Earned */}
+            <col style={{ width: '7%' }} />  {/* Proj. Cost */}
+            <col style={{ width: '6%' }} />  {/* Proj. Hrs */}
+            <col style={{ width: '7%' }} />  {/* Remaining Hrs */}
+            <col style={{ width: '7%' }} />  {/* Hrs to Comp */}
+            <col style={{ width: '6%' }} />  {/* Actions/Controls */}
         </colgroup>
     );
 
@@ -1470,6 +1499,8 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                     </div>
                                 )}
                             </td>
+                            {/* Base Location - empty on summary row */}
+                            <td className="p-1"></td>
                             {/* Est. Hrs */}
                             <td className="p-1 text-center text-white text-xs font-bold">{groupTotals.estimated.toFixed(2)}</td>
                             {/* Budget */}
@@ -1484,6 +1515,8 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                             <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.earnedValue)}</td>
                             {/* Projected Cost */}
                             <td className="p-1 text-center text-white text-xs font-bold">{formatCurrency(groupTotals.projected)}</td>
+                            {/* Projected Hours */}
+                            <td className="p-1 text-center text-white text-xs font-bold">{(groupTotals.projectedHours || 0).toFixed(2)}</td>
                             {/* Remaining Hours */}
                             <td className="p-1 text-center text-white text-xs font-bold">{(groupTotals.remainingHours || 0).toFixed(2)}</td>
                             {/* Hrs to Comp */}
@@ -1521,6 +1554,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                 <tr className={currentTheme.altRowBg}>
                                     <th className={`p-1 text-left font-semibold ${currentTheme.textColor}`}>Activity Description</th>
                                     <th className={`p-1 text-left font-semibold ${currentTheme.textColor}`}>Charge Code</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Base Location</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Est. Hrs</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Budget ($)</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>% of Project</th>
@@ -1528,6 +1562,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Actual Cost ($)</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Earned ($)</th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Proj. Cost ($)</th>
+                                    <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Projected Cost / Rate">Proj. Hrs</Tooltip></th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="Est. Hrs × (1 - % Comp)">Remaining Hrs</Tooltip></th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}><Tooltip text="(Actual Cost ÷ Rate) × ((100 - % Comp) ÷ % Comp)">Hrs to Comp</Tooltip></th>
                                     <th className={`p-1 text-center font-semibold ${currentTheme.textColor}`}>Actions</th>
@@ -1555,7 +1590,7 @@ export const CollapsibleActivityTable = React.memo(({ title, data, groupKey, col
                                 ))}
                                  {accessLevel === 'taskmaster' && ( 
                                      <tr>
-                                        <td colSpan="12"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
+                                        <td colSpan="14"><button onClick={() => onAdd(groupKey)} className="text-sm text-blue-600 hover:underline">+ Add Activity</button></td>
                                     </tr>
                                  )}
                             </tbody>

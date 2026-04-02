@@ -515,7 +515,7 @@ const EmployeeDetailPanel = ({ employee, assignmentsProp, projects, handleAddNew
                     )}
                 </div>
                 
-                {/* Archived Assignments Section */}
+                {/* Not Allocated Assignments Section */}
                 {archivedAssignments.length > 0 && (
                     <div className="mt-6">
                         <button
@@ -526,7 +526,7 @@ const EmployeeDetailPanel = ({ employee, assignmentsProp, projects, handleAddNew
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                 </svg>
-                                <span className="font-semibold">Archive</span>
+                                <span className="font-semibold">Not Allocated</span>
                                 <span className={`text-sm ${currentTheme.subtleText}`}>({archivedAssignments.length} past assignment{archivedAssignments.length !== 1 ? 's' : ''})</span>
                             </div>
                             <motion.div animate={{ rotate: isArchiveExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -607,7 +607,8 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                  const firstKey = Object.keys(skills)[0];
                  mainTrade = firstKey || 'Uncategorized';
             }
-            if (mainTrade) trades.add(mainTrade);
+            // Consolidate by display name so "Duct" and "MH" both become "MH"
+            if (mainTrade) trades.add(getTradeDisplayName(mainTrade));
         });
         const tradeArray = Array.from(trades).sort();
         setAllTrades(tradeArray);
@@ -761,8 +762,10 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                 const employeeAssignments = assignments
                     .filter(a => a.detailerId === employee.id)
                     .map(a => {
-                        const project = projects.find(p => p.id === a.projectId);
-                        return { ...a, isArchivedProject: project ? project.archived : false };
+                        const project = a.projectId ? projects.find(p => p.id === a.projectId) : null;
+                        // Treat deleted projects (not found) the same as archived
+                        const isOrphanedOrArchived = a.projectId ? (!project || project.archived) : false;
+                        return { ...a, isArchivedProject: isOrphanedOrArchived };
                     });
                 let currentWeekAllocation = 0;
                 const today = new Date();
@@ -790,12 +793,14 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                     }
                 });
                 const skills = employee.disciplineSkillsets;
-                let mainTrade = 'Uncategorized';
-                if (Array.isArray(skills) && skills.length > 0) mainTrade = skills[0].name;
+                let rawTrade = 'Uncategorized';
+                if (Array.isArray(skills) && skills.length > 0) rawTrade = skills[0].name;
                 else if (skills && !Array.isArray(skills) && Object.keys(skills).length > 0) {
                      const firstKey = Object.keys(skills)[0];
-                     mainTrade = firstKey || 'Uncategorized';
+                     rawTrade = firstKey || 'Uncategorized';
                 }
+                // Normalize to display name so "Duct", "MH", "Material Handling" all consolidate
+                const mainTrade = getTradeDisplayName(rawTrade);
                 return { ...employee, currentWeekAllocation, mainTrade };
             })
             .filter(employee => {
@@ -820,9 +825,12 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         if (!selectedEmployeeId) return [];
         const firestoreAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
         const activeAssignments = firestoreAssignments.filter(asn => {
-            const project = projects.find(p => p.id === asn.projectId);
+            const project = asn.projectId ? projects.find(p => p.id === asn.projectId) : null;
             const startDateValid = asn.startDate && typeof asn.startDate === 'string' && asn.startDate.match(/^\d{4}-\d{2}-\d{2}$/) && !isNaN(new Date(asn.startDate).getTime());
-            return (!asn.projectId || (project && !project.archived)) && startDateValid;
+            // Allow blank assignments (new/in-progress), but filter out orphans (projectId set but project missing or archived)
+            const isNewAssignment = !asn.projectId;
+            const isValidProject = project && !project.archived;
+            return (isNewAssignment || isValidProject) && startDateValid;
         });
         return activeAssignments
             .map(a => {

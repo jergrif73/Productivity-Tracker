@@ -202,7 +202,7 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
                 
                 totalHours += hours;
                 totalCost += Number(act.costToDate) || 0;
-                totalBudget += hours * rate;
+                totalBudget += Math.ceil(hours * rate);
                 weightedCompletion += hours * (Number(act.percentComplete) || 0);
             });
             
@@ -225,8 +225,9 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
     // Determine project health status
     const projectHealth = useMemo(() => {
         const cpi = financialSummary.productivity || 0;
-        const variancePercent = financialSummary.currentBudget > 0 
-            ? (financialSummary.variance / financialSummary.currentBudget) * 100 
+        const initialBudget = project?.initialBudget || financialSummary.currentBudget || 0;
+        const variancePercent = initialBudget > 0
+            ? (financialSummary.variance / initialBudget) * 100
             : 0;
         
         // Schedule Performance Index (Actual Progress / Planned Progress)
@@ -251,7 +252,7 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
         }
         
         return { status, statusColor, description, cpi, spi, variancePercent };
-    }, [financialSummary, scheduleInfo.plannedProgress, overallCompletion]);
+    }, [financialSummary, scheduleInfo.plannedProgress, overallCompletion, project?.initialBudget]);
 
     // NOW we can have conditional returns
     if (!report || !project) {
@@ -757,7 +758,7 @@ const FullProjectReport = ({ report, currentTheme, assignments = [], detailers =
                                         {acts.map((act, i) => {
                                             const useVdcRate = act.description?.toUpperCase().includes('VDC') || act.description === "Project Setup";
                                             const rate = useVdcRate ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
-                                            const budget = (Number(act.estimatedHours) || 0) * rate;
+                                            const budget = Math.ceil((Number(act.estimatedHours) || 0) * rate);
                                             const percentComplete = Number(act.percentComplete) || 0;
                                             const earnedValue = budget * (percentComplete / 100);
                                             const actualCost = Number(act.costToDate) || 0;

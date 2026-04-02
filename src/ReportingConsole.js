@@ -158,7 +158,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                     const useVdcRate = activity.description.toUpperCase().includes('VDC') || activity.description === "Project Setup";
                     const rateToUse = useVdcRate ? (project.vdcBlendedRate || project.blendedRate || 0) : (project.blendedRate || 0);
             
-                    const budget = (estHours * rateToUse); // Using raw budget for calcs
+                    const budget = Math.ceil(estHours * rateToUse);
                     const projectedCost = percentComplete > 0 ? (costToDate / (percentComplete / 100)) : (estHours > 0 ? budget : 0);
             
                     acc.estimated += estHours;
@@ -210,7 +210,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                         earnedValue: activityTotals.earnedValue,
                         projectedFinalCost: activityTotals.projectedCost,
                         costToComplete: activityTotals.projectedCost - activityTotals.actualCost,
-                        variance: currentBudget - activityTotals.projectedCost,
+                        variance: (project.initialBudget || 0) - activityTotals.projectedCost,
                         productivity: activityTotals.actualCost > 0 ? activityTotals.earnedValue / activityTotals.actualCost : 0
                     },
                     actionTrackerSummary,
@@ -351,16 +351,16 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                     const assStartDate = new Date(ass.startDate);
                     const assEndDate = new Date(ass.endDate);
 
-                    const daysInRage = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
+                    const daysInRange = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
 
-                    if (daysInRage > 0) {
+                    if (daysInRange > 0) {
                         const project = projects.find(p => p.id === ass.projectId);
                         if (project) {
                             if (!acc[project.id]) {
                                 acc[project.id] = { name: project.name, id: project.projectId, hours: 0 };
                             }
                             const dailyHours = (Number(ass.allocation) / 100) * 8;
-                            acc[project.id].hours += daysInRage * dailyHours;
+                            acc[project.id].hours += daysInRange * dailyHours;
                         }
                     }
                     return acc;
@@ -376,9 +376,9 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                     const assStartDate = new Date(ass.startDate);
                     const assEndDate = new Date(ass.endDate);
                     
-                    const daysInRage = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
+                    const daysInRange = getDaysInRange(assStartDate, assEndDate, sDate, eDate);
 
-                    if(daysInRage > 0) {
+                    if(daysInRange > 0) {
                         const detailer = detailers.find(d => d.id === ass.detailerId);
                         if(detailer) {
                             if(!acc[detailer.id]) {
@@ -386,7 +386,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                             }
                             const project = projects.find(p => p.id === ass.projectId);
                             const dailyHours = (Number(ass.allocation) / 100) * 8;
-                            acc[detailer.id].hours += daysInRage * dailyHours;
+                            acc[detailer.id].hours += daysInRange * dailyHours;
                             if(project) acc[detailer.id].projects.add(project.name);
                         }
                     }
