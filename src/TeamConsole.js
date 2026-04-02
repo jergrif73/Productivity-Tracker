@@ -821,6 +821,13 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
         return detailers.find(e => e.id === selectedEmployeeId);
     }, [selectedEmployeeId, detailers]);
 
+    // Safety valve: clear selection if the employee disappears from data (e.g., deleted, filtered out)
+    useEffect(() => {
+        if (selectedEmployeeId && !detailers.find(e => e.id === selectedEmployeeId)) {
+            setSelectedEmployeeId(null);
+        }
+    }, [selectedEmployeeId, detailers]);
+
     const selectedEmployeeAssignments = useMemo(() => {
         if (!selectedEmployeeId) return [];
         const firestoreAssignments = assignments.filter(a => a.detailerId === selectedEmployeeId);
@@ -994,14 +1001,14 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
 
                     {/* Right Column - Assignment Details with Independent Scrolling */}
                     <div className="flex-1 min-h-0">
-                        <AnimatePresence mode="wait">
-                            {selectedEmployeeData ? ( // Use selectedEmployeeData here
+                        <AnimatePresence mode="popLayout">
+                            {selectedEmployeeData ? (
                                 <motion.div
-                                    key={selectedEmployeeData.id} // Use stable ID
+                                    key={selectedEmployeeData.id}
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -20 }}
-                                    transition={{ duration: 0.3 }}
+                                    transition={{ duration: 0.15 }}
                                     className="h-full"
                                 >
                                     <EmployeeDetailPanel
