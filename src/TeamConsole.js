@@ -73,7 +73,7 @@ const getTradeDisplayName = (trade) => {
 
 // --- Helper Components ---
 // ... (NewProjectModal, ConfirmationModal) ...
-const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme }) => {
+const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme, standardChargeCodes }) => {
     const [newProject, setNewProject] = useState({ name: '', projectId: '' });
     const [error, setError] = useState('');
 
@@ -826,6 +826,7 @@ const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId
                         onClose={() => setIsNewProjectModalOpen(false)}
                         onProjectCreated={handleProjectCreated}
                         currentTheme={currentTheme}
+                        standardChargeCodes={standardChargeCodes}
                     />
                 )}
 
