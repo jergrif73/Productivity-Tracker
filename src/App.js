@@ -741,6 +741,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [tasks, setTasks] = useState([]);
     const [taskLanes, setTaskLanes] = useState([]);
     const [allProjectActivities, setAllProjectActivities] = useState([]);
+    const [standardChargeCodes, setStandardChargeCodes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
@@ -879,6 +880,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
             tasks: setTasks,
             taskLanes: (data) => setTaskLanes(data.sort((a, b) => a.order - b.order)),
             projectActivities: setAllProjectActivities,
+            standardChargeCodes: setStandardChargeCodes,
         };
 
         const unsubscribers = Object.entries(collections).map(([name, setter]) => {
@@ -946,19 +948,21 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         setInitialSelectedEmployeeInTeamConsole,
         setInitialSelectedEmployeeInWorkloader,
         geminiApiKey,
+        standardChargeCodes,
     }), [
-        detailers, 
-        projects, 
-        assignments, 
-        tasks, 
-        taskLanes, 
-        currentTheme, 
-        accessLevel, 
-        theme, 
-        initialProjectConsoleFilter, 
-        initialSelectedProjectInWorkloader, 
+        detailers,
+        projects,
+        assignments,
+        tasks,
+        taskLanes,
+        currentTheme,
+        accessLevel,
+        theme,
+        initialProjectConsoleFilter,
+        initialSelectedProjectInWorkloader,
         initialSelectedEmployeeInTeamConsole,
-        geminiApiKey
+        geminiApiKey,
+        standardChargeCodes
     ]);
 
     if (!isAuthReady && !authError) {

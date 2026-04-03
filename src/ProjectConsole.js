@@ -35,7 +35,7 @@ const abbreviateDisciplines = (disciplines) => {
     }));
 };
 
-const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, initialProjectConsoleFilter, setInitialProjectConsoleFilter }) => {
+const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, currentTheme, appId, showToast, initialProjectConsoleFilter, setInitialProjectConsoleFilter, standardChargeCodes }) => {
     const [expandedProjectId, setExpandedProjectId] = useState(null);
     const [filters, setFilters] = useState({ query: '', detailerId: '', startDate: '', endDate: '' });
     const [projectTradeFilters, setProjectTradeFilters] = useState({});
@@ -509,6 +509,7 @@ const ProjectConsole = ({ db, detailers, projects, assignments, accessLevel, cur
                                             onSelectAllTrades={handleSelectAllTradesForProject}
                                             // Pass down state for charge code manager visibility
                                             showChargeCodeManager={showChargeCodeManager}
+                                            standardChargeCodes={standardChargeCodes}
                                         />
                                     </motion.div>
                                 )}

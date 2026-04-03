@@ -26,34 +26,66 @@ export const normalizeDesc = (str = '') => {
     .toLowerCase();
 };
 
-export const standardActivitiesToAdd = [
+// Hardcoded fallback -- used only if no Firestore standardChargeCodes document exists yet
+const FALLBACK_CHARGE_CODES = [
     // MH (Duct/Sheet Metal)
-    { description: "MH Modeling / Coordinating", chargeCode: "9615161", baseLocation: "" },
-    { description: "MH Spooling", chargeCode: "9615261", baseLocation: "" },
-    { description: "MH Deliverables", chargeCode: "9615361", baseLocation: "" },
-    { description: "MH Internal Changes", chargeCode: "9615461", baseLocation: "" },
-    { description: "MH External Changes", chargeCode: "9615561", baseLocation: "" },
+    { description: "MH Modeling / Coordinating", chargeCode: "9615161", baseLocation: "", group: "duct" },
+    { description: "MH Spooling", chargeCode: "9615261", baseLocation: "", group: "duct" },
+    { description: "MH Deliverables", chargeCode: "9615361", baseLocation: "", group: "duct" },
+    { description: "MH Internal Changes", chargeCode: "9615461", baseLocation: "", group: "duct" },
+    { description: "MH External Changes", chargeCode: "9615561", baseLocation: "", group: "duct" },
     // MP (Mechanical Piping)
-    { description: "MP Modeling / Coordinating", chargeCode: "9616161", baseLocation: "" },
-    { description: "MP Spooling", chargeCode: "9616261", baseLocation: "" },
-    { description: "MP Deliverables", chargeCode: "9616361", baseLocation: "" },
-    { description: "MP Internal Changes", chargeCode: "9616461", baseLocation: "" },
-    { description: "MP External Changes", chargeCode: "9616561", baseLocation: "" },
+    { description: "MP Modeling / Coordinating", chargeCode: "9616161", baseLocation: "", group: "piping" },
+    { description: "MP Spooling", chargeCode: "9616261", baseLocation: "", group: "piping" },
+    { description: "MP Deliverables", chargeCode: "9616361", baseLocation: "", group: "piping" },
+    { description: "MP Internal Changes", chargeCode: "9616461", baseLocation: "", group: "piping" },
+    { description: "MP External Changes", chargeCode: "9616561", baseLocation: "", group: "piping" },
     // PL (Plumbing)
-    { description: "PL Modeling / Coordinating", chargeCode: "9618161", baseLocation: "" },
-    { description: "PL Spooling", chargeCode: "9618261", baseLocation: "" },
-    { description: "PL Deliverables", chargeCode: "9618361", baseLocation: "" },
-    { description: "PL Internal Changes", chargeCode: "9618461", baseLocation: "" },
-    { description: "PL External Changes", chargeCode: "9618561", baseLocation: "" },
+    { description: "PL Modeling / Coordinating", chargeCode: "9618161", baseLocation: "", group: "plumbing" },
+    { description: "PL Spooling", chargeCode: "9618261", baseLocation: "", group: "plumbing" },
+    { description: "PL Deliverables", chargeCode: "9618361", baseLocation: "", group: "plumbing" },
+    { description: "PL Internal Changes", chargeCode: "9618461", baseLocation: "", group: "plumbing" },
+    { description: "PL External Changes", chargeCode: "9618561", baseLocation: "", group: "plumbing" },
     // MGMT (Management)
-    { description: "Detailing Management", chargeCode: "9619161", baseLocation: "" },
+    { description: "Detailing Management", chargeCode: "9619161", baseLocation: "", group: "management" },
     // VDC (Detailing Rate)
-    { description: "Project Content Development", chargeCode: "9619261", baseLocation: "" },
-    { description: "Project Coordination Management", chargeCode: "9619361", baseLocation: "" },
+    { description: "Project Content Development", chargeCode: "9619261", baseLocation: "", group: "vdc" },
+    { description: "Project Coordination Management", chargeCode: "9619361", baseLocation: "", group: "vdc" },
     // VDC Support (VDC Rate)
-    { description: "VDC Support", chargeCode: "9631062", baseLocation: "" },
-    { description: "Project Coordination Management", chargeCode: "9630762", baseLocation: "" }
+    { description: "VDC Support", chargeCode: "9631062", baseLocation: "", group: "vdcsupport" },
+    { description: "Project Coordination Management", chargeCode: "9630762", baseLocation: "", group: "vdcsupport" }
 ];
+
+const FALLBACK_DISCIPLINES = [
+    { key: 'duct', label: 'MH' },
+    { key: 'piping', label: 'MP' },
+    { key: 'plumbing', label: 'PL' },
+    { key: 'management', label: 'MGMT' },
+    { key: 'vdc', label: 'VDC' },
+    { key: 'vdcsupport', label: 'VDC Support' }
+];
+
+const FALLBACK_RATE_TYPES = {
+    duct: 'Detailing Rate',
+    piping: 'Detailing Rate',
+    plumbing: 'Detailing Rate',
+    management: 'Detailing Rate',
+    vdc: 'Detailing Rate',
+    vdcsupport: 'VDC Rate'
+};
+
+// Resolves the standard charge codes from Firestore data or falls back to hardcoded defaults.
+// standardChargeCodes is the array from App.js consoleProps (Firestore collection data).
+export const getStandardChargeCodeData = (standardChargeCodes) => {
+    const firestoreDoc = standardChargeCodes?.length > 0 ? standardChargeCodes[0] : null;
+    const codes = firestoreDoc?.codes?.length > 0 ? firestoreDoc.codes : FALLBACK_CHARGE_CODES;
+    const disciplines = firestoreDoc?.disciplines?.length > 0 ? firestoreDoc.disciplines : FALLBACK_DISCIPLINES;
+    const rateTypes = firestoreDoc?.rateTypes && Object.keys(firestoreDoc.rateTypes).length > 0 ? firestoreDoc.rateTypes : FALLBACK_RATE_TYPES;
+    return { codes, disciplines, rateTypes };
+};
+
+// Backward-compatible export -- used by ProjectDetailView Charge Code Manager "Add Standard Activities"
+export const standardActivitiesToAdd = FALLBACK_CHARGE_CODES;
 
 export const parseCSV = (text) => {
     const lines = text.split('\n').filter(l => l.trim());

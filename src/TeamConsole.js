@@ -5,6 +5,7 @@ import { collection, doc, addDoc, setDoc, deleteDoc, query, where, getDocs, writ
 import { motion, AnimatePresence } from 'framer-motion';
 import { NavigationContext } from './App'; // Import the new context
 import { TutorialHighlight } from './App'; // Import TutorialHighlight
+import { getStandardChargeCodeData } from './ProjectDetailViewComponents'; // Import charge code resolver
 
 // Add CSS for the hide-scrollbar-on-hover functionality
 // ... (scrollbarStyles and injection remain the same) ...
@@ -95,79 +96,35 @@ const NewProjectModal = ({ db, appId, onClose, onProjectCreated, currentTheme })
                 archived: false
             });
             
-            // Initialize projectActivities with standard activities
+            // Initialize projectActivities with standard activities from Firestore (or fallback)
+            const { codes: resolvedCodes, disciplines: resolvedDisciplines, rateTypes: resolvedRateTypes } = getStandardChargeCodeData(standardChargeCodes);
             const normalizeDesc = (str = '') => String(str).replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
-            
-            // Helper to create activity object
-            const createActivity = (description, chargeCode) => ({
-                id: `std_${chargeCode}_${Math.random().toString(16).slice(2)}`,
-                description: normalizeDesc(description),
-                chargeCode,
+
+            const standardActivities = resolvedCodes.map(item => ({
+                id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
+                description: normalizeDesc(item.description),
+                chargeCode: item.chargeCode,
+                baseLocation: item.baseLocation || '',
                 estimatedHours: 0,
                 hoursUsed: 0,
                 percentComplete: 0,
-                subsets: []
+                subsets: [],
+                group: item.group
+            }));
+
+            const groupedActivities = {};
+            resolvedDisciplines.forEach(disc => {
+                groupedActivities[disc.key] = standardActivities.filter(a => a.group === disc.key);
             });
-            
-            // Group activities by discipline - keys must match actionTrackerDisciplines keys
-            const groupedActivities = {
-                duct: [
-                    createActivity("MH Modeling / Coordinating", "9615161"),
-                    createActivity("MH Spooling", "9615261"),
-                    createActivity("MH Deliverables", "9615361"),
-                    createActivity("MH Internal Changes", "9615461"),
-                    createActivity("MH External Changes", "9615561")
-                ],
-                piping: [
-                    createActivity("MP Modeling / Coordinating", "9616161"),
-                    createActivity("MP Spooling", "9616261"),
-                    createActivity("MP Deliverables", "9616361"),
-                    createActivity("MP Internal Changes", "9616461"),
-                    createActivity("MP External Changes", "9616561")
-                ],
-                plumbing: [
-                    createActivity("PL Modeling / Coordinating", "9618161"),
-                    createActivity("PL Spooling", "9618261"),
-                    createActivity("PL Deliverables", "9618361"),
-                    createActivity("PL Internal Changes", "9618461"),
-                    createActivity("PL External Changes", "9618561")
-                ],
-                management: [
-                    createActivity("Detailing Management", "9619161")
-                ],
-                vdc: [
-                    createActivity("Project Content Development", "9619261"),
-                    createActivity("Project Coordination Management", "9619361")
-                ],
-                vdcsupport: [
-                    createActivity("VDC Support", "9631062"),
-                    createActivity("Project Coordination Management", "9630762")
-                ]
-            };
-            
-            // VDC Support defaults to VDC Rate, all others to Detailing Rate
+
             const projectActivitiesData = {
                 activities: groupedActivities,
-                actionTrackerDisciplines: [
-                    { key: 'duct', label: 'MH' },
-                    { key: 'piping', label: 'MP' },
-                    { key: 'plumbing', label: 'PL' },
-                    { key: 'management', label: 'MGMT' },
-                    { key: 'vdc', label: 'VDC' },
-                    { key: 'vdcsupport', label: 'VDC Support' }
-                ],
+                actionTrackerDisciplines: resolvedDisciplines,
                 actionTrackerData: {},
                 budgetImpacts: [],
                 mainItems: [],
                 projectWideActivities: [],
-                rateTypes: {
-                    duct: 'Detailing Rate',
-                    piping: 'Detailing Rate',
-                    plumbing: 'Detailing Rate',
-                    management: 'Detailing Rate',
-                    vdc: 'Detailing Rate',
-                    vdcsupport: 'VDC Rate'
-                }
+                rateTypes: resolvedRateTypes
             };
             
             await setDoc(doc(db, `artifacts/${appId}/public/data/projectActivities`, docRef.id), projectActivitiesData);
@@ -560,7 +517,7 @@ const EmployeeDetailPanel = ({ employee, assignmentsProp, projects, handleAddNew
 // --- END UPDATE ---
 
 
-const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, accessLevel, setInitialSelectedEmployeeInWorkloader }) => {
+const TeamConsole = ({ db, detailers, projects, assignments, currentTheme, appId, showToast, setViewingSkillsFor, initialSelectedEmployeeInTeamConsole, setInitialSelectedEmployeeInTeamConsole, accessLevel, setInitialSelectedEmployeeInWorkloader, standardChargeCodes }) => {
     // ... (State variables remain the same) ...
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
     const [viewMode, setViewMode] = useState('condensed');

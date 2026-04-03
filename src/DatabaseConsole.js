@@ -1,6 +1,22 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { collection, onSnapshot, doc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { collection, onSnapshot, doc, deleteDoc, updateDoc, addDoc, setDoc } from 'firebase/firestore';
 import { TutorialHighlight } from './App';
+import { getStandardChargeCodeData } from './ProjectDetailViewComponents';
+
+// Project status constants (mirrors AdminConsole)
+const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
+const statusDescriptions = {
+    Planning: "Estimated",
+    Conducting: "Booked but not Sold",
+    Controlling: "Operational",
+    Archive: "Archived"
+};
+const statusColors = {
+    Planning: { active: 'bg-yellow-500 text-white', inactive: '' },
+    Conducting: { active: 'bg-orange-500 text-white', inactive: '' },
+    Controlling: { active: 'bg-blue-600 text-white', inactive: '' },
+    Archive: { active: 'bg-gray-500 text-white', inactive: '' },
+};
 
 // Helper function to convert legacy trade names to abbreviations
 const getTradeDisplayName = (trade) => {
@@ -715,6 +731,159 @@ const ProjectActivitiesEditor = ({ item, collectionName, collectionDisplayName, 
 };
 
 
+// --- Charge Code Editor (Custom Editor for standardChargeCodes collection) ---
+const ChargeCodeEditor = ({ item, onBack, onSave, currentTheme }) => {
+    const [editableItem, setEditableItem] = useState(() => {
+        const copy = JSON.parse(JSON.stringify(item));
+        if (!copy.codes) copy.codes = [];
+        if (!copy.disciplines) copy.disciplines = [];
+        if (!copy.rateTypes) copy.rateTypes = {};
+        return copy;
+    });
+    const [dragIndex, setDragIndex] = useState(null);
+
+    const groups = useMemo(() => {
+        const unique = [...new Set(editableItem.codes.map(c => c.group))].filter(Boolean);
+        return unique.length > 0 ? unique : ['duct', 'piping', 'plumbing', 'management', 'vdc', 'vdcsupport'];
+    }, [editableItem.codes]);
+
+    const handleCodeChange = (index, field, value) => {
+        const newCodes = [...editableItem.codes];
+        newCodes[index] = { ...newCodes[index], [field]: value };
+        setEditableItem(prev => ({ ...prev, codes: newCodes }));
+    };
+
+    const handleAddCode = (group) => {
+        const newCode = { description: '', chargeCode: '', baseLocation: '', group, rateType: 'Detailing Rate' };
+        setEditableItem(prev => ({ ...prev, codes: [...prev.codes, newCode] }));
+    };
+
+    const handleRemoveCode = (index) => {
+        const newCodes = [...editableItem.codes];
+        newCodes.splice(index, 1);
+        setEditableItem(prev => ({ ...prev, codes: newCodes }));
+    };
+
+    const handleDragStart = (index) => setDragIndex(index);
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        if (dragIndex === null || dragIndex === index) return;
+        const newCodes = [...editableItem.codes];
+        const [moved] = newCodes.splice(dragIndex, 1);
+        newCodes.splice(index, 0, moved);
+        setEditableItem(prev => ({ ...prev, codes: newCodes }));
+        setDragIndex(index);
+    };
+    const handleDragEnd = () => setDragIndex(null);
+
+    // Discipline management
+    const handleDisciplineChange = (index, field, value) => {
+        const newDisc = [...editableItem.disciplines];
+        newDisc[index] = { ...newDisc[index], [field]: value };
+        setEditableItem(prev => ({ ...prev, disciplines: newDisc }));
+    };
+
+    const handleAddDiscipline = () => {
+        setEditableItem(prev => ({
+            ...prev,
+            disciplines: [...prev.disciplines, { key: '', label: '' }]
+        }));
+    };
+
+    const handleRemoveDiscipline = (index) => {
+        const newDisc = [...editableItem.disciplines];
+        newDisc.splice(index, 1);
+        setEditableItem(prev => ({ ...prev, disciplines: newDisc }));
+    };
+
+    // Rate type management
+    const handleRateTypeChange = (groupKey, value) => {
+        setEditableItem(prev => ({
+            ...prev,
+            rateTypes: { ...prev.rateTypes, [groupKey]: value }
+        }));
+    };
+
+    const inputClasses = `p-1.5 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`;
+
+    return (
+        <div className={`flex-grow flex flex-col p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm min-h-0`}>
+            <div className="flex-shrink-0 mb-4 flex justify-between items-center">
+                <div>
+                    <button onClick={onBack} className="text-blue-400 hover:underline mb-2">&larr; Back to Database Console</button>
+                    <h2 className="text-xl font-bold">Standard Charge Codes Template</h2>
+                    <p className={`text-sm ${currentTheme.subtleText} mt-1`}>
+                        These codes are used as the template when creating new projects. Changes here do not affect existing projects.
+                    </p>
+                </div>
+            </div>
+            <div className="flex-grow overflow-auto hide-scrollbar-on-hover pr-2 space-y-6">
+
+                {/* --- Disciplines Section --- */}
+                <div>
+                    <h3 className="font-semibold text-md border-b border-gray-600 pb-1 mb-3 flex justify-between items-center">
+                        <span>Discipline Groups</span>
+                    </h3>
+                    <div className="space-y-2">
+                        {(editableItem.disciplines || []).map((disc, index) => (
+                            <div key={index} className={`p-2 rounded-md ${currentTheme.altRowBg} flex items-center gap-2`}>
+                                <input type="text" value={disc.key} onChange={(e) => handleDisciplineChange(index, 'key', e.target.value)} placeholder="Key (e.g., piping)" className={`${inputClasses} w-40`} />
+                                <input type="text" value={disc.label} onChange={(e) => handleDisciplineChange(index, 'label', e.target.value)} placeholder="Label (e.g., MP)" className={`${inputClasses} w-32`} />
+                                <select value={editableItem.rateTypes?.[disc.key] || 'Detailing Rate'} onChange={(e) => handleRateTypeChange(disc.key, e.target.value)} className={`${inputClasses} w-40`}>
+                                    <option value="Detailing Rate">Detailing Rate</option>
+                                    <option value="VDC Rate">VDC Rate</option>
+                                </select>
+                                <button onClick={() => handleRemoveDiscipline(index)} className="text-red-500 hover:text-red-700 font-bold text-lg ml-auto">&times;</button>
+                            </div>
+                        ))}
+                        <button onClick={handleAddDiscipline} className="text-blue-400 text-sm mt-1 hover:underline">+ Add Discipline Group</button>
+                    </div>
+                </div>
+
+                {/* --- Charge Codes by Group --- */}
+                {groups.map(group => {
+                    const groupCodes = editableItem.codes.map((c, i) => ({ ...c, _originalIndex: i })).filter(c => c.group === group);
+                    const discLabel = editableItem.disciplines?.find(d => d.key === group)?.label || group;
+                    return (
+                        <div key={group}>
+                            <h3 className="font-semibold text-md border-b border-gray-600 pb-1 mb-3 flex justify-between items-center">
+                                <span className="text-blue-300 capitalize">{discLabel} ({group})</span>
+                                <span className={`text-xs ${currentTheme.subtleText}`}>
+                                    Rate: {editableItem.rateTypes?.[group] || 'Detailing Rate'}
+                                </span>
+                            </h3>
+                            <div className="space-y-2">
+                                {groupCodes.map((code) => (
+                                    <div
+                                        key={code._originalIndex}
+                                        draggable
+                                        onDragStart={() => handleDragStart(code._originalIndex)}
+                                        onDragOver={(e) => handleDragOver(e, code._originalIndex)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`p-2 rounded-md ${currentTheme.altRowBg} flex items-center gap-2 ${dragIndex === code._originalIndex ? 'opacity-50 border-2 border-blue-500' : ''}`}
+                                    >
+                                        <span className="cursor-grab text-gray-400 hover:text-gray-200 select-none" title="Drag to reorder">&#x22EE;&#x22EE;</span>
+                                        <input type="text" value={code.description} onChange={(e) => handleCodeChange(code._originalIndex, 'description', e.target.value)} placeholder="Activity Description" className={`${inputClasses} flex-grow`} />
+                                        <input type="text" value={code.chargeCode} onChange={(e) => handleCodeChange(code._originalIndex, 'chargeCode', e.target.value)} placeholder="Charge Code" className={`${inputClasses} w-28 font-mono`} />
+                                        <input type="text" value={code.baseLocation || ''} onChange={(e) => handleCodeChange(code._originalIndex, 'baseLocation', e.target.value)} placeholder="Base Location" className={`${inputClasses} w-32`} />
+                                        <button onClick={() => handleRemoveCode(code._originalIndex)} className="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                                    </div>
+                                ))}
+                                <button onClick={() => handleAddCode(group)} className="text-blue-400 text-sm mt-1 hover:underline">+ Add Code to {discLabel}</button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="flex-shrink-0 pt-4 mt-4 border-t border-gray-600 flex justify-end gap-3">
+                <button onClick={onBack} className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">Cancel</button>
+                <button onClick={() => onSave(editableItem)} className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Save Changes</button>
+            </div>
+        </div>
+    );
+};
+
+
 const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
     const [allData, setAllData] = useState({});
     const [loading, setLoading] = useState(true);
@@ -724,6 +893,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
     const [editingItem, setEditingItem] = useState(null);
     const [sortBy, setSortBy] = useState('lastName'); // New state for specific sorting
+    const [activeStatuses, setActiveStatuses] = useState(["Controlling"]); // Status filter for projects
 
     const collectionDisplayNames = useMemo(() => ({
         'detailers': 'Team Members',
@@ -733,7 +903,8 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         'taskLanes': 'Task Lanes',
         'jobFamilyData': 'Job Families',
         'unionLocals': 'Union Locals',
-        'projectActivities': 'Project Activities'
+        'projectActivities': 'Project Activities',
+        'standardChargeCodes': 'Charge Codes'
     }), []);
 
     const collectionSingularNames = useMemo(() => ({
@@ -744,7 +915,8 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         'taskLanes': 'Task Lane',
         'jobFamilyData': 'Job Family',
         'unionLocals': 'Union Local',
-        'projectActivities': 'Project Activity'
+        'projectActivities': 'Project Activity',
+        'standardChargeCodes': 'Charge Code Template'
     }), []);
 
     const getDisplayName = (collectionKey) => collectionDisplayNames[collectionKey] || collectionKey;
@@ -752,7 +924,8 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
 
     const collectionsToFetch = useMemo(() => [
         'detailers', 'projects', 'assignments', 'tasks',
-        'taskLanes', 'jobFamilyData', 'unionLocals', 'projectActivities'
+        'taskLanes', 'jobFamilyData', 'unionLocals', 'projectActivities',
+        'standardChargeCodes'
     ], []);
 
     useEffect(() => {
@@ -779,6 +952,17 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         };
     }, [db, appId, collectionsToFetch]);
 
+    // Change a project's status directly from the table row
+    const handleProjectStatusChange = useCallback(async (projectId, newStatus) => {
+        try {
+            const docRef = doc(db, `artifacts/${appId}/public/data/projects`, projectId);
+            await updateDoc(docRef, { status: newStatus, archived: newStatus === "Archive" });
+        } catch (error) {
+            showToast(`Error updating project status: ${error.message}`, "error");
+            console.error("Error updating project status:", error);
+        }
+    }, [db, appId, showToast]);
+
     const collectionConfig = useMemo(() => ({
         'detailers': {
              customEditor: DetailerEditor,
@@ -794,7 +978,23 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             displayColumns: [
                 { header: 'Name', accessor: 'name' },
                 { header: 'Project ID', accessor: 'projectId' },
-                { header: 'Status', accessor: 'status' },
+                { header: 'Status', accessor: 'status', render: (item) => {
+                    const currentStatus = item.status || (item.archived ? 'Archive' : 'Controlling');
+                    return (
+                        <div className="flex items-center gap-1">
+                            {projectStatuses.map(status => (
+                                <button
+                                    key={status}
+                                    onClick={(e) => { e.stopPropagation(); handleProjectStatusChange(item.id, status); }}
+                                    title={statusDescriptions[status]}
+                                    className={`w-7 h-7 text-xs font-bold rounded-full transition-colors ${currentStatus === status ? (statusColors[status]?.active || 'bg-blue-600 text-white') : `${currentTheme.buttonBg} ${currentTheme.buttonText} hover:opacity-80`}`}
+                                >
+                                    {statusDescriptions[status].charAt(0)}
+                                </button>
+                            ))}
+                        </div>
+                    );
+                }},
                 { header: 'Initial Budget', accessor: item => `$${Number(item.initialBudget || 0).toLocaleString()}` },
                 { header: 'Blended Rate', accessor: item => `$${Number(item.blendedRate || 0).toFixed(2)}/hr` },
                 { header: 'VDC Rate', accessor: item => `$${Number(item.vdcBlendedRate || 0).toFixed(2)}/hr` },
@@ -809,8 +1009,20 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         },
         'assignments': {
             displayColumns: [
-                { header: 'Employee', accessor: item => { const d = allData.detailers?.find(d => d.id === item.detailerId); return d ? `${d.firstName} ${d.lastName}` : item.detailerId || 'Unknown' } },
-                { header: 'Project', accessor: item => allData.projects?.find(p => p.id === item.projectId)?.name || item.projectId || 'Unknown' },
+                { header: 'Employee', accessor: item => { const d = allData.detailers?.find(d => d.id === item.detailerId); return d ? `${d.firstName} ${d.lastName}` : item.detailerId || 'Unknown' },
+                    render: item => {
+                        const d = allData.detailers?.find(d => d.id === item.detailerId);
+                        if (d) return `${d.firstName} ${d.lastName}`;
+                        return <span className="text-yellow-400" title={`Detailer ID: ${item.detailerId}`}>Orphaned</span>;
+                    }
+                },
+                { header: 'Project', accessor: item => allData.projects?.find(p => p.id === item.projectId)?.name || item.projectId || 'Unknown',
+                    render: item => {
+                        const p = allData.projects?.find(p => p.id === item.projectId);
+                        if (p) return p.name;
+                        return <span className="text-yellow-400 text-xs font-mono" title={`Project ID: ${item.projectId} (no matching project)`}>{item.projectId || 'Orphaned'}</span>;
+                    }
+                },
                 { header: 'Trade', accessor: 'trade' },
                 { header: 'Dates', accessor: item => `${item.startDate} to ${item.endDate}` },
                 { header: 'Allocation', accessor: item => `${item.allocation}%` },
@@ -856,16 +1068,58 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
             displayColumns: [
                 {
                     header: 'Project Name',
-                    // --- FIX: Correct accessor for projectActivities ---
                     accessor: item => {
-                        // The item.id *is* the projectId for this collection
-                        return allData.projects?.find(p => p.id === item.id)?.name || item.id; // Use item.id for lookup
+                        const project = allData.projects?.find(p => p.id === item.id);
+                        return project ? project.name : `(Orphaned)`;
+                    },
+                    render: item => {
+                        const project = allData.projects?.find(p => p.id === item.id);
+                        if (project) return project.name;
+                        return (
+                            <span className="text-yellow-400" title={`Doc ID: ${item.id}`}>
+                                Orphaned
+                            </span>
+                        );
                     }
-                    // --- END FIX ---
+                },
+                {
+                    header: 'Project ID',
+                    accessor: item => {
+                        const project = allData.projects?.find(p => p.id === item.id);
+                        return project?.projectId || '';
+                    },
+                    render: item => {
+                        const project = allData.projects?.find(p => p.id === item.id);
+                        if (project) return project.projectId || '';
+                        return (
+                            <span className="text-xs text-gray-400 font-mono" title="Firestore document ID (no matching project)">
+                                {item.id}
+                            </span>
+                        );
+                    }
+                },
+                {
+                    header: 'Disciplines',
+                    accessor: item => (item.actionTrackerDisciplines || []).map(d => d.label).join(', ') || 'None'
+                },
+                {
+                    header: 'Activities',
+                    accessor: item => {
+                        const total = Object.values(item.activities || {}).flat().length;
+                        return `${total} activities`;
+                    }
                 }
             ]
         },
-    }), [allData]); // Added allData dependency
+        'standardChargeCodes': {
+            customEditor: ChargeCodeEditor,
+            displayColumns: [
+                { header: 'Template', accessor: item => item.id || 'default' },
+                { header: 'Codes', accessor: item => `${(item.codes || []).length} charge codes` },
+                { header: 'Disciplines', accessor: item => `${(item.disciplines || []).length} groups` },
+            ]
+        },
+    }), [allData, handleProjectStatusChange, currentTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSelectCollection = (name) => {
         setSelectedCollection(name);
@@ -875,8 +1129,19 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         // Set default sort for specific collections
         if (name === 'detailers') setSortBy('lastName');
         else if (name === 'projects') setSortBy('projectId');
+        else if (name === 'assignments') setSortBy('employee');
         else setSortBy('');
     };
+
+    // Auto-open the ChargeCodeEditor when the Charge Codes tab is selected and data exists
+    useEffect(() => {
+        if (selectedCollection === 'standardChargeCodes' && !editingItem) {
+            const chargeCodes = allData.standardChargeCodes || [];
+            if (chargeCodes.length > 0) {
+                setEditingItem({ collectionName: 'standardChargeCodes', item: chargeCodes[0] });
+            }
+        }
+    }, [selectedCollection, allData.standardChargeCodes, editingItem]);
 
     const confirmDelete = (collectionName, docId, name) => {
         setItemToDelete({ collectionName, docId, name });
@@ -916,6 +1181,32 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         }
     };
 
+    // Seed the standardChargeCodes collection with default data
+    const handleSeedChargeCodes = useCallback(async () => {
+        const { codes, disciplines, rateTypes } = getStandardChargeCodeData([]);
+        const seedData = { codes, disciplines, rateTypes };
+        try {
+            await setDoc(doc(db, `artifacts/${appId}/public/data/standardChargeCodes`, 'default'), seedData);
+            showToast("Standard charge codes template created with defaults.", "success");
+        } catch (error) {
+            showToast(`Error seeding charge codes: ${error.message}`, "error");
+            console.error("Error seeding charge codes:", error);
+        }
+    }, [db, appId, showToast]);
+
+    // Toggle project status filter bubbles
+    const handleStatusFilterToggle = (statusToToggle) => {
+        setActiveStatuses(prev => {
+            const newStatuses = new Set(prev);
+            if (newStatuses.has(statusToToggle)) {
+                newStatuses.delete(statusToToggle);
+            } else {
+                newStatuses.add(statusToToggle);
+            }
+            return Array.from(newStatuses);
+        });
+    };
+
     // Header click sorting
     const requestSort = (key) => {
         let direction = 'ascending';
@@ -939,6 +1230,14 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
 
         let data = [...currentData];
 
+        // Apply status filter when viewing projects
+        if (selectedCollection === 'projects' && activeStatuses.length > 0) {
+            data = data.filter(item => {
+                const projectStatus = item.status || (item.archived ? 'Archive' : 'Controlling');
+                return activeStatuses.includes(projectStatus);
+            });
+        }
+
         const displayColumnsForFiltering = config.displayColumns || config.columns;
 
         if (searchTerm) {
@@ -959,9 +1258,24 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                 data.sort((a, b) => (a[sortBy] || '').localeCompare(b[sortBy] || '')); // Added safety checks for undefined
             } else if (selectedCollection === 'projects') {
                 if (sortBy === 'projectId') {
-                    data.sort((a, b) => (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true })); // Added safety checks
-                } else { // sortBy === 'name'
-                    data.sort((a, b) => (a.name || '').localeCompare(b.name || '')); // Added safety checks
+                    data.sort((a, b) => (a.projectId || '').localeCompare(b.projectId || '', undefined, { numeric: true }));
+                } else {
+                    data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                }
+            } else if (selectedCollection === 'assignments') {
+                const getEmployeeName = (item) => {
+                    const d = allData.detailers?.find(d => d.id === item.detailerId);
+                    return d ? `${d.lastName}, ${d.firstName}` : '';
+                };
+                const getProjectName = (item) => allData.projects?.find(p => p.id === item.projectId)?.name || '';
+                if (sortBy === 'employee') {
+                    data.sort((a, b) => getEmployeeName(a).localeCompare(getEmployeeName(b)));
+                } else if (sortBy === 'project') {
+                    data.sort((a, b) => getProjectName(a).localeCompare(getProjectName(b)));
+                } else if (sortBy === 'trade') {
+                    data.sort((a, b) => (a.trade || '').localeCompare(b.trade || ''));
+                } else if (sortBy === 'allocation') {
+                    data.sort((a, b) => (Number(b.allocation) || 0) - (Number(a.allocation) || 0));
                 }
             }
         } else if (sortConfig.key && displayColumnsForFiltering) { // Fallback to header-click sorting
@@ -985,10 +1299,11 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
         // --- END NEW SORTING LOGIC ---
 
         return data;
-    }, [allData, selectedCollection, collectionConfig, searchTerm, sortConfig, sortBy]);
+    }, [allData, selectedCollection, collectionConfig, searchTerm, sortConfig, sortBy, activeStatuses]);
 
     const config = collectionConfig[selectedCollection];
-    const EditorComponent = editingItem?.collectionName ? collectionConfig[editingItem.collectionName]?.customEditor : null;
+    const editingCollectionName = editingItem?.collectionName || selectedCollection;
+    const EditorComponent = editingItem ? collectionConfig[editingCollectionName]?.customEditor : null;
 
     // --- FIX: Moved useMemo for displayColumns *before* the conditional return ---
     const displayColumns = useMemo(() => {
@@ -1031,14 +1346,23 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
 
     // Conditional return for the editor component
     if (editingItem && EditorComponent) {
+        const handleEditorBack = () => {
+            // For charge codes, go back to detailers tab since there's no list view to return to
+            if (editingCollectionName === 'standardChargeCodes') {
+                setEditingItem(null);
+                setSelectedCollection('detailers');
+            } else {
+                setEditingItem(null);
+            }
+        };
         return (
              <div className="p-4 h-full flex flex-col gap-4">
                  <EditorComponent
                     item={editingItem.item}
-                    collectionName={editingItem.collectionName}
-                    collectionDisplayName={getDisplayName(editingItem.collectionName)}
-                    onBack={() => setEditingItem(null)}
-                    onSave={(item) => handleSaveItem(editingItem.collectionName, item)}
+                    collectionName={editingCollectionName}
+                    collectionDisplayName={getDisplayName(editingCollectionName)}
+                    onBack={handleEditorBack}
+                    onSave={(item) => handleSaveItem(editingCollectionName, item)}
                     currentTheme={currentTheme}
                     allData={allData}
                 />
@@ -1089,11 +1413,11 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                     This action cannot be undone.
                 </ConfirmationModal>
 
-                {editingItem && !EditorComponent && (
+                {editingItem && !EditorComponent && config?.columns && (
                     <GenericEditorModal
                         item={editingItem.item}
                         config={config}
-                        onSave={(item) => handleSaveItem(selectedCollection, item)}
+                        onSave={(item) => handleSaveItem(editingItem.collectionName || selectedCollection, item)}
                         onCancel={() => setEditingItem(null)}
                         currentTheme={currentTheme}
                         allData={allData}
@@ -1142,12 +1466,32 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                         <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
                                         <button onClick={() => handleSortBy('name')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'name' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Name</button>
                                         <button onClick={() => handleSortBy('projectId')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'projectId' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project ID</button>
+                                        <span className={`text-sm font-medium ${currentTheme.subtleText} ml-2`}>Filter:</span>
+                                        {projectStatuses.map(status => (
+                                            <button
+                                                key={status}
+                                                onClick={() => handleStatusFilterToggle(status)}
+                                                title={statusDescriptions[status]}
+                                                className={`w-7 h-7 text-xs font-bold rounded-full transition-colors ${activeStatuses.includes(status) ? (statusColors[status]?.active || 'bg-blue-600 text-white') : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}
+                                            >
+                                                {statusDescriptions[status].charAt(0)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {selectedCollection === 'assignments' && (
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-medium ${currentTheme.subtleText}`}>Sort by:</span>
+                                        <button onClick={() => handleSortBy('employee')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'employee' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Employee</button>
+                                        <button onClick={() => handleSortBy('project')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'project' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Project</button>
+                                        <button onClick={() => handleSortBy('trade')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'trade' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Trade</button>
+                                        <button onClick={() => handleSortBy('allocation')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'allocation' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Allocation</button>
                                     </div>
                                 )}
                                 {/* Ensure config exists before checking customEditor */}
                                 {config && !config.customEditor && (
                                     <TutorialHighlight tutorialKey="addDeleteData">
-                                        <button onClick={() => setEditingItem({ item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                        <button onClick={() => setEditingItem({ collectionName: selectedCollection, item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                                             Add New {getSingularName(selectedCollection)}
                                         </button>
                                     </TutorialHighlight>
@@ -1155,7 +1499,21 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                             </div>
                         </div>
                     </TutorialHighlight>
-                    {loading ? <p>Loading data...</p> : (
+                    {/* Charge Codes empty state: show a landing page with seed button instead of empty table */}
+                    {selectedCollection === 'standardChargeCodes' && (allData.standardChargeCodes || []).length === 0 ? (
+                        <div className="flex-grow flex flex-col items-center justify-center gap-4 py-16">
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-16 w-16 ${currentTheme.subtleText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <h3 className={`text-lg font-semibold ${currentTheme.textColor}`}>No Charge Code Template Yet</h3>
+                            <p className={`text-sm ${currentTheme.subtleText} max-w-md text-center`}>
+                                Create the default template to define the standard charge codes, discipline groups, and rate types used when setting up new projects.
+                            </p>
+                            <button onClick={handleSeedChargeCodes} className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium">
+                                Create Default Charge Codes Template
+                            </button>
+                        </div>
+                    ) : loading ? <p>Loading data...</p> : (
                         <div className="flex-grow overflow-auto min-h-0 database-scrollable pb-8" style={{ maxHeight: 'calc(100vh - 350px)' }}>
                             <table className="w-full text-sm text-left border-collapse">
                                 <thead className={`${currentTheme.headerBg} sticky top-0 z-10`}>
@@ -1174,7 +1532,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                         <tr key={item.id} className={`hover:${currentTheme.altRowBg}`}>
                                         {displayColumns?.map(col => (
                                                 <td key={`${item.id}-${col.header}`} className={`p-2 border ${currentTheme.borderColor} max-w-xs truncate`}>
-                                                    {col.accessor ? (typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]) : ''}
+                                                    {col.render ? col.render(item) : (col.accessor ? (typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]) : '')}
                                                 </td>
                                             ))}
                                             <td className={`p-2 border ${currentTheme.borderColor} text-center`}>

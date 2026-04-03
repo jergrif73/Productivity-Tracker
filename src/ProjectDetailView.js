@@ -10,6 +10,7 @@ import {
     ConfirmationModal,
     normalizeDesc,
     standardActivitiesToAdd,
+    getStandardChargeCodeData,
     groupActivities,
     animationVariants,
     FinancialSummary,
@@ -58,7 +59,7 @@ const abbreviateDisciplines = (disciplines) => {
 const ProjectDetailView = ({
     db, project, projectId, accessLevel, currentTheme, appId, showToast,
     activeTrades, allDisciplines, onTradeFilterToggle, onSelectAllTrades,
-    showChargeCodeManager
+    showChargeCodeManager, standardChargeCodes
 }) => {
     // Component State
     const { navigateToWorkloaderForProject } = useContext(NavigationContext);
@@ -150,83 +151,35 @@ const ProjectDetailView = ({
                     });
                 } else {
                     // Document doesn't exist - create it automatically with standard activities
-                    const standardChargeCodes = [
-                        // MH (Duct/Sheet Metal)
-                        { description: "MH Modeling / Coordinating", chargeCode: "9615161", group: "duct" },
-                        { description: "MH Spooling", chargeCode: "9615261", group: "duct" },
-                        { description: "MH Deliverables", chargeCode: "9615361", group: "duct" },
-                        { description: "MH Internal Changes", chargeCode: "9615461", group: "duct" },
-                        { description: "MH External Changes", chargeCode: "9615561", group: "duct" },
-                        // MP (Mechanical Piping)
-                        { description: "MP Modeling / Coordinating", chargeCode: "9616161", group: "piping" },
-                        { description: "MP Spooling", chargeCode: "9616261", group: "piping" },
-                        { description: "MP Deliverables", chargeCode: "9616361", group: "piping" },
-                        { description: "MP Internal Changes", chargeCode: "9616461", group: "piping" },
-                        { description: "MP External Changes", chargeCode: "9616561", group: "piping" },
-                        // PL (Plumbing)
-                        { description: "PL Modeling / Coordinating", chargeCode: "9618161", group: "plumbing" },
-                        { description: "PL Spooling", chargeCode: "9618261", group: "plumbing" },
-                        { description: "PL Deliverables", chargeCode: "9618361", group: "plumbing" },
-                        { description: "PL Internal Changes", chargeCode: "9618461", group: "plumbing" },
-                        { description: "PL External Changes", chargeCode: "9618561", group: "plumbing" },
-                        // MGMT (Management)
-                        { description: "Detailing Management", chargeCode: "9619161", group: "management" },
-                        // VDC (Detailing Rate)
-                        { description: "Project Content Development", chargeCode: "9619261", group: "vdc" },
-                        { description: "Project Coordination Management", chargeCode: "9619361", group: "vdc" },
-                        // VDC Support (VDC Rate)
-                        { description: "VDC Support", chargeCode: "9631062", group: "vdcsupport" },
-                        { description: "Project Coordination Management", chargeCode: "9630762", group: "vdcsupport" }
-                    ];
-                    
-                    const standardActivities = standardChargeCodes.map(item => ({
+                    // Pull from Firestore standardChargeCodes collection (falls back to hardcoded defaults)
+                    const { codes: resolvedCodes, disciplines: resolvedDisciplines, rateTypes: resolvedRateTypes } = getStandardChargeCodeData(standardChargeCodes);
+
+                    const standardActivities = resolvedCodes.map(item => ({
                         id: `std_${item.chargeCode}_${Math.random().toString(16).slice(2)}`,
                         description: normalizeDesc(item.description),
                         chargeCode: item.chargeCode,
+                        baseLocation: item.baseLocation || '',
                         estimatedHours: 0,
                         hoursUsed: 0,
                         percentComplete: 0,
                         subsets: [],
                         group: item.group
                     }));
-                    
-                    // Group activities by discipline
-                    const groupedActivities = {
-                        duct: standardActivities.filter(a => a.group === 'duct'),
-                        piping: standardActivities.filter(a => a.group === 'piping'),
-                        plumbing: standardActivities.filter(a => a.group === 'plumbing'),
-                        management: standardActivities.filter(a => a.group === 'management'),
-                        vdc: standardActivities.filter(a => a.group === 'vdc'),
-                        vdcsupport: standardActivities.filter(a => a.group === 'vdcsupport')
-                    };
-                    
-                    const defaultDisciplines = [
-                        { key: 'duct', label: 'MH' },
-                        { key: 'piping', label: 'MP' },
-                        { key: 'plumbing', label: 'PL' },
-                        { key: 'management', label: 'MGMT' },
-                        { key: 'vdc', label: 'VDC' },
-                        { key: 'vdcsupport', label: 'VDC Support' }
-                    ];
-                    
-                    // VDC Support defaults to VDC Rate, all others to Detailing Rate
-                    const defaultRateTypes = {
-                        duct: 'Detailing Rate',
-                        piping: 'Detailing Rate',
-                        plumbing: 'Detailing Rate',
-                        management: 'Detailing Rate',
-                        vdc: 'Detailing Rate',
-                        vdcsupport: 'VDC Rate'
-                    };
-                    
+
+                    // Group activities by discipline dynamically from the resolved discipline list
+                    const groupedActivities = {};
+                    resolvedDisciplines.forEach(disc => {
+                        groupedActivities[disc.key] = standardActivities.filter(a => a.group === disc.key);
+                    });
+
                     const projectActivitiesData = {
                         activities: groupedActivities,
-                        actionTrackerDisciplines: defaultDisciplines,
+                        actionTrackerDisciplines: resolvedDisciplines,
                         actionTrackerData: {},
                         budgetImpacts: [],
                         mainItems: [],
                         projectWideActivities: [],
-                        rateTypes: defaultRateTypes
+                        rateTypes: resolvedRateTypes
                     };
                     
                     setDoc(docRef, projectActivitiesData).then(() => {
@@ -423,10 +376,12 @@ const ProjectDetailView = ({
             setConfirmAction(null);
             return;
         }
+        // Use Firestore-resolved codes (falls back to hardcoded defaults)
+        const { codes: resolvedCodes } = getStandardChargeCodeData(standardChargeCodes);
         const currentDisciplines = projectData.actionTrackerDisciplines || allDisciplines || [];
         const existingActivities = Object.values(projectData.activities).flat();
         const existingDescriptions = new Set(existingActivities.map(act => normalizeDesc(act.description)));
-        const activitiesToActuallyAdd = standardActivitiesToAdd.filter(stdAct => !existingDescriptions.has(normalizeDesc(stdAct.description)));
+        const activitiesToActuallyAdd = resolvedCodes.filter(stdAct => !existingDescriptions.has(normalizeDesc(stdAct.description)));
 
         if (activitiesToActuallyAdd.length === 0) {
             showToast("All standard activities already exist.", "info");
@@ -445,7 +400,7 @@ const ProjectDetailView = ({
         } finally {
             setConfirmAction(null);
         }
-    }, [projectData, allDisciplines, docRef, showToast]); 
+    }, [projectData, allDisciplines, docRef, showToast, standardChargeCodes]); 
 
     const handleDeleteAllActivities = useCallback(async () => {
         try {
