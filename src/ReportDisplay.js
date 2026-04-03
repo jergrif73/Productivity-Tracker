@@ -177,7 +177,7 @@ const exportToCSV = (reportData, reportHeaders, reportType) => {
 const ReportDisplay = ({
     reportData, reportHeaders, chartData, reportType, sortConfig, currentTheme,
     filteredDetailersForMatrix, accessLevel, db, appId,
-    onClearReport, onRequestSort, assignments = [], detailers = []
+    onClearReport, onRequestSort, assignments = [], detailers = [], jobFamilyData = {}
 }) => {
 
     // Memoized sorted report data (moved from ReportingConsole)
@@ -405,15 +405,16 @@ const ReportDisplay = ({
                                 </div>
                             </div>
                             {/* EmployeeSkillMatrix remains here as it's a specific report type */}
-                            <EmployeeSkillMatrix 
-                                detailers={filteredDetailersForMatrix} 
-                                currentTheme={currentTheme} 
-                                db={db} 
-                                appId={appId} 
-                                accessLevel={accessLevel} 
+                            <EmployeeSkillMatrix
+                                detailers={filteredDetailersForMatrix}
+                                currentTheme={currentTheme}
+                                db={db}
+                                appId={appId}
+                                accessLevel={accessLevel}
+                                jobFamilyData={jobFamilyData}
                                 // Pass a prop to tell EmployeeSkillMatrix NOT to display job family data
                                 // as it will be handled by the MovableJobFamilyDisplay popup
-                                hideJobFamilyDisplay={true} 
+                                hideJobFamilyDisplay={true}
                             />
                         </div>
                     )}

@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useContext, useEffect } from 'react';
 import { NavigationContext, TutorialHighlight } from './App';
-import { collection, onSnapshot } from 'firebase/firestore'; // Import Firestore functions
 import MovableJobFamilyDisplay from './MovableJobFamilyDisplay'; // Import MovableJobFamilyDisplay
 import { AnimatePresence } from 'framer-motion'; // Import AnimatePresence
 
@@ -20,12 +19,11 @@ const Tooltip = ({ text, children }) => {
 };
 
 
-const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, currentTheme, navigateToView, accessLevel, showToast, db, appId }) => {
+const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, currentTheme, navigateToView, accessLevel, showToast, db, appId, jobFamilyData = {} }) => {
     const { navigateToWorkloaderForEmployee } = useContext(NavigationContext);
 
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
-    const [jobFamilyData, setJobFamilyData] = useState({}); // State to hold job family data
-    
+
     // New states for Movable Job Family Display popup
     const [isJobFamilyPopupVisible, setIsJobFamilyPopupVisible] = useState(false);
     const [jobFamilyToDisplayInPopup, setJobFamilyToDisplayInPopup] = useState(null);
@@ -38,21 +36,6 @@ const MyDashboard = ({ currentUser, detailers, projects, assignments, tasks, cur
             setSelectedEmployeeId(null);
         }
     }, [currentUser]);
-
-    // Effect to fetch job family data from Firestore
-    useEffect(() => {
-        if (!db || !appId) return;
-        const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
-
-        const unsubscribe = onSnapshot(jobFamilyRef, (snapshot) => {
-            const data = {};
-            snapshot.docs.forEach(doc => {
-                data[doc.data().title] = { id: doc.id, ...doc.data() };
-            });
-            setJobFamilyData(data);
-        });
-        return () => unsubscribe();
-    }, [db, appId]);
 
     const selectedEmployee = useMemo(() => {
         return detailers.find(d => d.id === selectedEmployeeId);

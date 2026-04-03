@@ -158,7 +158,7 @@ const NoteEditorModal = ({ disciplineName, initialNote, onSave, onClose, current
     );
 };
 
-const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocals }) => {
+const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocals, jobFamilyData = {} }) => {
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
     const [draggedDiscipline, setDraggedDiscipline] = useState(null);
@@ -169,11 +169,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
     const disciplineOptions = [
         "MH", "MP", "PP", "PL", "FP", "PJ", "ST", "VDC", "Coord", "GIS/GPS", "MGMT"
     ];
-    const titleOptions = [
-        "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-        "Lead Detailer", "Project Constructability Lead",
-        "Trades Constructability Lead", "Division Constructability Manager"
-    ];
+    const titleOptions = Object.keys(jobFamilyData).sort();
 
     useEffect(() => {
         if (employee) {
@@ -405,12 +401,6 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
     );
 };
 
-
-const titleOptions = [
-    "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-    "Lead Detailer", "Project Constructability Lead",
-    "Trades Constructability Lead", "Division Constructability Manager"
-];
 
 const projectStatuses = ["Planning", "Conducting", "Controlling", "Archive"];
 const disciplineOptions = [
@@ -1379,9 +1369,9 @@ const WeeklyTimeline = ({ project, db, appId, currentTheme, showToast }) => {
     );
 };
 
-const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast, standardChargeCodes }) => {
+const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast, standardChargeCodes, jobFamilyData = {} }) => {
     // ... (rest of AdminConsole state remains the same) ...
-    const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
+    const [newEmployee, setNewEmployee] = useState({ firstName: '', lastName: '', title: '', employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
     const [newProject, setNewProject] = useState({ name: '', projectId: '', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', status: 'Planning', startDate: '', projectManager: '', projectedDurationWeeks: '', complexityTier: '', deliverableTier: '', contractType: '', contractTypeCustom: '' });
 
     const [editingEmployee, setEditingEmployee] = useState(null);
@@ -1613,7 +1603,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast,
                 return;
             }
             await addDoc(collection(db, `artifacts/${appId}/public/data/detailers`), { ...newEmployee, wage: Number(newEmployee.wage) || 0, percentAboveScale: Number(newEmployee.percentAboveScale) || 0, skills: {}, disciplineSkillsets: {} });
-            setNewEmployee({ firstName: '', lastName: '', title: titleOptions[0], employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
+            setNewEmployee({ firstName: '', lastName: '', title: '', employeeId: '', email: '', wage: '', percentAboveScale: '', unionLocal: '' });
             showToast("Employee added.", "success");
         } else if (type === 'project') {
             if (!newProject.name || !newProject.projectId) {
@@ -1802,6 +1792,7 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast,
                         onClose={() => setEditingEmployee(null)}
                         currentTheme={currentTheme}
                         unionLocals={unionLocals}
+                        jobFamilyData={jobFamilyData}
                     />
                 )}
                 <ConfirmationModal
@@ -1939,7 +1930,8 @@ const AdminConsole = ({ db, detailers, projects, currentTheme, appId, showToast,
                                                     <input value={newEmployee.lastName} onChange={e => setNewEmployee({...newEmployee, lastName: e.target.value})} placeholder="Last Name" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <input type="email" value={newEmployee.email} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="Email" className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing} />
                                                     <select value={newEmployee.title} onChange={e => setNewEmployee({...newEmployee, title: e.target.value})} className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} disabled={isEditing}>
-                                                        {titleOptions.map(title => (
+                                                        <option value="" disabled>Select a Title</option>
+                                                        {Object.keys(jobFamilyData).sort().map(title => (
                                                             <option key={title} value={title}>{title}</option>
                                                         ))}
                                                     </select>

@@ -742,6 +742,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
     const [taskLanes, setTaskLanes] = useState([]);
     const [allProjectActivities, setAllProjectActivities] = useState([]);
     const [standardChargeCodes, setStandardChargeCodes] = useState([]);
+    const [jobFamilyData, setJobFamilyData] = useState({});
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     const [theme, setTheme] = useState('dark');
@@ -890,11 +891,22 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                 setter(data);
             }, err => console.error(`Error fetching ${name}:`, err));
         });
-        
+
+        // jobFamilyData stored as object keyed by title (consumed by multiple consoles)
+        const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
+        const unsubJobFamilies = onSnapshot(jobFamilyRef, (snapshot) => {
+            const data = {};
+            snapshot.docs.forEach(d => {
+                data[d.data().title] = { id: d.id, ...d.data() };
+            });
+            setJobFamilyData(data);
+        }, err => console.error('Error fetching jobFamilyData:', err));
+
         setLoading(false);
 
         return () => {
             unsubscribers.forEach(unsub => unsub());
+            unsubJobFamilies();
         };
     }, [isAuthReady]);
 
@@ -949,6 +961,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         setInitialSelectedEmployeeInWorkloader,
         geminiApiKey,
         standardChargeCodes,
+        jobFamilyData,
     }), [
         detailers,
         projects,
@@ -962,7 +975,8 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
         initialSelectedProjectInWorkloader,
         initialSelectedEmployeeInTeamConsole,
         geminiApiKey,
-        standardChargeCodes
+        standardChargeCodes,
+        jobFamilyData,
     ]);
 
     if (!isAuthReady && !authError) {
@@ -1145,7 +1159,7 @@ const AppContent = ({ accessLevel, isLoggedIn, loginError, handleLoginAttempt, h
                         {viewingSkillsFor && (
                             <Modal onClose={() => setViewingSkillsFor(null)} currentTheme={currentTheme}>
                                 <Suspense fallback={<ConsoleLoadingFallback currentTheme={currentTheme} consoleName="Skills Console" />}>
-                                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} />
+                                    <SkillsConsole db={db} detailers={[viewingSkillsFor]} singleDetailerMode={true} currentTheme={currentTheme} appId={appId} showToast={showToast} jobFamilyData={jobFamilyData} />
                                 </Suspense>
                             </Modal>
                         )}

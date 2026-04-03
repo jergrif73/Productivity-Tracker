@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { TutorialHighlight } from './App';
 import { AnimatePresence } from 'framer-motion';
-import { collection, onSnapshot } from 'firebase/firestore';
-
 // Import the new sub-components
 import ReportFilters from './ReportFilters';
 import ReportDisplay from './ReportDisplay';
@@ -10,7 +8,7 @@ import MovableJobFamilyDisplay from './MovableJobFamilyDisplay';
 import GeminiInsightChat from './GeminiInsightChat';
 import JobFamilyEditor from './JobFamilyEditor'; // Import JobFamilyEditor
 
-const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tasks = [], allProjectActivities = [], currentTheme, geminiApiKey, accessLevel, db, appId }) => {
+const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tasks = [], allProjectActivities = [], currentTheme, geminiApiKey, accessLevel, db, appId, jobFamilyData = {} }) => {
     // State for filters (managed here, passed to ReportFilters)
     const [reportType, setReportType] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -37,9 +35,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
     const [jobFamilyToDisplayInPopup, setJobFamilyToDisplayInPopup] = useState(null);
     const [isJobFamilyEditorOpen, setIsJobFamilyEditorOpen] = useState(false); // New state for JobFamilyEditor modal
 
-    // Data fetched from Firestore (shared across components)
-    const [jobFamilyData, setJobFamilyData] = useState({});
-
     // This effect listens for the global 'close-overlays' event dispatched from App.js
     // and closes all modals/popups within this console.
     useEffect(() => {
@@ -51,20 +46,6 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
         window.addEventListener('close-overlays', handleClose);
         return () => window.removeEventListener('close-overlays', handleClose);
     }, []); // Empty dependency array ensures this runs only once.
-
-    // Fetch job family data from Firestore
-    useEffect(() => {
-        if (!db || !appId) return;
-        const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
-        const unsubscribe = onSnapshot(jobFamilyRef, (snapshot) => {
-            const data = {};
-            snapshot.docs.forEach(doc => {
-                data[doc.data().title] = { id: doc.id, ...doc.data() };
-            });
-            setJobFamilyData(data);
-        });
-        return () => unsubscribe();
-    }, [db, appId]);
 
     // Derived data for filters
     const uniqueTitles = useMemo(() => [...new Set(detailers.map(d => d.title).filter(Boolean))].sort(), [detailers]);
@@ -653,6 +634,7 @@ const ReportingConsole = ({ projects = [], detailers = [], assignments = [], tas
                         onRequestSort={requestSort}
                         assignments={assignments}
                         detailers={detailers}
+                        jobFamilyData={jobFamilyData}
                     />
                 </div>
             </div>

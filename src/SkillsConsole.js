@@ -80,7 +80,7 @@ const BubbleRating = ({ score, onScoreChange, currentTheme }) => {
     );
 };
 
-const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme, appId, showToast }) => {
+const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme, appId, showToast, jobFamilyData = {} }) => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState(singleDetailerMode && detailers[0] ? detailers[0].id : '');
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
@@ -91,11 +91,7 @@ const SkillsConsole = ({ db, detailers, singleDetailerMode = false, currentTheme
 
     const skillCategories = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
     const disciplineOptions = ["MH", "PL", "MP", "PP", "FP", "PJ", "ST", "Coord", "GIS/GPS", "VDC", "MGMT"];
-    const titleOptions = [
-        "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-        "Lead Detailer", "Project Constructability Lead",
-        "Trades Constructability Lead", "Division Constructability Manager"
-    ];
+    const titleOptions = Object.keys(jobFamilyData).sort();
 
     useEffect(() => {
         const employee = detailers.find(d => d.id === selectedEmployeeId);

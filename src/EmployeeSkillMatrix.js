@@ -1,7 +1,7 @@
 // src/EmployeeSkillMatrix.js
 import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import { collection, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
 import JobFamilyEditor from './JobFamilyEditor';
 import { jobFamilyData as initialJobFamilyData } from './job-family-data';
 
@@ -47,11 +47,10 @@ const getScoreBorder = (score) => {
 };
 
 // eslint-disable-next-line no-unused-vars
-const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, hideJobFamilyDisplay = false }) => {
+const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, hideJobFamilyDisplay = false, jobFamilyData = {} }) => {
     const svgRef = useRef(null);
     // eslint-disable-next-line no-unused-vars
     const [selectedJob, setSelectedJob] = useState('');
-    const [jobFamilyData, setJobFamilyData] = useState({});
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [showDragArea, setShowDragArea] = useState(false);
     
@@ -67,10 +66,10 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
     const [dragOverEmployee, setDragOverEmployee] = useState(null);
     const [dragOverSkill, setDragOverSkill] = useState(null);
 
+    // One-time seed: if Firestore jobFamilyData collection is empty, populate from static defaults
     useEffect(() => {
         if (!db || !appId) return;
         const jobFamilyRef = collection(db, `artifacts/${appId}/public/data/jobFamilyData`);
-
         const seedData = async () => {
             const querySnapshot = await getDocs(jobFamilyRef);
             if (querySnapshot.empty) {
@@ -82,17 +81,7 @@ const EmployeeSkillMatrix = ({ detailers, currentTheme, db, appId, accessLevel, 
                 await batch.commit();
             }
         };
-
         seedData();
-
-        const unsubscribe = onSnapshot(jobFamilyRef, (snapshot) => {
-            const data = {};
-            snapshot.docs.forEach(doc => {
-                data[doc.data().title] = { id: doc.id, ...doc.data() };
-            });
-            setJobFamilyData(data);
-        });
-        return () => unsubscribe();
     }, [db, appId]);
 
     const jobToDisplay = !hideJobFamilyDisplay && jobFamilyData[selectedJob];

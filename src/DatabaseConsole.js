@@ -115,7 +115,7 @@ const NoteEditorModal = ({ disciplineName, initialNote, onSave, onClose, current
     );
 };
 
-const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocals }) => {
+const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocals, jobFamilyData = {} }) => {
     const [editableEmployee, setEditableEmployee] = useState(null);
     const [newDiscipline, setNewDiscipline] = useState('');
     const [draggedDiscipline, setDraggedDiscipline] = useState(null);
@@ -124,11 +124,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
 
     const skillCategories = ["Model Knowledge", "VDC Knowledge", "Leadership Skills", "Mechanical Abilities", "Teamwork Ability"];
     const disciplineOptions = ["MH", "PL", "MP", "PP", "FP", "PJ", "ST", "Coord", "GIS/GPS", "VDC", "MGMT"];
-    const titleOptions = [
-        "Detailer I", "Detailer II", "Detailer III", "VDC Specialist", "Programmatic Detailer",
-        "Lead Detailer", "Project Constructability Lead",
-        "Trades Constructability Lead", "Division Constructability Manager"
-    ];
+    const titleOptions = Object.keys(jobFamilyData).sort();
 
     useEffect(() => {
         if (employee) {
@@ -362,7 +358,7 @@ const EditEmployeeModal = ({ employee, onSave, onClose, currentTheme, unionLocal
 
 // --- New Editor Component for Detailers ---
 
-const DetailerEditor = ({ item, onBack, onSave, currentTheme, allData }) => {
+const DetailerEditor = ({ item, onBack, onSave, currentTheme, allData, jobFamilyData = {} }) => {
     return (
         <EditEmployeeModal
             employee={item}
@@ -370,6 +366,7 @@ const DetailerEditor = ({ item, onBack, onSave, currentTheme, allData }) => {
             onClose={onBack}
             currentTheme={currentTheme}
             unionLocals={allData.unionLocals || []}
+            jobFamilyData={jobFamilyData}
         />
     );
 };
@@ -466,7 +463,7 @@ const ProjectEditor = ({ item, onBack, onSave, currentTheme }) => {
             <div className="flex-shrink-0 mb-4 flex justify-between items-center">
                 <div>
                     <button onClick={onBack} className="text-blue-400 hover:underline mb-2">&larr; Back to Projects</button>
-                    <h2 className="text-xl font-bold">Editing Project: {item.name}</h2>
+                    <h2 className="text-xl font-bold">{item.id ? `Editing Project: ${item.name}` : 'New Project'}</h2>
                 </div>
             </div>
             <div className="flex-grow overflow-auto hide-scrollbar-on-hover pr-2 space-y-4">
@@ -496,6 +493,8 @@ const ProjectEditor = ({ item, onBack, onSave, currentTheme }) => {
 
 const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
     const [editableItem, setEditableItem] = useState(JSON.parse(JSON.stringify(item)));
+    const [bulkPasteField, setBulkPasteField] = useState(null);
+    const [bulkPasteText, setBulkPasteText] = useState('');
 
     const handleChange = (field, value) => {
         setEditableItem(prev => ({ ...prev, [field]: value }));
@@ -517,9 +516,36 @@ const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
         setEditableItem(prev => ({ ...prev, [field]: newList }));
     };
 
+    const handleBulkPaste = (field) => {
+        const lines = bulkPasteText.split('\n').map(l => l.replace(/^[\s•\-\*]+/, '').trim()).filter(Boolean);
+        if (lines.length > 0) {
+            setEditableItem(prev => ({ ...prev, [field]: [...(prev[field] || []), ...lines] }));
+        }
+        setBulkPasteField(null);
+        setBulkPasteText('');
+    };
+
     const renderListSection = (title, fieldName) => (
         <div>
-            <label className="block text-sm font-medium mb-1">{title}</label>
+            <label className="block text-sm font-medium mb-1 flex justify-between items-center">
+                <span>{title}</span>
+                <button onClick={() => { setBulkPasteField(fieldName); setBulkPasteText(''); }} className="text-xs text-blue-400 hover:underline font-normal">Bulk Add</button>
+            </label>
+            {bulkPasteField === fieldName && (
+                <div className={`mb-2 p-2 rounded-md border ${currentTheme.borderColor} ${currentTheme.altRowBg}`}>
+                    <textarea
+                        value={bulkPasteText}
+                        onChange={(e) => setBulkPasteText(e.target.value)}
+                        rows="5"
+                        placeholder="Paste multiple items, one per line..."
+                        className={`w-full p-2 border rounded-md text-sm ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
+                    />
+                    <div className="flex justify-end gap-2 mt-1">
+                        <button onClick={() => setBulkPasteField(null)} className={`px-3 py-1 text-xs rounded-md ${currentTheme.buttonBg} ${currentTheme.buttonText}`}>Cancel</button>
+                        <button onClick={() => handleBulkPaste(fieldName)} className="px-3 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700">Add All</button>
+                    </div>
+                </div>
+            )}
             {(editableItem[fieldName] || []).map((item, index) => (
                 <div key={index} className="flex items-center gap-2 mb-1">
                     <input type="text" value={item} onChange={(e) => handleListChange(fieldName, index, e.target.value)} className={`flex-grow p-1 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`} />
@@ -534,8 +560,8 @@ const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
         <div className={`flex-grow flex flex-col p-4 rounded-lg ${currentTheme.cardBg} border ${currentTheme.borderColor} shadow-sm min-h-0`}>
             <div className="flex-shrink-0 mb-4 flex justify-between items-center">
                 <div>
-                    <button onClick={onBack} className="text-blue-400 hover:underline mb-2">&larr; Back to Job Family Data</button>
-                    <h2 className="text-xl font-bold">Editing Job Family: {item.title}</h2>
+                    <button onClick={onBack} className="text-blue-400 hover:underline mb-2">&larr; Back to Job Families</button>
+                    <h2 className="text-xl font-bold">{item.id ? `Editing Job Family: ${item.title}` : 'New Job Family'}</h2>
                 </div>
             </div>
             <div className="flex-grow overflow-auto hide-scrollbar-on-hover pr-2 space-y-4">
@@ -543,7 +569,7 @@ const JobFamilyDataEditor = ({ item, onBack, onSave, currentTheme }) => {
                     <label className="block text-sm font-medium mb-1">Position Title</label>
                     <input
                         type="text"
-                        value={editableItem.title}
+                        value={editableItem.title || ''}
                         onChange={(e) => handleChange('title', e.target.value)}
                         className={`w-full p-2 border rounded-md ${currentTheme.inputBg} ${currentTheme.inputText} ${currentTheme.inputBorder}`}
                     />
@@ -884,7 +910,7 @@ const ChargeCodeEditor = ({ item, onBack, onSave, currentTheme }) => {
 };
 
 
-const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
+const DatabaseConsole = ({ db, appId, currentTheme, showToast, jobFamilyData = {} }) => {
     const [allData, setAllData] = useState({});
     const [loading, setLoading] = useState(true);
     const [selectedCollection, setSelectedCollection] = useState('detailers');
@@ -1365,6 +1391,7 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                     onSave={(item) => handleSaveItem(editingCollectionName, item)}
                     currentTheme={currentTheme}
                     allData={allData}
+                    jobFamilyData={jobFamilyData}
                 />
             </div>
         )
@@ -1488,10 +1515,18 @@ const DatabaseConsole = ({ db, appId, currentTheme, showToast }) => {
                                         <button onClick={() => handleSortBy('allocation')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'allocation' ? 'bg-blue-600 text-white' : `${currentTheme.buttonBg} ${currentTheme.buttonText}`}`}>Allocation</button>
                                     </div>
                                 )}
-                                {/* Ensure config exists before checking customEditor */}
-                                {config && !config.customEditor && (
+                                {/* Show Add New for all collections except those with special flows */}
+                                {config && selectedCollection !== 'standardChargeCodes' && selectedCollection !== 'projectActivities' && (
                                     <TutorialHighlight tutorialKey="addDeleteData">
-                                        <button onClick={() => setEditingItem({ collectionName: selectedCollection, item: {} })} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                        <button onClick={() => {
+                                            // Provide sensible defaults for new items in custom editor collections
+                                            const newItemDefaults = {
+                                                jobFamilyData: { title: '', primaryResponsibilities: [], knowledgeAndSkills: [], independenceAndDecisionMaking: [], leadership: [], education: [], yearsOfExperiencePreferred: [] },
+                                                detailers: { firstName: '', lastName: '', email: '', title: '', employeeId: '', wage: 0, percentAboveScale: 0, unionLocal: '', skills: {}, disciplineSkillsets: [] },
+                                                projects: { name: '', projectId: '', status: 'Planning', initialBudget: 0, blendedRate: 0, vdcBlendedRate: 0, contingency: 0, dashboardUrl: '', startDate: '', projectManager: '' },
+                                            };
+                                            setEditingItem({ collectionName: selectedCollection, item: newItemDefaults[selectedCollection] || {} });
+                                        }} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                                             Add New {getSingularName(selectedCollection)}
                                         </button>
                                     </TutorialHighlight>
